@@ -1,0 +1,54 @@
+{
+  "name": "ekolite",
+  "version": "0.1.0",
+  "description": "A lightweight, real-time backend framework for data-driven apps. Fastify + MongoDB + WebSocket with typed pub/sub, RPC methods, and file uploads.",
+  "homepage": "https://github.com/ekohacks/ekolite#readme",
+  "bugs": {
+    "url": "https://github.com/ekohacks/ekolite/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ekohacks/ekolite.git"
+  },
+  "license": "ISC",
+  "author": "ekohacks",
+  "type": "module",
+  "main": "dist/server/index.js",
+  "types": "dist/server/index.d.ts",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "dev:server": "tsx watch server/index.ts",
+    "dev:client": "vite",
+    "build": "tsc && vite build",
+    "start": "node dist/server/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest --watch --exclude='**/infrastructure/**'",
+    "test:integration": "vitest run tests/infrastructure/"
+  },
+  "keywords": [
+    "realtime",
+    "websocket",
+    "fastify",
+    "mongodb",
+    "pubsub",
+    "rpc",
+    "typescript",
+    "framework"
+  ],
+  "dependencies": {
+    "fastify": "^5.2",
+    "@fastify/websocket": "^11.0",
+    "@fastify/multipart": "^9.0",
+    "@fastify/static": "^8.0",
+    "mongodb": "^6.3"
+  },
+  "devDependencies": {
+    "vite": "^5.0",
+    "typescript": "^5.7",
+    "tsx": "^4.19",
+    "vitest": "^3.0"
+  }
+}
