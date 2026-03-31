@@ -10,7 +10,7 @@
     "type": "git",
     "url": "git+https://github.com/ekohacks/ekolite.git"
   },
-  "license": "ISC",
+  "license": "MIT",
   "author": "ekohacks",
   "type": "module",
   "main": "dist/server/index.js",

@@ -191,4 +191,4 @@ npm start       # node dist/server/index.js
 
 ## License
 
-ISC
+MIT
