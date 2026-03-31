@@ -8,19 +8,19 @@
 // ── Client → Server ─────────────────────────────────────────────────────────
 
 export interface SubscribeMsg {
-  type: "subscribe";
+  type: 'subscribe';
   id: string;
   name: string;
   params?: Record<string, unknown>;
 }
 
 export interface UnsubscribeMsg {
-  type: "unsubscribe";
+  type: 'unsubscribe';
   id: string;
 }
 
 export interface MethodMsg {
-  type: "method";
+  type: 'method';
   id: string;
   name: string;
   params: unknown[];
@@ -31,25 +31,25 @@ export type ClientMessage = SubscribeMsg | UnsubscribeMsg | MethodMsg;
 // ── Server → Client ─────────────────────────────────────────────────────────
 
 export interface ReadyMsg {
-  type: "ready";
+  type: 'ready';
   id: string;
 }
 
 export interface DataMsg {
-  type: "added" | "changed" | "removed";
+  type: 'added' | 'changed' | 'removed';
   collection: string;
   id: string;
   fields?: Record<string, unknown>;
 }
 
 export interface ResultMsg {
-  type: "result";
+  type: 'result';
   id: string;
   result: unknown;
 }
 
 export interface ErrorMsg {
-  type: "error";
+  type: 'error';
   id: string;
   error: EkoLiteError;
 }

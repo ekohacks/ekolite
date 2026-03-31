@@ -70,7 +70,12 @@ ekolite/
 
 ```ts
 const UserFiles = defineCollection<UserFile>('UserFiles');
-await UserFiles.insert({ name: 'sample.bam', path: '/uploads/sample.bam', size: 1024, uploadedAt: new Date() });
+await UserFiles.insert({
+  name: 'sample.bam',
+  path: '/uploads/sample.bam',
+  size: 1024,
+  uploadedAt: new Date(),
+});
 const files = await UserFiles.find({});
 ```
 
@@ -100,7 +105,9 @@ defineUploadHandler({
   storagePath: './uploads',
   allowedExtensions: ['bam'],
   onBeforeUpload: (file) => true,
-  onAfterUpload: (file) => { /* post-processing */ },
+  onAfterUpload: (file) => {
+    /* post-processing */
+  },
 });
 ```
 
@@ -110,10 +117,14 @@ defineUploadHandler({
 
 ```ts
 const sub = MeteorLight.subscribe('UserFiles.all');
-sub.on('ready', () => { /* initial data loaded */ });
+sub.on('ready', () => {
+  /* initial data loaded */
+});
 
 const store = MeteorLight.collection<UserFile>('UserFiles');
-store.on('change', (docs) => { /* update UI */ });
+store.on('change', (docs) => {
+  /* update UI */
+});
 store.getAll();
 store.getById(id);
 ```
@@ -128,9 +139,15 @@ const result = await MeteorLight.call<string>('runCountC', '/path/to/uploads');
 
 ```ts
 const upload = MeteorLight.upload('/api/upload', file);
-upload.on('progress', (pct) => { /* update progress bar */ });
-upload.on('complete', (file) => { /* done */ });
-upload.on('error', (err) => { /* handle failure */ });
+upload.on('progress', (pct) => {
+  /* update progress bar */
+});
+upload.on('complete', (file) => {
+  /* done */
+});
+upload.on('error', (err) => {
+  /* handle failure */
+});
 ```
 
 ## Mini-DDP Protocol

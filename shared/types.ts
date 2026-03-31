@@ -32,7 +32,7 @@ export interface ScriptResult {
 // ── Change events (MongoDB wrapper) ─────────────────────────────────────────
 
 export interface ChangeEvent {
-  type: "insert" | "update" | "remove";
+  type: 'insert' | 'update' | 'remove';
   collection: string;
   id: string;
   fields?: Record<string, unknown>;
@@ -40,4 +40,4 @@ export interface ChangeEvent {
 
 // ── Method definitions ──────────────────────────────────────────────────────
 
-export type MethodFn = (...args: any[]) => Promise<unknown>;
+export type MethodFn = (...args: unknown[]) => Promise<unknown>;
