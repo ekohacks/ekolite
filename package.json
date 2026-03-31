@@ -25,7 +25,8 @@
     "start": "node dist/server/index.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest --watch"
+    "test:watch": "vitest --watch",
+    "test:integration": "vitest run --include '**/*.integration.test.ts' --config vitest.integration.config.ts"
   },
   "keywords": [
     "realtime",
