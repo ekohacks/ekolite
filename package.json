@@ -25,8 +25,7 @@
     "start": "node dist/server/index.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest --watch --exclude='**/infrastructure/**'",
-    "test:integration": "vitest run tests/infrastructure/"
+    "test:watch": "vitest --watch"
   },
   "keywords": [
     "realtime",
