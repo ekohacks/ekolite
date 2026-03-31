@@ -1,15 +1,15 @@
-import { defineConfig } from "vite";
+import { defineConfig } from 'vite';
 
 export default defineConfig({
-  root: "client",
+  root: 'client',
   build: {
-    outDir: "../dist/client",
+    outDir: '../dist/client',
     emptyOutDir: true,
   },
   server: {
     proxy: {
-      "/api": "http://localhost:3001",
-      "/ws": { target: "ws://localhost:3001", ws: true },
+      '/api': 'http://localhost:3001',
+      '/ws': { target: 'ws://localhost:3001', ws: true },
     },
   },
 });
