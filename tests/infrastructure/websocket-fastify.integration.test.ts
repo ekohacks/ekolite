@@ -1,9 +1,10 @@
 import { describe, it, expect, afterEach } from 'vitest';
+import Fastify from 'fastify';
 import WebSocket from 'ws';
 import { WebSocketWrapper } from '../../server/infrastructure/websocket.ts';
 
-describe('WebSocketWrapper (real)', () => {
-  const PORT = 9876;
+describe('WebSocketWrapper via Fastify (real)', () => {
+  const PORT = 9877;
   let ws: WebSocketWrapper;
 
   afterEach(async () => {
@@ -11,11 +12,13 @@ describe('WebSocketWrapper (real)', () => {
   });
 
   it('tracks connected clients', async () => {
-    ws = WebSocketWrapper.createRawWs({ port: PORT });
+    const fastify = Fastify();
+    ws = WebSocketWrapper.create(fastify);
     await ws.start();
+    await fastify.listen({ port: PORT });
     expect(ws.clientCount).toBe(0);
 
-    const client = new WebSocket(`ws://localhost:${String(PORT)}`);
+    const client = new WebSocket(`ws://localhost:${String(PORT)}/ws`);
     await new Promise((resolve) => client.on('open', resolve));
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(ws.clientCount).toBe(1);
@@ -26,11 +29,13 @@ describe('WebSocketWrapper (real)', () => {
   });
 
   it('broadcasts a message to all clients', async () => {
-    ws = WebSocketWrapper.createRawWs({ port: PORT });
+    const fastify = Fastify();
+    ws = WebSocketWrapper.create(fastify);
     await ws.start();
+    await fastify.listen({ port: PORT });
 
-    const client1 = new WebSocket(`ws://localhost:${String(PORT)}`);
-    const client2 = new WebSocket(`ws://localhost:${String(PORT)}`);
+    const client1 = new WebSocket(`ws://localhost:${String(PORT)}/ws`);
+    const client2 = new WebSocket(`ws://localhost:${String(PORT)}/ws`);
     await Promise.all([
       new Promise((resolve) => client1.on('open', resolve)),
       new Promise((resolve) => client2.on('open', resolve)),
