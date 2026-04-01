@@ -1,9 +1,17 @@
-import { MongoClient as Driver, Db } from 'mongodb';
+import { MongoClient as Driver, Db, ObjectId } from 'mongodb';
+import { EventEmitter, OutputTracker } from './output_tracker.ts';
+import { ChangeEvent } from '../../shared/types.ts';
 
 interface MongoClientInterface {
   find<T>(collection: string, query: object): Promise<T[]>;
   insert(collection: string, doc: object): Promise<void>;
+  update(
+    collection: string,
+    query: object,
+    changes: object,
+  ): Promise<void>;
   remove(collection: string, query: object): Promise<void>;
+  trackChanges(collection: string): OutputTracker;
 }
 
 export class MongoWrapper {
@@ -14,11 +22,11 @@ export class MongoWrapper {
   }
 
   static create(uri: string): MongoWrapper {
-    return new MongoWrapper(new RealMongoClientInterface(uri));
+    return new MongoWrapper(new RealMongoClient(uri));
   }
 
   static createNull(docs: Record<string, unknown[]> = {}): MongoWrapper {
-    return new MongoWrapper(new StubbedMongoClientInterface(docs));
+    return new MongoWrapper(new StubbedMongoClient(docs));
   }
 
   async find<T>(collection: string, query: object): Promise<T[]> {
@@ -29,12 +37,24 @@ export class MongoWrapper {
     return this.client.insert(collection, doc);
   }
 
+  async update(
+    collection: string,
+    query: object,
+    changes: object,
+  ): Promise<void> {
+    return this.client.update(collection, query, changes);
+  }
+
   async remove(collection: string, query: object): Promise<void> {
     return this.client.remove(collection, query);
   }
+
+  trackChanges(collection: string): OutputTracker {
+    return this.client.trackChanges(collection);
+  }
 }
 
-class RealMongoClientInterface implements MongoClientInterface {
+class RealMongoClient implements MongoClientInterface {
   private db: Db;
 
   constructor(uri: string) {
@@ -50,13 +70,26 @@ class RealMongoClientInterface implements MongoClientInterface {
     await this.db.collection(collection).insertOne(doc);
   }
 
+  async update(
+    collection: string,
+    query: object,
+    changes: object,
+  ): Promise<void> {
+    await this.db.collection(collection).updateMany(query, changes);
+  }
+
   async remove(collection: string, query: object): Promise<void> {
     await this.db.collection(collection).deleteMany(query);
   }
+
+  trackChanges(_collection: string): OutputTracker {
+    throw new Error('trackChanges is only available on null instances');
+  }
 }
 
-class StubbedMongoClientInterface implements MongoClientInterface {
+class StubbedMongoClient implements MongoClientInterface {
   private store: Map<string, unknown[]>;
+  private emitter = new EventEmitter();
 
   constructor(initialDocs: Record<string, unknown[]>) {
     this.store = new Map(Object.entries(initialDocs));
@@ -71,12 +104,77 @@ class StubbedMongoClientInterface implements MongoClientInterface {
     if (!this.store.has(collection)) {
       this.store.set(collection, []);
     }
+    const id = new ObjectId().toString();
     this.store.get(collection)?.push(doc);
+    this.emitter.emit(collection, {
+      type: 'insert',
+      collection,
+      id,
+      fields: doc as Record<string, unknown>,
+    } satisfies ChangeEvent);
     return Promise.resolve();
   }
 
-  remove(collection: string, _query: object): Promise<void> {
-    this.store.set(collection, []);
+  update(
+    collection: string,
+    query: object,
+    changes: object,
+  ): Promise<void> {
+    const docs = this.store.get(collection) ?? [];
+    const queryEntries = Object.entries(query as Record<string, unknown>);
+    const setFields = (changes as Record<string, Record<string, unknown>>)[
+      '$set'
+    ] || {};
+
+    for (const doc of docs) {
+      const record = doc as Record<string, unknown>;
+      const matches = queryEntries.every(
+        ([key, value]) => record[key] === value,
+      );
+      if (matches) {
+        Object.assign(record, setFields);
+        this.emitter.emit(collection, {
+          type: 'update',
+          collection,
+          id: (record['_id'] as string) || new ObjectId().toString(),
+          fields: setFields as Record<string, unknown>,
+        } satisfies ChangeEvent);
+      }
+    }
     return Promise.resolve();
+  }
+
+  remove(collection: string, query: object): Promise<void> {
+    const docs = this.store.get(collection) || [];
+    const queryEntries = Object.entries(query as Record<string, unknown>);
+    const removed: Record<string, unknown>[] = [];
+    const kept: unknown[] = [];
+
+    for (const doc of docs) {
+      const record = doc as Record<string, unknown>;
+      const matches = queryEntries.every(
+        ([key, value]) => record[key] === value,
+      );
+      if (matches) {
+        removed.push(record);
+      } else {
+        kept.push(doc);
+      }
+    }
+
+    this.store.set(collection, kept);
+
+    for (const record of removed) {
+      this.emitter.emit(collection, {
+        type: 'remove',
+        collection,
+        id: (record['_id'] as string) || new ObjectId().toString(),
+      } satisfies ChangeEvent);
+    }
+    return Promise.resolve();
+  }
+
+  trackChanges(collection: string): OutputTracker {
+    return new OutputTracker(this.emitter, collection);
   }
 }
