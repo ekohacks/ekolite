@@ -32,7 +32,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "husky",
-    "test:changed": "vitest run related --changed origin/main"
+    "test:changed": "vitest run --changed origin/main"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
