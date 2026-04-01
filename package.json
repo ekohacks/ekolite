@@ -31,7 +31,8 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "prepare": "husky"
+    "prepare": "husky",
+    "test:changed": "vitest related --changed origin/main"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
