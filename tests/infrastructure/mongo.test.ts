@@ -5,7 +5,7 @@ describe('MongoWrapper (null)', () => {
   it('inserts and finds documents', async () => {
     const mongo = MongoWrapper.createNull();
     await mongo.insert('testDocs', { name: 'test.bam' });
-    const docs = await mongo.find('testDocs', {});
+    const docs = await mongo.find<{ name: string }>('testDocs', {});
     expect(docs).toHaveLength(1);
     expect(docs[0].name).toBe('test.bam');
   });
