@@ -142,3 +142,7 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
 ekolite-*.md
+
+
+#Ignore vscode AI rules
+.github\instructions\codacy.instructions.md
