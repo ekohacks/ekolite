@@ -16,6 +16,8 @@
     "isolatedModules": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
     "noFallthroughCasesInSwitch": true,
     "exactOptionalPropertyTypes": true
   },
