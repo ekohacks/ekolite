@@ -96,7 +96,6 @@ dist
 
 # vuepress v2.x temp and cache directory
 .temp
-.cache
 
 # Sveltekit cache directory
 .svelte-kit/
@@ -142,3 +141,7 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
 ekolite-*.md
+
+
+#Ignore vscode AI rules
+.github/instructions/codacy.instructions.md
