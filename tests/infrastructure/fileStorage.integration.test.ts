@@ -32,4 +32,10 @@ describe('FileStorage (real)', () => {
     expect(resolved).toMatch(/^\/|^[A-Z]:/);
     expect(resolved).toContain(TEST_DIR);
   });
+
+  it('rejects save with empty name', async () => {
+    await expect(storage.save('', Buffer.from('content'))).rejects.toThrow(
+      'File name cannot be empty',
+    );
+  });
 });

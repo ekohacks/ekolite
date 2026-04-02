@@ -25,4 +25,11 @@ describe('FileStorage (null)', () => {
     const resolved = storage.resolve('test.bam');
     expect(resolved).toMatch(/^\/|^[A-Z]:/);
   });
+
+  it('rejects save with empty name', async () => {
+    const storage = FileStorage.createNull();
+    await expect(storage.save('', Buffer.from('content'))).rejects.toThrow(
+      'File name cannot be empty',
+    );
+  });
 });

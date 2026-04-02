@@ -24,6 +24,7 @@ export class FileStorage {
   }
 
   async save(name: string, data: Buffer): Promise<void> {
+    if (!name) throw new Error('File name cannot be empty');
     return this.fs.save(name, data);
   }
 
