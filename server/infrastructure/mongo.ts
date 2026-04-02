@@ -96,7 +96,7 @@ class StubbedMongoClient implements MongoClientInterface {
   }
 
   find<T>(collection: string, _query: object): Promise<T[]> {
-    const docs = this.store.get(collection) || [];
+    const docs = this.store.get(collection) ?? [];
     return Promise.resolve(docs as T[]);
   }
 
@@ -137,7 +137,7 @@ class StubbedMongoClient implements MongoClientInterface {
           type: 'update',
           collection,
           id: (record['_id'] as string) || new ObjectId().toString(),
-          fields: setFields as Record<string, unknown>,
+          fields: setFields,
         } satisfies ChangeEvent);
       }
     }
