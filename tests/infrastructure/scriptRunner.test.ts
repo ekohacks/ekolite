@@ -1,0 +1,16 @@
+import { describe, it, expect } from 'vitest';
+import { ScriptRunner } from '../../server/infrastructure/scriptRunner.ts';
+
+describe('ScriptRunner (null)', () => {
+  it('returns configured response for a command', async () => {
+    const runner = ScriptRunner.createNull({ echo: 'hello\n' });
+    const result = await runner.exec('echo', ['hello']);
+    expect(result).toEqual({ stdout: 'hello\n', stderr: '', exitCode: 0 });
+  });
+
+  it('returns empty stdout when command has no configured response', async () => {
+    const runner = ScriptRunner.createNull();
+    const result = await runner.exec('unknown', []);
+    expect(result).toEqual({ stdout: '', stderr: '', exitCode: 0 });
+  });
+});
