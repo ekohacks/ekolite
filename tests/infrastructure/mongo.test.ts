@@ -69,3 +69,30 @@ describe('MongoWrapper (null)', () => {
     expect(tracker.data[1]).toHaveProperty('id');
   });
 });
+
+describe('MongoWrapper (null) with configurable responses', () => {
+  it('returns configured find responses in order', async () => {
+    const mongo = MongoWrapper.createNull({
+      find: [[{ _id: '1', title: 'First call' }], []],
+    });
+    const first = await mongo.find('tasks', {});
+    expect(first).toEqual([{ _id: '1', title: 'First call' }]);
+    const second = await mongo.find('tasks', {});
+    expect(second).toEqual([]);
+  });
+
+  it('throws configured error responses', async () => {
+    const mongo = MongoWrapper.createNull({
+      find: [new Error('Connection lost')],
+    });
+    await expect(mongo.find('tasks', {})).rejects.toThrow('Connection lost');
+  });
+
+  it('falls back to in-memory store when no configurable responses provided', async () => {
+    const mongo = MongoWrapper.createNull();
+    await mongo.insert('tasks', { name: 'seeded' });
+    const docs = await mongo.find<{ name: string }>('tasks', {});
+    expect(docs).toHaveLength(1);
+    expect(docs[0].name).toBe('seeded');
+  });
+});

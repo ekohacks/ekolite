@@ -1,5 +1,5 @@
 import { MongoClient as Driver, Db, ObjectId } from 'mongodb';
-import { EventEmitter, OutputTracker } from './output_tracker.ts';
+import { EventEmitter, OutputTracker, ConfigurableResponse } from './output_tracker.ts';
 import { ChangeEvent } from '../../shared/types.ts';
 
 interface MongoClientInterface {
@@ -21,8 +21,8 @@ export class MongoWrapper {
     return new MongoWrapper(new RealMongoClient(uri));
   }
 
-  static createNull(docs: Record<string, unknown[]> = {}): MongoWrapper {
-    return new MongoWrapper(new StubbedMongoClient(docs));
+  static createNull(options: { find?: unknown[] } = {}): MongoWrapper {
+    return new MongoWrapper(new StubbedMongoClient(options));
   }
 
   async find<T>(collection: string, query: object): Promise<T[]> {
@@ -76,14 +76,21 @@ class RealMongoClient implements MongoClientInterface {
 }
 
 class StubbedMongoClient implements MongoClientInterface {
-  private store: Map<string, unknown[]>;
+  private store = new Map<string, unknown[]>();
   private emitter = new EventEmitter();
+  private findResponses?: ConfigurableResponse;
 
-  constructor(initialDocs: Record<string, unknown[]>) {
-    this.store = new Map(Object.entries(initialDocs));
+  constructor(options: { find?: unknown[] } = {}) {
+    if (options.find) {
+      this.findResponses = new ConfigurableResponse(options.find);
+    }
   }
 
   find<T>(collection: string, _query: object): Promise<T[]> {
+    if (this.findResponses) {
+      const response = this.findResponses.next();
+      return Promise.resolve(response as T[]);
+    }
     const docs = this.store.get(collection) ?? [];
     return Promise.resolve(docs as T[]);
   }
