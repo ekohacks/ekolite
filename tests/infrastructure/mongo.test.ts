@@ -32,7 +32,7 @@ describe('MongoWrapper (null)', () => {
     expect(docs[0].name).toBe('new');
   });
 
-  it.skip('removes matching documents', async () => {
+  it('removes matching documents', async () => {
     const mongo = MongoWrapper.createNull();
     await mongo.insert('testDocs', { name: 'keep' });
     await mongo.insert('testDocs', { name: 'remove' });
@@ -42,7 +42,7 @@ describe('MongoWrapper (null)', () => {
     expect(docs[0].name).toBe('keep');
   });
 
-  it.skip('tracks update change events', async () => {
+  it('tracks update change events', async () => {
     const mongo = MongoWrapper.createNull();
     const tracker = mongo.trackChanges('testDocs');
     await mongo.insert('testDocs', { name: 'old' });
@@ -56,7 +56,7 @@ describe('MongoWrapper (null)', () => {
     expect(tracker.data[1]).toHaveProperty('id');
   });
 
-  it.skip('tracks remove change events', async () => {
+  it('tracks remove change events', async () => {
     const mongo = MongoWrapper.createNull();
     const tracker = mongo.trackChanges('testDocs');
     await mongo.insert('testDocs', { name: 'gone' });

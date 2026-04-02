@@ -5,11 +5,7 @@ import { ChangeEvent } from '../../shared/types.ts';
 interface MongoClientInterface {
   find<T>(collection: string, query: object): Promise<T[]>;
   insert(collection: string, doc: object): Promise<void>;
-  update(
-    collection: string,
-    query: object,
-    changes: object,
-  ): Promise<void>;
+  update(collection: string, query: object, changes: object): Promise<void>;
   remove(collection: string, query: object): Promise<void>;
   trackChanges(collection: string): OutputTracker;
 }
@@ -37,11 +33,7 @@ export class MongoWrapper {
     return this.client.insert(collection, doc);
   }
 
-  async update(
-    collection: string,
-    query: object,
-    changes: object,
-  ): Promise<void> {
+  async update(collection: string, query: object, changes: object): Promise<void> {
     return this.client.update(collection, query, changes);
   }
 
@@ -70,11 +62,7 @@ class RealMongoClient implements MongoClientInterface {
     await this.db.collection(collection).insertOne(doc);
   }
 
-  async update(
-    collection: string,
-    query: object,
-    changes: object,
-  ): Promise<void> {
+  async update(collection: string, query: object, changes: object): Promise<void> {
     await this.db.collection(collection).updateMany(query, changes);
   }
 
@@ -115,22 +103,14 @@ class StubbedMongoClient implements MongoClientInterface {
     return Promise.resolve();
   }
 
-  update(
-    collection: string,
-    query: object,
-    changes: object,
-  ): Promise<void> {
+  update(collection: string, query: object, changes: object): Promise<void> {
     const docs = this.store.get(collection) ?? [];
     const queryEntries = Object.entries(query as Record<string, unknown>);
-    const setFields = (changes as Record<string, Record<string, unknown>>)[
-      '$set'
-    ] || {};
+    const setFields = (changes as Record<string, Record<string, unknown>>)['$set'] || {};
 
     for (const doc of docs) {
       const record = doc as Record<string, unknown>;
-      const matches = queryEntries.every(
-        ([key, value]) => record[key] === value,
-      );
+      const matches = queryEntries.every(([key, value]) => record[key] === value);
       if (matches) {
         Object.assign(record, setFields);
         this.emitter.emit(collection, {
@@ -145,16 +125,14 @@ class StubbedMongoClient implements MongoClientInterface {
   }
 
   remove(collection: string, query: object): Promise<void> {
-    const docs = this.store.get(collection) || [];
+    const docs = this.store.get(collection) ?? [];
     const queryEntries = Object.entries(query as Record<string, unknown>);
     const removed: Record<string, unknown>[] = [];
     const kept: unknown[] = [];
 
     for (const doc of docs) {
       const record = doc as Record<string, unknown>;
-      const matches = queryEntries.every(
-        ([key, value]) => record[key] === value,
-      );
+      const matches = queryEntries.every(([key, value]) => record[key] === value);
       if (matches) {
         removed.push(record);
       } else {

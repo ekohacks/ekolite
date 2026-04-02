@@ -23,7 +23,7 @@ describe('MongoWrapper (real)', () => {
     expect(docs[0].name).toBe('new');
   });
 
-  it.skip('removes matching documents', async () => {
+  it('removes matching documents', async () => {
     await mongo.insert('testDocs', { name: 'keep' });
     await mongo.insert('testDocs', { name: 'remove' });
     await mongo.remove('testDocs', { name: 'remove' });
