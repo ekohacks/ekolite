@@ -23,7 +23,7 @@ describe('MongoWrapper (null)', () => {
     expect(tracker.data[0]).toHaveProperty('id');
   });
 
-  it.skip('updates a document', async () => {
+  it('updates a document', async () => {
     const mongo = MongoWrapper.createNull();
     await mongo.insert('testDocs', { name: 'old' });
     await mongo.update('testDocs', { name: 'old' }, { $set: { name: 'new' } });

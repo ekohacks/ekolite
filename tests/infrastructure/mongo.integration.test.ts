@@ -15,7 +15,7 @@ describe('MongoWrapper (real)', () => {
     expect(docs[0].name).toBe('test.bam');
   });
 
-  it.skip('updates a document', async () => {
+  it('updates a document', async () => {
     await mongo.insert('testDocs', { name: 'old' });
     await mongo.update('testDocs', { name: 'old' }, { $set: { name: 'new' } });
     const docs = await mongo.find<{ name: string }>('testDocs', {});
