@@ -29,3 +29,39 @@ export class OutputTracker {
     return [...this._data];
   }
 }
+
+function isEmptyObject(value: unknown): boolean {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    !(value instanceof Error) &&
+    !Array.isArray(value) &&
+    Object.keys(value).length === 0
+  );
+}
+
+export class ConfigurableResponse {
+  private queue: unknown[];
+
+  constructor(responses: unknown[]) {
+    for (const response of responses) {
+      if (isEmptyObject(response)) {
+        throw new Error(
+          'Empty object {} is not a valid configurable response. Use [] for empty arrays or null explicitly.',
+        );
+      }
+    }
+    this.queue = [...responses];
+  }
+
+  next(): unknown {
+    if (this.queue.length === 0) {
+      throw new Error('ConfigurableResponse queue exhausted — no more responses configured');
+    }
+    const response = this.queue.shift();
+    if (response instanceof Error) {
+      throw response;
+    }
+    return response;
+  }
+}
