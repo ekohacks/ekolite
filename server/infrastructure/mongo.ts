@@ -106,7 +106,7 @@ class StubbedMongoClient implements MongoClientInterface {
   update(collection: string, query: object, changes: object): Promise<void> {
     const docs = this.store.get(collection) ?? [];
     const queryEntries = Object.entries(query as Record<string, unknown>);
-    const setFields = (changes as Record<string, Record<string, unknown>>)['$set'] || {};
+    const setFields = (changes as Record<string, Record<string, unknown>>)['$set'] ?? {};
 
     for (const doc of docs) {
       const record = doc as Record<string, unknown>;
