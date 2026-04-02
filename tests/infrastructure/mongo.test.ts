@@ -10,7 +10,7 @@ describe('MongoWrapper (null)', () => {
     expect(docs[0].name).toBe('test.bam');
   });
 
-  it.skip('tracks insert change events', async () => {
+  it('tracks insert change events', async () => {
     const mongo = MongoWrapper.createNull();
     const tracker = mongo.trackChanges('testDocs');
     await mongo.insert('testDocs', { name: 'test' });
