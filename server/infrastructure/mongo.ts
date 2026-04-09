@@ -104,10 +104,17 @@ class StubbedMongoClient implements MongoClientInterface {
   }
 
   find<T>(_collection: string, _query: object): Promise<T[]> {
+    this.emitter.emit(_collection, {
+      type: 'find',
+      collection: _collection,
+      query: _query,
+    });
+
     if (this.findResponses) {
       const response = this.findResponses.next();
       return Promise.resolve(response as T[]);
     }
+
     return Promise.resolve([] as T[]);
   }
 
@@ -115,6 +122,7 @@ class StubbedMongoClient implements MongoClientInterface {
     if (this.insertResponses) {
       this.insertResponses.next();
     }
+
     const id = new ObjectId().toString();
     this.emitter.emit(collection, {
       type: 'insert',
@@ -122,6 +130,7 @@ class StubbedMongoClient implements MongoClientInterface {
       id,
       fields: doc as Record<string, unknown>,
     } satisfies ChangeEvent);
+
     return Promise.resolve();
   }
 
