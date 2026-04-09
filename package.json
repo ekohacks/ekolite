@@ -19,7 +19,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "dev:server": "tsx watch server/index.ts",
+    "dev:server": "tsx watch server/start.ts",
     "dev:client": "vite",
     "build": "tsc && vite build",
     "start": "node dist/server/index.js",
@@ -30,7 +30,18 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "prepare": "husky",
+    "test:changed": "vitest run --changed origin/main"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,css,scss,md}": [
+      "prettier --write"
+    ]
   },
   "keywords": [
     "realtime",
@@ -50,11 +61,15 @@
     "mongodb": "^6.21.0"
   },
   "devDependencies": {
+    "@commitlint/cli": "^20.5.0",
+    "@commitlint/config-conventional": "^20.5.0",
     "@eslint/js": "^10.0.1",
     "@types/ws": "^8.18.1",
     "eslint": "^10.1.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.5",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
     "prettier": "^3.8.1",
     "tsx": "^4.19",
     "typescript": "^5.7",

@@ -1,15 +1,11 @@
-import { MongoClient as Driver, Db, ObjectId } from 'mongodb';
-import { EventEmitter, OutputTracker } from './output_tracker.ts';
+import { Db, MongoClient as Driver, ObjectId } from 'mongodb';
 import { ChangeEvent } from '../../shared/types.ts';
+import { ConfigurableResponse, EventEmitter, OutputTracker } from './output_tracker.ts';
 
 interface MongoClientInterface {
   find<T>(collection: string, query: object): Promise<T[]>;
   insert(collection: string, doc: object): Promise<void>;
-  update(
-    collection: string,
-    query: object,
-    changes: object,
-  ): Promise<void>;
+  update(collection: string, query: object, changes: object): Promise<void>;
   remove(collection: string, query: object): Promise<void>;
   trackChanges(collection: string): OutputTracker;
 }
@@ -25,8 +21,15 @@ export class MongoWrapper {
     return new MongoWrapper(new RealMongoClient(uri));
   }
 
-  static createNull(docs: Record<string, unknown[]> = {}): MongoWrapper {
-    return new MongoWrapper(new StubbedMongoClient(docs));
+  static createNull(
+    options: {
+      find?: unknown[];
+      insert?: unknown[];
+      update?: unknown[];
+      remove?: unknown[];
+    } = {},
+  ): MongoWrapper {
+    return new MongoWrapper(new StubbedMongoClient(options));
   }
 
   async find<T>(collection: string, query: object): Promise<T[]> {
@@ -37,11 +40,7 @@ export class MongoWrapper {
     return this.client.insert(collection, doc);
   }
 
-  async update(
-    collection: string,
-    query: object,
-    changes: object,
-  ): Promise<void> {
+  async update(collection: string, query: object, changes: object): Promise<void> {
     return this.client.update(collection, query, changes);
   }
 
@@ -70,11 +69,7 @@ class RealMongoClient implements MongoClientInterface {
     await this.db.collection(collection).insertOne(doc);
   }
 
-  async update(
-    collection: string,
-    query: object,
-    changes: object,
-  ): Promise<void> {
+  async update(collection: string, query: object, changes: object): Promise<void> {
     await this.db.collection(collection).updateMany(query, changes);
   }
 
@@ -87,25 +82,40 @@ class RealMongoClient implements MongoClientInterface {
   }
 }
 
-class StubbedMongoClient implements MongoClientInterface {
-  private store: Map<string, unknown[]>;
-  private emitter = new EventEmitter();
+interface StubbedMongoOptions {
+  find?: unknown[];
+  insert?: unknown[];
+  update?: unknown[];
+  remove?: unknown[];
+}
 
-  constructor(initialDocs: Record<string, unknown[]>) {
-    this.store = new Map(Object.entries(initialDocs));
+class StubbedMongoClient implements MongoClientInterface {
+  private emitter = new EventEmitter();
+  private findResponses?: ConfigurableResponse;
+  private insertResponses?: ConfigurableResponse;
+  private updateResponses?: ConfigurableResponse;
+  private removeResponses?: ConfigurableResponse;
+
+  constructor(options: StubbedMongoOptions = {}) {
+    if (options.find) this.findResponses = new ConfigurableResponse(options.find);
+    if (options.insert) this.insertResponses = new ConfigurableResponse(options.insert);
+    if (options.update) this.updateResponses = new ConfigurableResponse(options.update);
+    if (options.remove) this.removeResponses = new ConfigurableResponse(options.remove);
   }
 
-  find<T>(collection: string, _query: object): Promise<T[]> {
-    const docs = this.store.get(collection) || [];
-    return Promise.resolve(docs as T[]);
+  find<T>(_collection: string, _query: object): Promise<T[]> {
+    if (this.findResponses) {
+      const response = this.findResponses.next();
+      return Promise.resolve(response as T[]);
+    }
+    return Promise.resolve([] as T[]);
   }
 
   insert(collection: string, doc: object): Promise<void> {
-    if (!this.store.has(collection)) {
-      this.store.set(collection, []);
+    if (this.insertResponses) {
+      this.insertResponses.next();
     }
     const id = new ObjectId().toString();
-    this.store.get(collection)?.push(doc);
     this.emitter.emit(collection, {
       type: 'insert',
       collection,
@@ -115,62 +125,29 @@ class StubbedMongoClient implements MongoClientInterface {
     return Promise.resolve();
   }
 
-  update(
-    collection: string,
-    query: object,
-    changes: object,
-  ): Promise<void> {
-    const docs = this.store.get(collection) ?? [];
-    const queryEntries = Object.entries(query as Record<string, unknown>);
-    const setFields = (changes as Record<string, Record<string, unknown>>)[
-      '$set'
-    ] || {};
-
-    for (const doc of docs) {
-      const record = doc as Record<string, unknown>;
-      const matches = queryEntries.every(
-        ([key, value]) => record[key] === value,
-      );
-      if (matches) {
-        Object.assign(record, setFields);
-        this.emitter.emit(collection, {
-          type: 'update',
-          collection,
-          id: (record['_id'] as string) || new ObjectId().toString(),
-          fields: setFields as Record<string, unknown>,
-        } satisfies ChangeEvent);
-      }
+  update(collection: string, _query: object, changes: object): Promise<void> {
+    if (this.updateResponses) {
+      this.updateResponses.next();
     }
+    const setFields = (changes as Record<string, Record<string, unknown>>)['$set'] ?? {};
+    this.emitter.emit(collection, {
+      type: 'update',
+      collection,
+      id: new ObjectId().toString(),
+      fields: setFields,
+    } satisfies ChangeEvent);
     return Promise.resolve();
   }
 
-  remove(collection: string, query: object): Promise<void> {
-    const docs = this.store.get(collection) || [];
-    const queryEntries = Object.entries(query as Record<string, unknown>);
-    const removed: Record<string, unknown>[] = [];
-    const kept: unknown[] = [];
-
-    for (const doc of docs) {
-      const record = doc as Record<string, unknown>;
-      const matches = queryEntries.every(
-        ([key, value]) => record[key] === value,
-      );
-      if (matches) {
-        removed.push(record);
-      } else {
-        kept.push(doc);
-      }
+  remove(collection: string, _query: object): Promise<void> {
+    if (this.removeResponses) {
+      this.removeResponses.next();
     }
-
-    this.store.set(collection, kept);
-
-    for (const record of removed) {
-      this.emitter.emit(collection, {
-        type: 'remove',
-        collection,
-        id: (record['_id'] as string) || new ObjectId().toString(),
-      } satisfies ChangeEvent);
-    }
+    this.emitter.emit(collection, {
+      type: 'remove',
+      collection,
+      id: new ObjectId().toString(),
+    } satisfies ChangeEvent);
     return Promise.resolve();
   }
 
