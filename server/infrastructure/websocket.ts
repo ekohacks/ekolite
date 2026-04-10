@@ -1,4 +1,6 @@
-import { WebSocketServer, WebSocket } from 'ws';
+import fastifyWebsocket from '@fastify/websocket';
+import { type FastifyInstance } from 'fastify';
+import { WebSocketServer, type WebSocket } from 'ws';
 import { EventEmitter, OutputTracker } from './output_tracker.ts';
 
 const CONNECTION_EVENT = 'connection';
@@ -23,7 +25,11 @@ export class WebSocketWrapper {
     this.server = server;
   }
 
-  static create(options: { port: number }): WebSocketWrapper {
+  static create(fastify: FastifyInstance): WebSocketWrapper {
+    return new WebSocketWrapper(new FastifyWebSocketServer(fastify));
+  }
+
+  static createRawWs(options: { port: number }): WebSocketWrapper {
     return new WebSocketWrapper(new RealWebSocketServer(options.port));
   }
 
@@ -106,6 +112,63 @@ class RealWebSocketServer implements WebSocketServerInterface {
         resolve();
       }
     });
+  }
+
+  get clientCount(): number {
+    return this.clients.size;
+  }
+
+  send(clientId: string, message: unknown): void {
+    const socket = this.clients.get(clientId);
+    if (socket) {
+      socket.send(JSON.stringify(message));
+    }
+  }
+
+  broadcast(message: unknown): void {
+    const data = JSON.stringify(message);
+    for (const socket of this.clients.values()) {
+      socket.send(data);
+    }
+  }
+
+  trackConnections(): OutputTracker {
+    throw new Error('trackConnections is only available on null instances');
+  }
+
+  trackDisconnections(): OutputTracker {
+    throw new Error('trackDisconnections is only available on null instances');
+  }
+
+  trackMessages(): OutputTracker {
+    throw new Error('trackMessages is only available on null instances');
+  }
+}
+
+class FastifyWebSocketServer implements WebSocketServerInterface {
+  private fastify: FastifyInstance;
+  private clients = new Map<string, WebSocket>();
+  private nextId = 0;
+
+  constructor(fastify: FastifyInstance) {
+    this.fastify = fastify;
+  }
+
+  async start(): Promise<void> {
+    await this.fastify.register(fastifyWebsocket);
+
+    this.fastify.get('/ws', { websocket: true }, (socket) => {
+      const id = String(this.nextId++);
+      this.clients.set(id, socket);
+
+      socket.on('close', () => {
+        this.clients.delete(id);
+      });
+    });
+  }
+
+  async close(): Promise<void> {
+    await this.fastify.close();
   }
 
   get clientCount(): number {
