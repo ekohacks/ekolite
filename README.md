@@ -191,4 +191,70 @@ npm start       # node dist/server/index.js
 
 ## License
 
-MIT
+## Architecture diagrams
+
+This project includes Mermaid diagrams to make the websocket architecture easier to understand visually.
+
+Why this exists:
+
+- code shows implementation details
+- diagrams show structure and flow
+- humans understand visual relationships faster than raw code alone
+
+The diagrams help explain:
+
+- how the client reaches the websocket layer
+- how Fastify, the wrapper, and backend implementations relate
+- how message flow works from connection to disconnect
+- how test doubles fit into the system
+
+### Diagram types
+
+- **ERD**: shows structural relationships between the main parts
+- **Flowchart**: shows the high-level runtime path
+- **Sequence diagram**: shows message flow step by step
+
+### How to view in VS Code
+
+1. Install the extension:
+   - `Markdown Preview Mermaid Support`
+
+2. Create or open a `.md` file containing a Mermaid code block.
+
+3. Open markdown preview:
+   - `Ctrl + Shift + V`
+
+### Example
+
+````
+```mermaid
+flowchart LR
+    client["Client App"] --> fastify["Fastify Server"]
+    fastify --> wrapper["WebSocket Wrapper"]
+````
+
+````
+
+### Notes
+
+- Mermaid diagrams must be inside a fenced block starting with ` ```mermaid `
+- The opening and closing backticks must be on their own lines
+- If a diagram does not render, first confirm it works with a tiny test diagram
+
+## My exprience
+I had blocker markdown extention that didnt allow my diagrams to show so
+- Solution
+I searched "mermaid" and deleted all related extentions
+I searched "markedown" and deleted all related extentions
+I left only
+-  `Markdown Preview Mermaid Support`
+
+### Why this matters
+
+This architecture has multiple layers and interchangeable implementations.
+Visual diagrams make it easier to:
+- reason about the system
+- explain it to new contributors
+- spot incorrect assumptions early
+- keep implementation and design aligned
+````
