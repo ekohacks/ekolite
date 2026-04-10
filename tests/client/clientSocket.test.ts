@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ClientSocket } from '../../client/clientSocket.ts';
-import { ServerMessage } from '../../shared/protocol.ts';
+import { ReadyMsg, UnsubscribeMsg } from '../../shared/protocol.ts';
 
 describe('ClientSocket (null)', () => {
   it('is not connected before connect is called', () => {
@@ -23,7 +23,7 @@ describe('ClientSocket (null)', () => {
     expect(socket.isConnected).toBe(false);
   });
   it('can recieve a message from the server', async () => {
-    const message: ServerMessage = { type: 'ready', id: '1' };
+    const message: ReadyMsg = { type: 'ready', id: '1' };
     const socket = ClientSocket.createNull();
     const tracker = socket.trackMessages();
     await socket.connect();
@@ -32,12 +32,14 @@ describe('ClientSocket (null)', () => {
     expect(tracker.data).toHaveLength(1);
     expect(tracker.data[0]).toEqual({ type: 'ready', id: '1' });
   });
-  //   it('can send a message to the server', async () => {
-  //     const message: UnsubscribeMsg = { type: 'unsubscribe', id: '1' };
+  it('can send a message to the server', async () => {
+    const message: UnsubscribeMsg = { type: 'unsubscribe', id: '1' };
 
-  //     const socket = ClientSocket.createNull();
-  //     const tracker = socket.trackMessages();
-  //     await socket.connect();
-  //     const server = socket.simulateServer();
-  //   });
+    const socket = ClientSocket.createNull();
+    const tracker = socket.trackMessages();
+    await socket.connect();
+    await socket.send(message);
+    expect(tracker.data).toHaveLength(1);
+    expect(tracker.data[0]).toEqual({ type: 'unsubscribe', id: '1' });
+  });
 });

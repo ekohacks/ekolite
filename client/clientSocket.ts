@@ -1,9 +1,15 @@
+import { EventEmitter, OutputTracker } from '../server/infrastructure/output_tracker.ts';
+import { ClientMessage, ServerMessage } from '../shared/protocol.ts';
+
 interface ClientSocketInterface {
   connect(): Promise<void>;
   close(): Promise<void>;
-  send(message: unknown): void;
+  send(message: unknown): Promise<void>;
   get isConnected(): boolean;
+  trackMessages(): OutputTracker;
 }
+
+const EVENT_MESSAGES = 'message';
 
 export class ClientSocket {
   private client: ClientSocketInterface;
@@ -21,22 +27,47 @@ export class ClientSocket {
     return new ClientSocket(new StubbedClientSocket());
   }
 
+  get isConnected(): boolean {
+    return this.client.isConnected;
+  }
   async connect(): Promise<void> {
     await this.client.connect();
   }
-
   async close(): Promise<void> {
     await this.client.close();
   }
+  async send(message: ClientMessage): Promise<void> {
+    await this.client.send(message);
+  }
+  simulateServer(): StubbedServer {
+    const stub = this.client as StubbedClientSocket;
+    return stub.simulateServer();
+  }
+  trackMessages(): OutputTracker {
+    return this.client.trackMessages();
+  }
+}
 
-  get isConnected(): boolean {
-    return this.client.isConnected;
+export class StubbedServer {
+  private _client: StubbedClientSocket;
+  readonly messages = [] as ServerMessage[];
+
+  constructor(client: StubbedClientSocket) {
+    this._client = client;
+  }
+
+  send(message: ServerMessage): void {
+    this._client.onMessage(message);
   }
 }
 
 export class StubbedClientSocket implements ClientSocketInterface {
   private _isConnected = false;
+  private emiiter = new EventEmitter();
 
+  get isConnected(): boolean {
+    return this._isConnected;
+  }
   connect(): Promise<void> {
     this._isConnected = true;
     return Promise.resolve();
@@ -47,9 +78,22 @@ export class StubbedClientSocket implements ClientSocketInterface {
     return Promise.resolve();
   }
 
-  send(): void {}
+  send(message: ClientMessage): Promise<void> {
+    // Implementation for sending message
+    this.emiiter.emit(EVENT_MESSAGES, message);
 
-  get isConnected(): boolean {
-    return this._isConnected;
+    return Promise.resolve();
+  }
+
+  simulateServer(): StubbedServer {
+    return new StubbedServer(this);
+  }
+
+  onMessage(message: ServerMessage): void {
+    this.emiiter.emit('message', message);
+  }
+
+  trackMessages(): OutputTracker {
+    return new OutputTracker(this.emiiter, EVENT_MESSAGES);
   }
 }
