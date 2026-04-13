@@ -1,3 +1,4 @@
+import { WebSocket } from 'ws';
 import { EventEmitter, OutputTracker } from '../server/infrastructure/output_tracker.ts';
 import { ClientMessage, ServerMessage } from '../shared/protocol.ts';
 
@@ -18,9 +19,9 @@ export class ClientSocket {
     this.client = client;
   }
 
-  //   static create(url: string): ClientSocket {
-  //     return new ClientSocket(new RealClientSocket(url));
-  //   }
+  static create(url: string): ClientSocket {
+    return new ClientSocket(new RealClientSocket(url));
+  }
 
   static createNull(): ClientSocket {
     // Implementation for null socket
@@ -45,6 +46,39 @@ export class ClientSocket {
   }
   trackMessages(): OutputTracker {
     return this.client.trackMessages();
+  }
+}
+
+class RealClientSocket implements ClientSocketInterface {
+  private socket: WebSocket | null = null;
+  private url: string;
+
+  constructor(url: string) {
+    this.url = url;
+  }
+
+  get isConnected(): boolean {
+    return this.socket !== null && this.socket.readyState === WebSocket.OPEN;
+  }
+
+  connect(): Promise<void> {
+    return new Promise((resolve) => {
+      this.socket = new WebSocket(this.url);
+      this.socket.onopen = () => {
+        resolve();
+      };
+      // this.socket.onerror = (err) => reject(err);
+    });
+  }
+
+  close(): Promise<void> {
+    return Promise.resolve();
+  }
+  send(): Promise<void> {
+    return Promise.resolve();
+  }
+  trackMessages(): OutputTracker {
+    return new OutputTracker(new EventEmitter(), '');
   }
 }
 
