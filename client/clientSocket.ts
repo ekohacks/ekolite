@@ -61,7 +61,7 @@ export class StubbedServer {
   }
 }
 
-export class StubbedClientSocket implements ClientSocketInterface {
+class StubbedClientSocket implements ClientSocketInterface {
   private _isConnected = false;
   private emitter = new EventEmitter();
 
