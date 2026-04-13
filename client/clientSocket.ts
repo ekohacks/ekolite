@@ -63,7 +63,7 @@ export class StubbedServer {
 
 export class StubbedClientSocket implements ClientSocketInterface {
   private _isConnected = false;
-  private emiiter = new EventEmitter();
+  private emitter = new EventEmitter();
 
   get isConnected(): boolean {
     return this._isConnected;
@@ -80,7 +80,7 @@ export class StubbedClientSocket implements ClientSocketInterface {
 
   send(message: ClientMessage): Promise<void> {
     // Implementation for sending message
-    this.emiiter.emit(EVENT_MESSAGES, message);
+    this.emitter.emit(EVENT_MESSAGES, message);
 
     return Promise.resolve();
   }
@@ -90,10 +90,10 @@ export class StubbedClientSocket implements ClientSocketInterface {
   }
 
   onMessage(message: ServerMessage): void {
-    this.emiiter.emit('message', message);
+    this.emitter.emit('message', message);
   }
 
   trackMessages(): OutputTracker {
-    return new OutputTracker(this.emiiter, EVENT_MESSAGES);
+    return new OutputTracker(this.emitter, EVENT_MESSAGES);
   }
 }
