@@ -22,7 +22,7 @@ describe('ClientSocket (null)', () => {
 
     expect(socket.isConnected).toBe(false);
   });
-  it('can recieve a message from the server', async () => {
+  it('can receive a message from the server', async () => {
     const message: ReadyMsg = { type: 'ready', id: '1' };
     const socket = ClientSocket.createNull();
     const tracker = socket.trackMessages();
