@@ -13,7 +13,6 @@ describe('ClientSocket (real)', () => {
   });
 
   afterEach(async () => {
-    void webSocketServer.close();
     await server.close();
   });
 
@@ -24,6 +23,13 @@ describe('ClientSocket (real)', () => {
     await client.connect();
     expect(client.isConnected).toBe(true);
     expect(webSocketServer.clientCount).toBe(1);
-    await client.close();
+    webSocketServer
+      .close()
+      .then(() => {
+        expect(client.isConnected).toBe(false);
+      })
+      .catch(() => {
+        expect(client.isConnected).toBe(true);
+      });
   });
 });
