@@ -1,8 +1,14 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { rm, mkdir } from 'node:fs/promises';
 import { FileStorage } from '../../server/infrastructure/fileStorage.ts';
+import os from 'node:os';
 
-const TEST_DIR = '/tmp/ekolite-test-files';
+let TEST_DIR = `${os.tmpdir()}/ekolite-test-files`;
+
+const plaform = os.platform();
+if (plaform === 'win32') {
+  TEST_DIR = `${os.tmpdir()}\\ekolite-test-files`;
+}
 
 describe('FileStorage (real)', () => {
   const storage = FileStorage.create(TEST_DIR);
