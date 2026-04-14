@@ -2,6 +2,24 @@ import { describe, expect, it } from 'vitest';
 import { ClientSocket } from '../../client/clientSocket.ts';
 import { ReadyMsg, UnsubscribeMsg } from '../../shared/protocol.ts';
 
+describe('ClientSocket URL validation', () => {
+  it('rejects non-websocket URLs', () => {
+    expect(() => ClientSocket.create('http://localhost:8080')).toThrow();
+  });
+
+  it('rejects URLs without a protocol', () => {
+    expect(() => ClientSocket.create('localhost:8080')).toThrow();
+  });
+
+  it('accepts ws:// URLs', () => {
+    expect(() => ClientSocket.create('ws://localhost:8080')).not.toThrow();
+  });
+
+  it('accepts wss:// URLs', () => {
+    expect(() => ClientSocket.create('wss://localhost:8080')).not.toThrow();
+  });
+});
+
 describe('ClientSocket (null)', () => {
   it('is not connected before connect is called', () => {
     const socket = ClientSocket.createNull();

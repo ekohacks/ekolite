@@ -20,6 +20,10 @@ export class ClientSocket {
   }
 
   static create(url: string): ClientSocket {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') {
+      throw new Error(`Invalid WebSocket URL: expected ws:// or wss://, got ${parsed.protocol}`);
+    }
     return new ClientSocket(new RealClientSocket(url));
   }
 
