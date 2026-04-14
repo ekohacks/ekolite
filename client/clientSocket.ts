@@ -1,4 +1,4 @@
-import { WebSocket } from 'ws';
+import { WebSocket, ClientOptions } from 'ws';
 import { EventEmitter, OutputTracker } from '../server/infrastructure/output_tracker.ts';
 import { ClientMessage, ServerMessage } from '../shared/protocol.ts';
 
@@ -19,12 +19,13 @@ export class ClientSocket {
     this.client = client;
   }
 
-  static create(url: string): ClientSocket {
+  static create(url: string, options: ClientOptions = {}): ClientSocket {
     const parsed = new URL(url);
     if (parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') {
       throw new Error(`Invalid WebSocket URL: expected ws:// or wss://, got ${parsed.protocol}`);
     }
-    return new ClientSocket(new RealClientSocket(url));
+
+    return new ClientSocket(new RealClientSocket(url, options));
   }
 
   static createNull(): ClientSocket {
@@ -55,10 +56,12 @@ export class ClientSocket {
 class RealClientSocket implements ClientSocketInterface {
   private socket: WebSocket | null = null;
   private readonly url: string;
+  private readonly options: ClientOptions;
   private emitter = new EventEmitter();
 
-  constructor(url: string) {
+  constructor(url: string, options: ClientOptions = {}) {
     this.url = url;
+    this.options = options;
   }
 
   get isConnected(): boolean {
@@ -68,7 +71,7 @@ class RealClientSocket implements ClientSocketInterface {
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       let settled = false;
-      this.socket = new WebSocket(this.url);
+      this.socket = new WebSocket(this.url, this.options);
       this.socket.onopen = () => {
         if (!settled) {
           settled = true;
