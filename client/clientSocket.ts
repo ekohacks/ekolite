@@ -63,12 +63,19 @@ class RealClientSocket implements ClientSocketInterface {
 
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
+      let settled = false;
       this.socket = new WebSocket(this.url);
       this.socket.onopen = () => {
-        resolve();
+        if (!settled) {
+          settled = true;
+          resolve();
+        }
       };
       this.socket.onerror = (err) => {
-        reject(new Error(err.message satisfies string));
+        if (!settled) {
+          settled = true;
+          reject(new Error(err.message satisfies string));
+        }
       };
     });
   }
