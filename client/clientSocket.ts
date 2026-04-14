@@ -13,7 +13,7 @@ interface ClientSocketInterface {
 const EVENT_MESSAGES = 'message';
 
 export class ClientSocket {
-  private client: ClientSocketInterface;
+  private readonly client: ClientSocketInterface;
 
   private constructor(client: ClientSocketInterface) {
     this.client = client;
@@ -24,7 +24,6 @@ export class ClientSocket {
   }
 
   static createNull(): ClientSocket {
-    // Implementation for null socket
     return new ClientSocket(new StubbedClientSocket());
   }
 
@@ -51,7 +50,8 @@ export class ClientSocket {
 
 class RealClientSocket implements ClientSocketInterface {
   private socket: WebSocket | null = null;
-  private url: string;
+  private readonly url: string;
+  private emitter = new EventEmitter();
 
   constructor(url: string) {
     this.url = url;
@@ -62,23 +62,45 @@ class RealClientSocket implements ClientSocketInterface {
   }
 
   connect(): Promise<void> {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       this.socket = new WebSocket(this.url);
       this.socket.onopen = () => {
         resolve();
       };
-      // this.socket.onerror = (err) => reject(err);
+      this.socket.onerror = (err) => {
+        reject(new Error(err.message satisfies string));
+      };
     });
   }
 
   close(): Promise<void> {
-    return Promise.resolve();
+    return new Promise((resolve) => {
+      if (!this.socket) {
+        resolve();
+        return;
+      }
+      this.socket.on('close', () => {
+        resolve();
+      });
+      this.socket.close();
+    });
   }
-  send(): Promise<void> {
-    return Promise.resolve();
+
+  send(message: unknown): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        reject(new Error('Socket is not connected'));
+        return;
+      }
+      this.socket.send(JSON.stringify(message), (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
   }
+
   trackMessages(): OutputTracker {
-    return new OutputTracker(new EventEmitter(), '');
+    return new OutputTracker(this.emitter, EVENT_MESSAGES);
   }
 }
 
