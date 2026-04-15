@@ -23,6 +23,35 @@ describe('ClientSocket (real)', () => {
   });
 });
 
+describe('ClientSocket connect settles once', () => {
+  const PORT = 9879;
+  let webSocketServer: WebSocketWrapper;
+
+  afterEach(async () => {
+    await webSocketServer.close();
+  });
+
+  it('ignores onerror after onopen has already resolved', async () => {
+    webSocketServer = WebSocketWrapper.createRawWs({ port: PORT });
+    await webSocketServer.start();
+    const client = ClientSocket.create(`ws://localhost:${String(PORT)}`);
+
+    await client.connect();
+    expect(client.isConnected).toBe(true);
+
+    await client.close();
+  });
+
+  it('rejects once when server is not running', async () => {
+    webSocketServer = WebSocketWrapper.createRawWs({ port: PORT });
+    await webSocketServer.start();
+    await webSocketServer.close();
+
+    const client = ClientSocket.create(`ws://localhost:${String(PORT)}`);
+    await expect(client.connect()).rejects.toThrow();
+  });
+});
+
 describe('ClientSocket auth', () => {
   const PORT = 9878;
   let rawServer: WebSocketServer;
