@@ -1,4 +1,3 @@
-import { WebSocket, ClientOptions } from 'ws';
 import { EventEmitter, OutputTracker } from '../server/infrastructure/output_tracker.ts';
 import { ClientMessage, ServerMessage } from '../shared/protocol.ts';
 
@@ -19,13 +18,16 @@ export class ClientSocket {
     this.client = client;
   }
 
-  static create(url: string, options: ClientOptions = {}): ClientSocket {
+  static create(url: string, options?: { token?: string }): ClientSocket {
     const parsed = new URL(url);
     if (parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') {
       throw new Error(`Invalid WebSocket URL: expected ws:// or wss://, got ${parsed.protocol}`);
     }
+    if (options?.token) {
+      parsed.searchParams.set('token', options.token);
+    }
 
-    return new ClientSocket(new RealClientSocket(url, options));
+    return new ClientSocket(new RealClientSocket(parsed.toString()));
   }
 
   static createNull(): ClientSocket {
@@ -56,12 +58,10 @@ export class ClientSocket {
 class RealClientSocket implements ClientSocketInterface {
   private socket: WebSocket | null = null;
   private readonly url: string;
-  private readonly options: ClientOptions;
   private emitter = new EventEmitter();
 
-  constructor(url: string, options: ClientOptions = {}) {
+  constructor(url: string) {
     this.url = url;
-    this.options = options;
   }
 
   get isConnected(): boolean {
@@ -71,17 +71,17 @@ class RealClientSocket implements ClientSocketInterface {
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       let settled = false;
-      this.socket = new WebSocket(this.url, this.options);
+      this.socket = new WebSocket(this.url);
       this.socket.onopen = () => {
         if (!settled) {
           settled = true;
           resolve();
         }
       };
-      this.socket.onerror = (err) => {
+      this.socket.onerror = () => {
         if (!settled) {
           settled = true;
-          reject(new Error(err.message satisfies string));
+          reject(new Error('WebSocket connection failed'));
         }
       };
     });
@@ -93,24 +93,19 @@ class RealClientSocket implements ClientSocketInterface {
         resolve();
         return;
       }
-      this.socket.on('close', () => {
+      this.socket.onclose = () => {
         resolve();
-      });
+      };
       this.socket.close();
     });
   }
 
   send(message: unknown): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (!this.socket) {
-        reject(new Error('Socket is not connected'));
-        return;
-      }
-      this.socket.send(JSON.stringify(message), (err) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
+    if (!this.socket) {
+      return Promise.reject(new Error('Socket is not connected'));
+    }
+    this.socket.send(JSON.stringify(message));
+    return Promise.resolve();
   }
 
   trackMessages(): OutputTracker {

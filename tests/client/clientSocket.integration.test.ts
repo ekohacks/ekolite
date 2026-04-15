@@ -16,7 +16,7 @@ describe('ClientSocket (real)', () => {
   it('connects to a real server', async () => {
     webSocketServer = WebSocketWrapper.createRawWs({ port: PORT });
     await webSocketServer.start();
-    client = ClientSocket.create('ws://localhost:9877');
+    client = ClientSocket.create(`ws://localhost:${String(PORT)}`);
     await client.connect();
     expect(client.isConnected).toBe(true);
     expect(webSocketServer.clientCount).toBe(1);
@@ -68,7 +68,8 @@ describe('ClientSocket auth', () => {
     return new WebSocketServer({
       port: PORT,
       verifyClient: (info, cb) => {
-        const token = info.req.headers['authorization'];
+        const url = new URL(info.req.url ?? '', `http://localhost:${String(PORT)}`);
+        const token = url.searchParams.get('token');
         if (!token) {
           cb(false, 401, 'Unauthorized');
           return;
@@ -78,16 +79,16 @@ describe('ClientSocket auth', () => {
     });
   }
 
-  it('rejects connections without an auth token', async () => {
+  it('rejects connections without a token', async () => {
     rawServer = createAuthServer();
-    const client = ClientSocket.create(`ws://localhost:${String(PORT)}`, {});
+    const client = ClientSocket.create(`ws://localhost:${String(PORT)}`);
     await expect(client.connect()).rejects.toThrow();
   });
 
-  it('connects when a valid auth header is provided', async () => {
+  it('connects when a valid token is provided', async () => {
     rawServer = createAuthServer();
     const client = ClientSocket.create(`ws://localhost:${String(PORT)}`, {
-      headers: { Authorization: 'Bearer test-token' },
+      token: 'test-token',
     });
     await client.connect();
     expect(client.isConnected).toBe(true);

@@ -1,10 +1,17 @@
 import { ClientSocket } from './clientSocket.ts';
 
-const client = ClientSocket.create('ws://localhost:9876');
+const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+const url = `${protocol}//${window.location.host}/ws`;
+
+const client = ClientSocket.create(url);
 client
   .connect()
   .then(() => {
-    console.log('Connected to server');
+    console.warn('Connected to server');
+    const app = document.getElementById('app');
+    if (app) {
+      app.textContent = `EkoLite is running. Connection: ${client.isConnected ? 'ON' : 'OFF'}`;
+    }
   })
   .catch((err: unknown) => {
     console.error('Failed to connect to server:', err);
@@ -13,5 +20,4 @@ client
 const app = document.getElementById('app');
 if (app) {
   app.textContent = 'EkoLite is running.';
-  app.textContent = `Client connection:  ${client.isConnected ? 'ON' : 'OFF'}`;
 }
