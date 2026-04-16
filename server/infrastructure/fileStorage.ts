@@ -1,11 +1,15 @@
-import { writeFile, access, unlink, mkdir } from 'node:fs/promises';
-import { resolve, dirname } from 'node:path';
+import { access, mkdir, unlink, writeFile } from 'node:fs/promises';
+import { dirname, resolve } from 'node:path';
+import { ConfigurableResponse, EventEmitter, OutputTracker } from './output_tracker.ts';
+
+const CHANGE_EVENT = 'change';
 
 interface FileSystemInterface {
   save(name: string, data: Buffer): Promise<void>;
   exists(name: string): Promise<boolean>;
   remove(name: string): Promise<void>;
   resolve(name: string): string;
+  trackChanges(): OutputTracker;
 }
 
 export class FileStorage {
@@ -19,8 +23,14 @@ export class FileStorage {
     return new FileStorage(new RealFileSystem(basePath));
   }
 
-  static createNull(): FileStorage {
-    return new FileStorage(new StubbedFileSystem());
+  static createNull(
+    options: {
+      save?: unknown[];
+      exists?: unknown[];
+      remove?: unknown[];
+    } = {},
+  ): FileStorage {
+    return new FileStorage(new StubbedFileSystem(options));
   }
 
   async save(name: string, data: Buffer): Promise<void> {
@@ -38,6 +48,10 @@ export class FileStorage {
 
   resolve(name: string): string {
     return this.fs.resolve(name);
+  }
+
+  trackChanges(): OutputTracker {
+    return this.fs.trackChanges();
   }
 }
 
@@ -70,26 +84,80 @@ class RealFileSystem implements FileSystemInterface {
   resolve(name: string): string {
     return resolve(this.basePath, name);
   }
+
+  trackChanges(): OutputTracker {
+    throw new Error('trackChanges is only available on null instances');
+  }
+}
+
+interface StubbedFileSystemOptions {
+  save?: unknown[];
+  exists?: unknown[];
+  remove?: unknown[];
 }
 
 class StubbedFileSystem implements FileSystemInterface {
   private store = new Map<string, Buffer>();
+  private emitter = new EventEmitter();
+  private saveResponses?: ConfigurableResponse;
+  private existsResponses?: ConfigurableResponse;
+  private removeResponses?: ConfigurableResponse;
+
+  constructor(options: StubbedFileSystemOptions = {}) {
+    if (options.save) this.saveResponses = new ConfigurableResponse(options.save);
+    if (options.exists) this.existsResponses = new ConfigurableResponse(options.exists);
+    if (options.remove) this.removeResponses = new ConfigurableResponse(options.remove);
+  }
 
   save(name: string, data: Buffer): Promise<void> {
+    if (this.saveResponses?.hasNext()) {
+      this.saveResponses.next();
+    }
     this.store.set(name, data);
+    this.emitter.emit(CHANGE_EVENT, {
+      type: 'save',
+      name,
+      data,
+    });
     return Promise.resolve();
   }
 
   exists(name: string): Promise<boolean> {
-    return Promise.resolve(this.store.has(name));
+    if (this.existsResponses?.hasNext()) {
+      const exists = this.existsResponses.next() as boolean;
+      this.emitter.emit(CHANGE_EVENT, {
+        type: 'exists',
+        name,
+        exists,
+      });
+      return Promise.resolve(exists);
+    }
+    const exists = this.store.has(name);
+    this.emitter.emit(CHANGE_EVENT, {
+      type: 'exists',
+      name,
+      exists,
+    });
+    return Promise.resolve(exists);
   }
 
   remove(name: string): Promise<void> {
+    if (this.removeResponses?.hasNext()) {
+      this.removeResponses.next();
+    }
     this.store.delete(name);
+    this.emitter.emit(CHANGE_EVENT, {
+      type: 'remove',
+      name,
+    });
     return Promise.resolve();
   }
 
   resolve(name: string): string {
     return resolve('/tmp/ekolite-null', name);
+  }
+
+  trackChanges(): OutputTracker {
+    return new OutputTracker(this.emitter, CHANGE_EVENT);
   }
 }

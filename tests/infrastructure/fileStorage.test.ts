@@ -2,10 +2,49 @@ import { describe, it, expect } from 'vitest';
 import { FileStorage } from '../../server/infrastructure/fileStorage.ts';
 
 describe('FileStorage (null)', () => {
+  it('consumes configured save responses in order before falling back to the store', async () => {
+    const storage = FileStorage.createNull({
+      save: [undefined, undefined],
+    });
+
+    await storage.save('first.bam', Buffer.from('first'));
+    await storage.save('second.bam', Buffer.from('second'));
+    await storage.save('third.bam', Buffer.from('third'));
+
+    await expect(storage.exists('first.bam')).resolves.toBe(true);
+    await expect(storage.exists('second.bam')).resolves.toBe(true);
+    await expect(storage.exists('third.bam')).resolves.toBe(true);
+  });
+
   it('saves a file and confirms it exists', async () => {
     const storage = FileStorage.createNull();
     await storage.save('test.bam', Buffer.from('content'));
     expect(await storage.exists('test.bam')).toBe(true);
+  });
+
+  it('tracks save, exists, and remove operations', async () => {
+    const storage = FileStorage.createNull();
+    const tracker = storage.trackChanges();
+
+    await storage.save('test.bam', Buffer.from('content'));
+    await storage.exists('test.bam');
+    await storage.remove('test.bam');
+
+    expect(tracker.data).toHaveLength(3);
+    expect(tracker.data[0]).toMatchObject({
+      type: 'save',
+      name: 'test.bam',
+    });
+    expect(tracker.data[0]).toHaveProperty('data');
+    expect(tracker.data[1]).toMatchObject({
+      type: 'exists',
+      name: 'test.bam',
+      exists: true,
+    });
+    expect(tracker.data[2]).toMatchObject({
+      type: 'remove',
+      name: 'test.bam',
+    });
   });
 
   it('returns false for a file that does not exist', async () => {
@@ -18,6 +57,88 @@ describe('FileStorage (null)', () => {
     await storage.save('test.bam', Buffer.from('content'));
     await storage.remove('test.bam');
     expect(await storage.exists('test.bam')).toBe(false);
+  });
+
+  it('throws configured save errors without mutating the store', async () => {
+    const storage = FileStorage.createNull({
+      save: [new Error('Disk full')],
+    });
+    const tracker = storage.trackChanges();
+
+    await expect(storage.save('test.bam', Buffer.from('content'))).rejects.toThrow('Disk full');
+    await expect(storage.exists('test.bam')).resolves.toBe(false);
+    expect(tracker.data).toEqual([
+      {
+        type: 'exists',
+        name: 'test.bam',
+        exists: false,
+      },
+    ]);
+  });
+
+  it('throws configured remove errors without deleting the file', async () => {
+    const storage = FileStorage.createNull({
+      remove: [new Error('Permission denied')],
+    });
+    const tracker = storage.trackChanges();
+
+    await storage.save('test.bam', Buffer.from('content'));
+    await expect(storage.remove('test.bam')).rejects.toThrow('Permission denied');
+    await expect(storage.exists('test.bam')).resolves.toBe(true);
+    expect(tracker.data[0]).toMatchObject({
+      type: 'save',
+      name: 'test.bam',
+    });
+    expect(tracker.data[1]).toMatchObject({
+      type: 'exists',
+      name: 'test.bam',
+      exists: true,
+    });
+    expect(tracker.data).toHaveLength(2);
+  });
+
+  it('returns configured exists responses before falling back to the store', async () => {
+    const storage = FileStorage.createNull({
+      exists: [false, true],
+    });
+    const tracker = storage.trackChanges();
+
+    await storage.save('test.bam', Buffer.from('content'));
+
+    await expect(storage.exists('test.bam')).resolves.toBe(false);
+    await expect(storage.exists('missing.bam')).resolves.toBe(true);
+    await expect(storage.exists('test.bam')).resolves.toBe(true);
+    await expect(storage.exists('missing.bam')).resolves.toBe(false);
+    expect(tracker.data[1]).toMatchObject({
+      type: 'exists',
+      name: 'test.bam',
+      exists: false,
+    });
+    expect(tracker.data[2]).toMatchObject({
+      type: 'exists',
+      name: 'missing.bam',
+      exists: true,
+    });
+    expect(tracker.data[3]).toMatchObject({
+      type: 'exists',
+      name: 'test.bam',
+      exists: true,
+    });
+    expect(tracker.data[4]).toMatchObject({
+      type: 'exists',
+      name: 'missing.bam',
+      exists: false,
+    });
+  });
+
+  it('throws configured exists errors', async () => {
+    const storage = FileStorage.createNull({
+      exists: [new Error('Stat failed')],
+    });
+    const tracker = storage.trackChanges();
+
+    await expect(storage.exists('test.bam')).rejects.toThrow('Stat failed');
+    expect(tracker.data).toEqual([]);
   });
 
   it('resolves to an absolute path', () => {

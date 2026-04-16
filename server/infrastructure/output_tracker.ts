@@ -54,6 +54,10 @@ export class ConfigurableResponse {
     this.queue = [...responses];
   }
 
+  hasNext(): boolean {
+    return this.queue.length > 0;
+  }
+
   next(): unknown {
     if (this.queue.length === 0) {
       throw new Error('ConfigurableResponse queue exhausted — no more responses configured');
