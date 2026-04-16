@@ -8,19 +8,19 @@ interface FileSystemInterface {
   resolve(name: string): string;
 }
 
-export class FileStorage {
+export class FileStorageWrapper {
   private fs: FileSystemInterface;
 
   private constructor(fs: FileSystemInterface) {
     this.fs = fs;
   }
 
-  static create(basePath: string): FileStorage {
-    return new FileStorage(new RealFileSystem(basePath));
+  static create(basePath: string): FileStorageWrapper {
+    return new FileStorageWrapper(new RealFileSystem(basePath));
   }
 
-  static createNull(): FileStorage {
-    return new FileStorage(new StubbedFileSystem());
+  static createNull(): FileStorageWrapper {
+    return new FileStorageWrapper(new StubbedFileSystem());
   }
 
   async save(name: string, data: Buffer): Promise<void> {
