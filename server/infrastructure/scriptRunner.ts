@@ -5,19 +5,19 @@ interface ProcessRunnerInterface {
   exec(command: string, args: string[]): Promise<ScriptResult>;
 }
 
-export class ScriptRunner {
+export class ScriptRunnerWrapper {
   private runner: ProcessRunnerInterface;
 
   private constructor(runner: ProcessRunnerInterface) {
     this.runner = runner;
   }
 
-  static create(): ScriptRunner {
-    return new ScriptRunner(new RealProcessRunner());
+  static create(): ScriptRunnerWrapper {
+    return new ScriptRunnerWrapper(new RealProcessRunner());
   }
 
-  static createNull(responses: Record<string, string> = {}): ScriptRunner {
-    return new ScriptRunner(new StubbedProcessRunner(responses));
+  static createNull(responses: Record<string, string> = {}): ScriptRunnerWrapper {
+    return new ScriptRunnerWrapper(new StubbedProcessRunner(responses));
   }
 
   async exec(command: string, args: string[]): Promise<ScriptResult> {
