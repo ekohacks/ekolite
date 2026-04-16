@@ -1,9 +1,9 @@
-import { ClientSocket } from './clientSocket.ts';
+import { ClientSocketWrapper } from './clientSocket.ts';
 
 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 const url = `${protocol}//${window.location.host}/ws`;
 
-const client = ClientSocket.create(url);
+const client = ClientSocketWrapper.create(url);
 client
   .connect()
   .then(() => {
