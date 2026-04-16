@@ -1,8 +1,10 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { rm, mkdir } from 'node:fs/promises';
+import path from 'node:path';
+import os from 'node:os';
 import { FileStorage } from '../../server/infrastructure/fileStorage.ts';
 
-const TEST_DIR = '/tmp/ekolite-test-files';
+const TEST_DIR = path.join(os.tmpdir(), 'ekolite-test-files');
 
 describe('FileStorage (real)', () => {
   const storage = FileStorage.create(TEST_DIR);
