@@ -1,14 +1,14 @@
 import { execFile } from 'node:child_process';
 import { ScriptResult } from '../../shared/types.ts';
 
-interface ProcessRunnerInterface {
+interface ScriptRunnerInterface {
   exec(command: string, args: string[]): Promise<ScriptResult>;
 }
 
 export class ScriptRunnerWrapper {
-  private runner: ProcessRunnerInterface;
+  private runner: ScriptRunnerInterface;
 
-  private constructor(runner: ProcessRunnerInterface) {
+  private constructor(runner: ScriptRunnerInterface) {
     this.runner = runner;
   }
 
@@ -25,7 +25,7 @@ export class ScriptRunnerWrapper {
   }
 }
 
-class RealProcessRunner implements ProcessRunnerInterface {
+class RealProcessRunner implements ScriptRunnerInterface {
   exec(command: string, args: string[]): Promise<ScriptResult> {
     return new Promise((resolve) => {
       execFile(command, args, (error, stdout, stderr) => {
@@ -39,7 +39,7 @@ class RealProcessRunner implements ProcessRunnerInterface {
   }
 }
 
-class StubbedProcessRunner implements ProcessRunnerInterface {
+class StubbedProcessRunner implements ScriptRunnerInterface {
   private responses: Record<string, string>;
 
   constructor(responses: Record<string, string>) {
