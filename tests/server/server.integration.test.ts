@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import { createServer } from '../../server/index.ts';
+import { WebSocketWrapper } from '../../server/infrastructure/websocket.ts';
 
 describe('Server', () => {
   let server: Awaited<ReturnType<typeof createServer>>;
@@ -10,7 +11,8 @@ describe('Server', () => {
   });
 
   it('GET / returns 200 text/html', async () => {
-    server = await createServer();
+    const ws = WebSocketWrapper.createRawWs({ port: 0 });
+    server = await createServer({ ws });
 
     const response = await server.inject({ method: 'GET', url: '/' });
 
@@ -27,7 +29,8 @@ describe('Websocket fastify integration test', () => {
     await server.close();
   });
   it('accepts Websocket connection on /ws', async () => {
-    server = await createServer();
+    const wsRaw = WebSocketWrapper.createRawWs({ port: 1010 });
+    server = await createServer({ ws: wsRaw });
     await server.listen({ port: 0 });
     const port = String(server.addresses()[0].port);
 
