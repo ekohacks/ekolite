@@ -1,4 +1,4 @@
-import { EventEmitter, OutputTracker } from '../server/infrastructure/output_tracker.ts';
+import { EventEmitter, OutputTracker } from '../server/infrastructure/outputTracker.ts';
 import { ClientMessage, ServerMessage } from '../shared/protocol.ts';
 
 interface ClientSocketInterface {

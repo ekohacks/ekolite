@@ -1,6 +1,6 @@
 import { Db, MongoClient as Driver, ObjectId } from 'mongodb';
 import { ChangeEvent } from '../../shared/types.ts';
-import { ConfigurableResponse, EventEmitter, OutputTracker } from './output_tracker.ts';
+import { ConfigurableResponse, EventEmitter, OutputTracker } from './outputTracker.ts';
 
 interface MongoInterface {
   find<T>(collection: string, query: object): Promise<T[]>;

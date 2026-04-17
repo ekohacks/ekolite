@@ -1,7 +1,7 @@
 import fastifyWebsocket from '@fastify/websocket';
 import { type FastifyInstance } from 'fastify';
 import { WebSocketServer, type WebSocket } from 'ws';
-import { EventEmitter, OutputTracker } from './output_tracker.ts';
+import { EventEmitter, OutputTracker } from './outputTracker.ts';
 
 const CONNECTION_EVENT = 'connection';
 const DISCONNECTION_EVENT = 'disconnection';
