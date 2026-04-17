@@ -13,11 +13,11 @@ export class ScriptRunnerWrapper {
   }
 
   static create(): ScriptRunnerWrapper {
-    return new ScriptRunnerWrapper(new RealProcessRunner());
+    return new ScriptRunnerWrapper(new RealScriptRunner());
   }
 
   static createNull(responses: Record<string, string> = {}): ScriptRunnerWrapper {
-    return new ScriptRunnerWrapper(new StubbedProcessRunner(responses));
+    return new ScriptRunnerWrapper(new StubbedScriptRunner(responses));
   }
 
   async exec(command: string, args: string[]): Promise<ScriptResult> {
@@ -25,7 +25,7 @@ export class ScriptRunnerWrapper {
   }
 }
 
-class RealProcessRunner implements ScriptRunnerInterface {
+class RealScriptRunner implements ScriptRunnerInterface {
   exec(command: string, args: string[]): Promise<ScriptResult> {
     return new Promise((resolve) => {
       execFile(command, args, (error, stdout, stderr) => {
@@ -39,7 +39,7 @@ class RealProcessRunner implements ScriptRunnerInterface {
   }
 }
 
-class StubbedProcessRunner implements ScriptRunnerInterface {
+class StubbedScriptRunner implements ScriptRunnerInterface {
   private responses: Record<string, string>;
 
   constructor(responses: Record<string, string>) {
