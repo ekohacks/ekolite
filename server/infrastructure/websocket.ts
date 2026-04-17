@@ -7,7 +7,7 @@ const CONNECTION_EVENT = 'connection';
 const DISCONNECTION_EVENT = 'disconnection';
 const MESSAGE_EVENT = 'message';
 
-interface WebSocketServerInterface {
+interface WebSocketInterface {
   start?(): Promise<void>;
   close?(): Promise<void>;
   get clientCount(): number;
@@ -19,9 +19,9 @@ interface WebSocketServerInterface {
 }
 
 export class WebSocketWrapper {
-  private server: WebSocketServerInterface;
+  private server: WebSocketInterface;
 
-  private constructor(server: WebSocketServerInterface) {
+  private constructor(server: WebSocketInterface) {
     this.server = server;
   }
 
@@ -75,7 +75,7 @@ export class WebSocketWrapper {
   }
 }
 
-class RealWebSocketServer implements WebSocketServerInterface {
+class RealWebSocketServer implements WebSocketInterface {
   private wss: WebSocketServer | null = null;
   private port: number;
   private clients = new Map<string, WebSocket>();
@@ -145,7 +145,7 @@ class RealWebSocketServer implements WebSocketServerInterface {
   }
 }
 
-class FastifyWebSocketServer implements WebSocketServerInterface {
+class FastifyWebSocketServer implements WebSocketInterface {
   private fastify: FastifyInstance;
   private clients = new Map<string, WebSocket>();
   private nextId = 0;
@@ -221,7 +221,7 @@ export class StubbedClient {
   }
 }
 
-class StubbedWebSocketServer implements WebSocketServerInterface {
+class StubbedWebSocketServer implements WebSocketInterface {
   private clients = new Map<string, StubbedClient>();
   private emitter = new EventEmitter();
   private nextId = 0;
