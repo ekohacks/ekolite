@@ -20,7 +20,7 @@ export class FileStorageWrapper {
   }
 
   static createNull(): FileStorageWrapper {
-    return new FileStorageWrapper(new StubbedFileSystem());
+    return new FileStorageWrapper(new StubbedFileStorage());
   }
 
   async save(name: string, data: Buffer): Promise<void> {
@@ -72,7 +72,7 @@ class RealFileStorage implements FileStorageInterface {
   }
 }
 
-class StubbedFileSystem implements FileStorageInterface {
+class StubbedFileStorage implements FileStorageInterface {
   private store = new Map<string, Buffer>();
 
   save(name: string, data: Buffer): Promise<void> {
