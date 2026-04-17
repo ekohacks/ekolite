@@ -34,7 +34,7 @@ export class WebSocketWrapper {
   }
 
   static createNull(): WebSocketWrapper {
-    return new WebSocketWrapper(new StubbedWebSocketServer());
+    return new WebSocketWrapper(new StubbedWebSocket());
   }
 
   async start(): Promise<void> {
@@ -50,7 +50,7 @@ export class WebSocketWrapper {
   }
 
   simulateConnection(): StubbedClient {
-    const stub = this.server as StubbedWebSocketServer;
+    const stub = this.server as StubbedWebSocket;
     return stub.simulateConnection();
   }
 
@@ -205,9 +205,9 @@ class FastifyWebSocket implements WebSocketInterface {
 export class StubbedClient {
   readonly id: string;
   readonly messages: unknown[] = [];
-  private server: StubbedWebSocketServer;
+  private server: StubbedWebSocket;
 
-  constructor(id: string, server: StubbedWebSocketServer) {
+  constructor(id: string, server: StubbedWebSocket) {
     this.id = id;
     this.server = server;
   }
@@ -221,7 +221,7 @@ export class StubbedClient {
   }
 }
 
-class StubbedWebSocketServer implements WebSocketInterface {
+class StubbedWebSocket implements WebSocketInterface {
   private clients = new Map<string, StubbedClient>();
   private emitter = new EventEmitter();
   private nextId = 0;
