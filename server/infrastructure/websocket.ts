@@ -26,7 +26,7 @@ export class WebSocketWrapper {
   }
 
   static create(fastify: FastifyInstance): WebSocketWrapper {
-    return new WebSocketWrapper(new FastifyWebSocketServer(fastify));
+    return new WebSocketWrapper(new FastifyWebSocket(fastify));
   }
 
   static createRawWs(options: { port: number }): WebSocketWrapper {
@@ -145,7 +145,7 @@ class RealWebSocket implements WebSocketInterface {
   }
 }
 
-class FastifyWebSocketServer implements WebSocketInterface {
+class FastifyWebSocket implements WebSocketInterface {
   private fastify: FastifyInstance;
   private clients = new Map<string, WebSocket>();
   private nextId = 0;
