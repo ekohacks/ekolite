@@ -16,7 +16,7 @@ export class FileStorageWrapper {
   }
 
   static create(basePath: string): FileStorageWrapper {
-    return new FileStorageWrapper(new RealFileSystem(basePath));
+    return new FileStorageWrapper(new RealFileStorage(basePath));
   }
 
   static createNull(): FileStorageWrapper {
@@ -41,7 +41,7 @@ export class FileStorageWrapper {
   }
 }
 
-class RealFileSystem implements FileStorageInterface {
+class RealFileStorage implements FileStorageInterface {
   private basePath: string;
 
   constructor(basePath: string) {
