@@ -18,7 +18,7 @@ export class MongoWrapper {
   }
 
   static create(uri: string): MongoWrapper {
-    return new MongoWrapper(new RealMongoClient(uri));
+    return new MongoWrapper(new RealMongo(uri));
   }
 
   static createNull(
@@ -53,7 +53,7 @@ export class MongoWrapper {
   }
 }
 
-class RealMongoClient implements MongoInterface {
+class RealMongo implements MongoInterface {
   private db: Db;
 
   constructor(uri: string) {
