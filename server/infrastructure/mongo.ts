@@ -29,7 +29,7 @@ export class MongoWrapper {
       remove?: unknown[];
     } = {},
   ): MongoWrapper {
-    return new MongoWrapper(new StubbedMongoClient(options));
+    return new MongoWrapper(new StubbedMongo(options));
   }
 
   async find<T>(collection: string, query: object): Promise<T[]> {
@@ -89,7 +89,7 @@ interface StubbedMongoOptions {
   remove?: unknown[];
 }
 
-class StubbedMongoClient implements MongoInterface {
+class StubbedMongo implements MongoInterface {
   private emitter = new EventEmitter();
   private findResponses?: ConfigurableResponse;
   private insertResponses?: ConfigurableResponse;
