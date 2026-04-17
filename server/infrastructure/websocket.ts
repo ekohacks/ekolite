@@ -30,7 +30,7 @@ export class WebSocketWrapper {
   }
 
   static createRawWs(options: { port: number }): WebSocketWrapper {
-    return new WebSocketWrapper(new RealWebSocketServer(options.port));
+    return new WebSocketWrapper(new RealWebSocket(options.port));
   }
 
   static createNull(): WebSocketWrapper {
@@ -75,7 +75,7 @@ export class WebSocketWrapper {
   }
 }
 
-class RealWebSocketServer implements WebSocketInterface {
+class RealWebSocket implements WebSocketInterface {
   private wss: WebSocketServer | null = null;
   private port: number;
   private clients = new Map<string, WebSocket>();
