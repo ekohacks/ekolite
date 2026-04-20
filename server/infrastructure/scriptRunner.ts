@@ -9,7 +9,7 @@ type ScriptRunnerResponses = Record<string, ScriptRunnerResponse | ScriptRunnerR
 
 interface ProcessRunnerInterface {
   exec(command: string, args: string[]): Promise<ScriptResult>;
-  trackExecutions(): OutputTracker;
+  trackChanges(): OutputTracker;
 }
 
 export class ScriptRunner {
@@ -31,8 +31,8 @@ export class ScriptRunner {
     return this.runner.exec(command, args);
   }
 
-  trackExecutions(): OutputTracker {
-    return this.runner.trackExecutions();
+  trackChanges(): OutputTracker {
+    return this.runner.trackChanges();
   }
 }
 
@@ -49,7 +49,7 @@ class RealProcessRunner implements ProcessRunnerInterface {
     });
   }
 
-  trackExecutions(): OutputTracker {
+  trackChanges(): OutputTracker {
     throw new Error('trackExecutions is only available on null instances');
   }
 }
@@ -79,7 +79,7 @@ class StubbedProcessRunner implements ProcessRunnerInterface {
     return Promise.resolve(result);
   }
 
-  trackExecutions(): OutputTracker {
+  trackChanges(): OutputTracker {
     return new OutputTracker(this.emitter, EXECUTION_EVENT);
   }
 }

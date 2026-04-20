@@ -57,7 +57,7 @@ describe('ScriptRunner (null)', () => {
       echo: ['hello\n'],
       node: [{ stdout: '', stderr: 'oops', exitCode: 1 }],
     });
-    const tracker = runner.trackExecutions();
+    const tracker = runner.trackChanges();
 
     await runner.exec('echo', ['hello']);
     await runner.exec('node', ['-e', 'process.exit(1)']);
@@ -79,7 +79,7 @@ describe('ScriptRunner (null)', () => {
     const runner = ScriptRunner.createNull({
       python: [new Error('spawn ENOENT')],
     });
-    const tracker = runner.trackExecutions();
+    const tracker = runner.trackChanges();
 
     await expect(runner.exec('python', ['script.py'])).rejects.toThrow('spawn ENOENT');
     expect(tracker.data).toEqual([]);
