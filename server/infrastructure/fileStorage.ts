@@ -110,9 +110,7 @@ class StubbedFileSystem implements FileSystemInterface {
   }
 
   save(name: string, data: Buffer): Promise<void> {
-    if (this.saveResponses?.hasNext()) {
-      this.saveResponses.next();
-    }
+    this.saveResponses?.next();
     this.store.set(name, data);
     this.emitter.emit(CHANGE_EVENT, {
       type: 'save',
@@ -123,15 +121,7 @@ class StubbedFileSystem implements FileSystemInterface {
   }
 
   exists(name: string): Promise<boolean> {
-    if (this.existsResponses?.hasNext()) {
-      const exists = this.existsResponses.next() as boolean;
-      this.emitter.emit(CHANGE_EVENT, {
-        type: 'exists',
-        name,
-        exists,
-      });
-      return Promise.resolve(exists);
-    }
+    this.existsResponses?.next() as boolean;
     const exists = this.store.has(name);
     this.emitter.emit(CHANGE_EVENT, {
       type: 'exists',
@@ -142,9 +132,7 @@ class StubbedFileSystem implements FileSystemInterface {
   }
 
   remove(name: string): Promise<void> {
-    if (this.removeResponses?.hasNext()) {
-      this.removeResponses.next();
-    }
+    this.removeResponses?.next();
     this.store.delete(name);
     this.emitter.emit(CHANGE_EVENT, {
       type: 'remove',

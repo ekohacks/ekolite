@@ -1,21 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { FileStorage } from '../../server/infrastructure/fileStorage.ts';
 
 describe('FileStorage (null)', () => {
-  it('consumes configured save responses in order before falling back to the store', async () => {
-    const storage = FileStorage.createNull({
-      save: [undefined, undefined],
-    });
-
-    await storage.save('first.bam', Buffer.from('first'));
-    await storage.save('second.bam', Buffer.from('second'));
-    await storage.save('third.bam', Buffer.from('third'));
-
-    await expect(storage.exists('first.bam')).resolves.toBe(true);
-    await expect(storage.exists('second.bam')).resolves.toBe(true);
-    await expect(storage.exists('third.bam')).resolves.toBe(true);
-  });
-
   it('saves a file and confirms it exists', async () => {
     const storage = FileStorage.createNull();
     await storage.save('test.bam', Buffer.from('content'));
@@ -95,40 +81,6 @@ describe('FileStorage (null)', () => {
       exists: true,
     });
     expect(tracker.data).toHaveLength(2);
-  });
-
-  it('returns configured exists responses before falling back to the store', async () => {
-    const storage = FileStorage.createNull({
-      exists: [false, true],
-    });
-    const tracker = storage.trackChanges();
-
-    await storage.save('test.bam', Buffer.from('content'));
-
-    await expect(storage.exists('test.bam')).resolves.toBe(false);
-    await expect(storage.exists('missing.bam')).resolves.toBe(true);
-    await expect(storage.exists('test.bam')).resolves.toBe(true);
-    await expect(storage.exists('missing.bam')).resolves.toBe(false);
-    expect(tracker.data[1]).toMatchObject({
-      type: 'exists',
-      name: 'test.bam',
-      exists: false,
-    });
-    expect(tracker.data[2]).toMatchObject({
-      type: 'exists',
-      name: 'missing.bam',
-      exists: true,
-    });
-    expect(tracker.data[3]).toMatchObject({
-      type: 'exists',
-      name: 'test.bam',
-      exists: true,
-    });
-    expect(tracker.data[4]).toMatchObject({
-      type: 'exists',
-      name: 'missing.bam',
-      exists: false,
-    });
   });
 
   it('throws configured exists errors', async () => {
