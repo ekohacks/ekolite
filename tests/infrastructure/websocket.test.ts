@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import { createServer } from '../../server/index.ts';
 import { WebSocketWrapper } from '../../server/infrastructure/websocket.ts';
 
 describe('WebSocketWrapper (null)', () => {
@@ -56,5 +57,17 @@ describe('WebSocketWrapper (null)', () => {
     ws.broadcast({ type: 'update', payload: 'refresh' });
     expect(client1.messages).toEqual([{ type: 'update', payload: 'refresh' }]);
     expect(client2.messages).toEqual([{ type: 'update', payload: 'refresh' }]);
+  });
+  it('it tracks connection with nullable websocket', async () => {
+    const ws = WebSocketWrapper.createNull();
+    await createServer({ ws });
+
+    const client = ws.simulateConnection();
+
+    expect(ws.clientCount).toBe(1);
+
+    client.close();
+
+    expect(ws.clientCount).toBe(0);
   });
 });

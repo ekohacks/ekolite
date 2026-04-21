@@ -1,10 +1,10 @@
 import { access, mkdir, unlink, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { ConfigurableResponse, EventEmitter, OutputTracker } from './output_tracker.ts';
+import { ConfigurableResponse, EventEmitter, OutputTracker } from './outputTracker.ts';
 
 const CHANGE_EVENT = 'change';
 
-interface FileSystemInterface {
+interface FileStorageInterface {
   save(name: string, data: Buffer): Promise<void>;
   exists(name: string): Promise<boolean>;
   remove(name: string): Promise<void>;
@@ -12,15 +12,15 @@ interface FileSystemInterface {
   trackChanges(): OutputTracker;
 }
 
-export class FileStorage {
-  private fs: FileSystemInterface;
+export class FileStorageWrapper {
+  private fs: FileStorageInterface;
 
-  private constructor(fs: FileSystemInterface) {
+  private constructor(fs: FileStorageInterface) {
     this.fs = fs;
   }
 
-  static create(basePath: string): FileStorage {
-    return new FileStorage(new RealFileSystem(basePath));
+  static create(basePath: string): FileStorageWrapper {
+    return new FileStorageWrapper(new RealFileStorage(basePath));
   }
 
   static createNull(
@@ -29,8 +29,8 @@ export class FileStorage {
       exists?: unknown[];
       remove?: unknown[];
     } = {},
-  ): FileStorage {
-    return new FileStorage(new StubbedFileSystem(options));
+  ): FileStorageWrapper {
+    return new FileStorageWrapper(new StubbedFileStorage(options));
   }
 
   async save(name: string, data: Buffer): Promise<void> {
@@ -55,7 +55,7 @@ export class FileStorage {
   }
 }
 
-class RealFileSystem implements FileSystemInterface {
+class RealFileStorage implements FileStorageInterface {
   private basePath: string;
 
   constructor(basePath: string) {
@@ -96,7 +96,7 @@ interface StubbedFileSystemOptions {
   remove?: unknown[];
 }
 
-class StubbedFileSystem implements FileSystemInterface {
+class StubbedFileStorage implements FileStorageInterface {
   private store = new Map<string, Buffer>();
   private emitter = new EventEmitter();
   private saveResponses?: ConfigurableResponse;

@@ -4,7 +4,7 @@ import WebSocket from 'ws';
 import { WebSocketWrapper } from '../../server/infrastructure/websocket.ts';
 
 describe('WebSocketWrapper via Fastify (real)', () => {
-  const PORT = 9877;
+  const PORT = 3333;
   let ws: WebSocketWrapper;
 
   afterEach(async () => {
@@ -13,8 +13,8 @@ describe('WebSocketWrapper via Fastify (real)', () => {
 
   it('tracks connected clients', async () => {
     const fastify = Fastify();
-    ws = WebSocketWrapper.create(fastify);
-    await ws.start();
+    ws = WebSocketWrapper.create();
+    await ws.attach(fastify);
     await fastify.listen({ port: PORT });
     expect(ws.clientCount).toBe(0);
 
@@ -30,8 +30,8 @@ describe('WebSocketWrapper via Fastify (real)', () => {
 
   it('broadcasts a message to all clients', async () => {
     const fastify = Fastify();
-    ws = WebSocketWrapper.create(fastify);
-    await ws.start();
+    ws = WebSocketWrapper.create();
+    await ws.attach(fastify);
     await fastify.listen({ port: PORT });
 
     const client1 = new WebSocket(`ws://localhost:${String(PORT)}/ws`);

@@ -2,12 +2,12 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { rm, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-import { FileStorage } from '../../server/infrastructure/fileStorage.ts';
+import { FileStorageWrapper } from '../../server/infrastructure/fileStorage.ts';
 
 const TEST_DIR = path.join(os.tmpdir(), 'ekolite-test-files');
 
-describe('FileStorage (real)', () => {
-  const storage = FileStorage.create(TEST_DIR);
+describe('FileStorageWrapper (real)', () => {
+  const storage = FileStorageWrapper.create(TEST_DIR);
 
   afterEach(async () => {
     await rm(TEST_DIR, { recursive: true, force: true });

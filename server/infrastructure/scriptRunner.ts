@@ -1,30 +1,30 @@
 import { execFile } from 'node:child_process';
 import { ScriptResult } from '../../shared/types.ts';
-import { ConfigurableResponse, EventEmitter, OutputTracker } from './output_tracker.ts';
+import { ConfigurableResponse, EventEmitter, OutputTracker } from './outputTracker.ts';
 
 const EXECUTION_EVENT = 'execution';
 
 type ScriptRunnerResponse = ScriptResult | string | Error;
 type ScriptRunnerResponses = Record<string, ScriptRunnerResponse | ScriptRunnerResponse[]>;
 
-interface ProcessRunnerInterface {
+interface ScriptRunnerInterface {
   exec(command: string, args: string[]): Promise<ScriptResult>;
   trackChanges(): OutputTracker;
 }
 
-export class ScriptRunner {
-  private runner: ProcessRunnerInterface;
+export class ScriptRunnerWrapper {
+  private runner: ScriptRunnerInterface;
 
-  private constructor(runner: ProcessRunnerInterface) {
+  private constructor(runner: ScriptRunnerInterface) {
     this.runner = runner;
   }
 
-  static create(): ScriptRunner {
-    return new ScriptRunner(new RealProcessRunner());
+  static create(): ScriptRunnerWrapper {
+    return new ScriptRunnerWrapper(new RealScriptRunner());
   }
 
-  static createNull(responses: ScriptRunnerResponses = {}): ScriptRunner {
-    return new ScriptRunner(new StubbedProcessRunner(responses));
+  static createNull(responses: ScriptRunnerResponses = {}): ScriptRunnerWrapper {
+    return new ScriptRunnerWrapper(new StubbedProcessRunner(responses));
   }
 
   async exec(command: string, args: string[]): Promise<ScriptResult> {
@@ -36,7 +36,7 @@ export class ScriptRunner {
   }
 }
 
-class RealProcessRunner implements ProcessRunnerInterface {
+class RealScriptRunner implements ScriptRunnerInterface {
   exec(command: string, args: string[]): Promise<ScriptResult> {
     return new Promise((resolve) => {
       execFile(command, args, (error, stdout, stderr) => {
@@ -54,7 +54,7 @@ class RealProcessRunner implements ProcessRunnerInterface {
   }
 }
 
-class StubbedProcessRunner implements ProcessRunnerInterface {
+class StubbedProcessRunner implements ScriptRunnerInterface {
   private responses = new Map<string, ConfigurableResponse>();
   private emitter = new EventEmitter();
 
