@@ -23,13 +23,7 @@ export class FileStorageWrapper {
     return new FileStorageWrapper(new RealFileStorage(basePath));
   }
 
-  static createNull(
-    options: {
-      save?: unknown[];
-      exists?: unknown[];
-      remove?: unknown[];
-    } = {},
-  ): FileStorageWrapper {
+  static createNull(options: StubbedFileSystemOptions = {}): FileStorageWrapper {
     return new FileStorageWrapper(new StubbedFileStorage(options));
   }
 
@@ -92,7 +86,7 @@ class RealFileStorage implements FileStorageInterface {
 
 interface StubbedFileSystemOptions {
   save?: unknown[];
-  exists?: unknown[];
+  exists?: Error[];
   remove?: unknown[];
 }
 
@@ -121,7 +115,7 @@ class StubbedFileStorage implements FileStorageInterface {
   }
 
   exists(name: string): Promise<boolean> {
-    this.existsResponses?.next() as boolean;
+    this.existsResponses?.next();
     const exists = this.store.has(name);
     this.emitter.emit(CHANGE_EVENT, {
       type: 'exists',
