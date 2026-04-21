@@ -13,9 +13,9 @@ flowchart TD
 
         subgraph wrapper ["WebSocketWrapper (facade)"]
             wrapperClass["WebSocketWrapper"]
-            wrapperClass -->|"create(fastify)"| fastifyImpl["FastifyWebSocketServer"]
-            wrapperClass -->|"createRawWs(port)"| realImpl["RealWebSocketServer"]
-            wrapperClass -->|"createNull()"| stubImpl["StubbedWebSocketServer"]
+            wrapperClass -->|"create(fastify)"| fastifyImpl["FastifyWebSocket"]
+            wrapperClass -->|"createRawWs(port)"| realImpl["RealWebSocket"]
+            wrapperClass -->|"createNull()"| stubImpl["StubbedWebSocket"]
         end
 
         fastifyImpl -->|"stores in Map"| rawWs["Raw ws.WebSocket"]
@@ -28,8 +28,8 @@ flowchart TD
     subgraph client ["Client Side"]
         direction TB
 
-        subgraph clientWrapper ["ClientSocket (facade)"]
-            clientClass["ClientSocket"]
+        subgraph clientWrapper ["ClientSocketWrapper (facade)"]
+            clientClass["ClientSocketWrapper"]
             clientClass -->|"create(url)"| realClient["RealClientSocket"]
             clientClass -->|"createNull()"| stubClientSocket["StubbedClientSocket"]
         end

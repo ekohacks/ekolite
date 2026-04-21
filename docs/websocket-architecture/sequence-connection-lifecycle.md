@@ -3,8 +3,8 @@ sequenceDiagram
     participant ST as server/start.ts
     participant CS as createServer()
     participant WP as websocketRoutes plugin
-    participant FWS as FastifyWebSocketServer
-    participant CL as ClientSocket
+    participant FWS as FastifyWebSocket
+    participant CL as ClientSocketWrapper
     participant RCS as RealClientSocket
 
     Note over ST,RCS: Implemented: Server startup and connection lifecycle
@@ -17,12 +17,12 @@ sequenceDiagram
     CS-->>ST: return server
     ST->>ST: server.listen({ port: 3001 })
 
-    Note over FWS: WebSocketWrapper.create(fastify) creates FastifyWebSocketServer
+    Note over FWS: WebSocketWrapper.create(fastify) creates FastifyWebSocket
 
     FWS->>FWS: start()
     FWS->>FWS: register @fastify/websocket + /ws route handler
 
-    CL->>RCS: ClientSocket.create(url)
+    CL->>RCS: ClientSocketWrapper.create(url)
     RCS->>FWS: connect() opens WebSocket to /ws
     FWS->>FWS: store WebSocket in clients Map (id = nextId++)
     FWS-->>RCS: connection accepted

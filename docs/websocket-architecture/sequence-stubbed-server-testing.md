@@ -1,7 +1,7 @@
 ```mermaid
 sequenceDiagram
     participant WW as WebSocketWrapper
-    participant SWS as StubbedWebSocketServer
+    participant SWS as StubbedWebSocket
     participant SC as StubbedClient
     participant EE as EventEmitter
     participant OT as OutputTracker

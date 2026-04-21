@@ -29,14 +29,14 @@ Visit `http://localhost:3001` in a browser. The client code in `client/main.ts`:
 
 1. Detects whether you are on http or https
 2. Builds a WebSocket URL (`ws://localhost:3001/ws`)
-3. Creates a `ClientSocket` and calls `connect()`
+3. Creates a `ClientSocketWrapper` and calls `connect()`
 4. Updates the page to show "Connection: ON" when the WebSocket opens
 
 That is the full working flow end to end. Server starts, client loads, WebSocket connects.
 
 ### What happens under the hood
 
-When the client connects, the `FastifyWebSocketServer` (inside the `WebSocketWrapper`):
+When the client connects, the `FastifyWebSocket` (inside the `WebSocketWrapper`):
 
 1. Assigns the connection an ID (incrementing from 0)
 2. Stores the raw WebSocket in a `Map<string, WebSocket>`
@@ -52,13 +52,13 @@ We have built five infrastructure wrappers. Each one follows the same pattern:
 - A **real implementation** that talks to the actual external system
 - A **stubbed implementation** that works entirely in memory for tests
 
-| Wrapper            | What it wraps         | Production use                                    | Test use                 |
-| ------------------ | --------------------- | ------------------------------------------------- | ------------------------ |
-| `WebSocketWrapper` | WebSocket connections | `FastifyWebSocketServer` or `RealWebSocketServer` | `StubbedWebSocketServer` |
-| `MongoWrapper`     | MongoDB database      | `RealMongoClient`                                 | `StubbedMongoClient`     |
-| `FileStorage`      | File system           | `RealFileSystem`                                  | `StubbedFileSystem`      |
-| `ScriptRunner`     | Shell commands        | `RealProcessRunner`                               | `StubbedProcessRunner`   |
-| `ClientSocket`     | Browser WebSocket     | `RealClientSocket`                                | `StubbedClientSocket`    |
+| Wrapper               | What it wraps         | Production use                        | Test use              |
+| --------------------- | --------------------- | ------------------------------------- | --------------------- |
+| `WebSocketWrapper`    | WebSocket connections | `FastifyWebSocket` or `RealWebSocket` | `StubbedWebSocket`    |
+| `MongoWrapper`        | MongoDB database      | `RealMongo`                           | `StubbedMongo`        |
+| `FileStorageWrapper`  | File system           | `RealFileStorage`                     | `StubbedFileStorage`  |
+| `ScriptRunnerWrapper` | Shell commands        | `RealScriptRunner`                    | `StubbedScriptRunner` |
+| `ClientSocketWrapper` | Browser WebSocket     | `RealClientSocket`                    | `StubbedClientSocket` |
 
 The key idea: **no mocks**. Instead of mocking external dependencies in tests, we use the `createNull()` factory to get a fully functional in memory version. Tests run fast, they are deterministic, and they test real behaviour rather than mock expectations.
 
@@ -108,13 +108,13 @@ server/
   infrastructure/
     websocket.ts                  → WebSocketWrapper + 3 implementations
     mongo.ts                      → MongoWrapper + 2 implementations
-    fileStorage.ts                → FileStorage + 2 implementations
-    scriptRunner.ts               → ScriptRunner + 2 implementations
-    output_tracker.ts             → EventEmitter, OutputTracker, ConfigurableResponse
+    fileStorage.ts                → FileStorageWrapper + 2 implementations
+    scriptRunner.ts               → ScriptRunnerWrapper + 2 implementations
+    outputTracker.ts              → EventEmitter, OutputTracker, ConfigurableResponse
 
 client/
   main.ts                         → browser entry point, connects WebSocket
-  clientSocket.ts                 → ClientSocket + 2 implementations
+  clientSocket.ts                 → ClientSocketWrapper + 2 implementations
 
 shared/
   protocol.ts                     → 6 message types (mini DDP)

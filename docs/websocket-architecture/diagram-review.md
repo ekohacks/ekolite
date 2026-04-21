@@ -10,15 +10,15 @@ The original had snake_case method names everywhere (`send_message`, `broadcast_
 
 There was a phantom `WEBSOCKET_CONNECTION` entity that straight up does not exist in the codebase. The real and Fastify backends just store raw `WebSocket` objects from the `ws` library in a `Map<string, WebSocket>`. No wrapper class around individual connections.
 
-`FastifyWebSocketServer` was missing entirely. That is one of three implementations of `WebSocketServerInterface` and it is the one used in production. Pretty important to show.
+`FastifyWebSocket` was missing entirely. That is one of three implementations of `WebSocketInterface` and it is the one used in production. Pretty important to show.
 
-The client side (`ClientSocket`, `RealClientSocket`, `StubbedClientSocket`) was nowhere to be found. The protocol types from `shared/protocol.ts` were also missing, which is the whole point of the websocket, the messages that flow over it.
+The client side (`ClientSocketWrapper`, `RealClientSocket`, `StubbedClientSocket`) was nowhere to be found. The protocol types from `shared/protocol.ts` were also missing, which is the whole point of the websocket, the messages that flow over it.
 
 Field types were all listed as `string` regardless of what they actually are.
 
 ### Flowchart
 
-The original showed a linear chain: `client -> fastify -> wrapper`. That is not how the code works. The Fastify server startup and the WebSocketWrapper are separate concerns. `websocketRoutes.ts` registers the plugin and route. `FastifyWebSocketServer` takes a Fastify instance and sets up its own handler via `start()`. The diagram made it look like one clean pipeline when it is actually two paths that meet at the Fastify instance.
+The original showed a linear chain: `client -> fastify -> wrapper`. That is not how the code works. The Fastify server startup and the WebSocketWrapper are separate concerns. `websocketRoutes.ts` registers the plugin and route. `FastifyWebSocket` takes a Fastify instance and sets up its own handler via `start()`. The diagram made it look like one clean pipeline when it is actually two paths that meet at the Fastify instance.
 
 No client side shown at all.
 
@@ -35,7 +35,7 @@ Every entity matches an actual class in the code with correct camelCase names an
 Server side shows:
 
 - `FASTIFY_SERVER` and `WEBSOCKET_ROUTES_PLUGIN` (the startup and plugin layer)
-- `WEBSOCKET_WRAPPER` facade with all three implementations (`FastifyWebSocketServer`, `RealWebSocketServer`, `StubbedWebSocketServer`)
+- `WEBSOCKET_WRAPPER` facade with all three implementations (`FastifyWebSocket`, `RealWebSocket`, `StubbedWebSocket`)
 - `STUBBED_CLIENT` test helper
 
 Client side shows:
@@ -52,7 +52,7 @@ Protocol section shows `CLIENT_MESSAGE` (subscribe, unsubscribe, method) and `SE
 Split into four clear sections:
 
 1. **Server Side** with startup flow (start.ts -> createServer -> plugins) separate from the WebSocketWrapper facade and its three branches
-2. **Client Side** with ClientSocket facade and its two branches
+2. **Client Side** with ClientSocketWrapper facade and its two branches
 3. **Shared Protocol** showing the message types
 4. **Test Observability** showing EventEmitter -> OutputTracker pattern
 
@@ -72,11 +72,11 @@ Four separate diagrams, each clearly labelled:
 
 ## Source files referenced
 
-| Diagram entity                       | Actual source                             |
-| ------------------------------------ | ----------------------------------------- |
-| FASTIFY_SERVER                       | `server/index.ts`                         |
-| WEBSOCKET_ROUTES_PLUGIN              | `server/plugins/websocketRoutes.ts`       |
-| WebSocketWrapper + 3 implementations | `server/infrastructure/websocket.ts`      |
-| ClientSocket + 2 implementations     | `client/clientSocket.ts`                  |
-| EventEmitter, OutputTracker          | `server/infrastructure/output_tracker.ts` |
-| ClientMessage, ServerMessage         | `shared/protocol.ts`                      |
+| Diagram entity                          | Actual source                            |
+| --------------------------------------- | ---------------------------------------- |
+| FASTIFY_SERVER                          | `server/index.ts`                        |
+| WEBSOCKET_ROUTES_PLUGIN                 | `server/plugins/websocketRoutes.ts`      |
+| WebSocketWrapper + 3 implementations    | `server/infrastructure/websocket.ts`     |
+| ClientSocketWrapper + 2 implementations | `client/clientSocket.ts`                 |
+| EventEmitter, OutputTracker             | `server/infrastructure/outputTracker.ts` |
+| ClientMessage, ServerMessage            | `shared/protocol.ts`                     |
