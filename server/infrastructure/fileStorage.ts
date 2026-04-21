@@ -1,26 +1,26 @@
 import { writeFile, access, unlink, mkdir } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 
-interface FileSystemInterface {
+interface FileStorageInterface {
   save(name: string, data: Buffer): Promise<void>;
   exists(name: string): Promise<boolean>;
   remove(name: string): Promise<void>;
   resolve(name: string): string;
 }
 
-export class FileStorage {
-  private fs: FileSystemInterface;
+export class FileStorageWrapper {
+  private fs: FileStorageInterface;
 
-  private constructor(fs: FileSystemInterface) {
+  private constructor(fs: FileStorageInterface) {
     this.fs = fs;
   }
 
-  static create(basePath: string): FileStorage {
-    return new FileStorage(new RealFileSystem(basePath));
+  static create(basePath: string): FileStorageWrapper {
+    return new FileStorageWrapper(new RealFileStorage(basePath));
   }
 
-  static createNull(): FileStorage {
-    return new FileStorage(new StubbedFileSystem());
+  static createNull(): FileStorageWrapper {
+    return new FileStorageWrapper(new StubbedFileStorage());
   }
 
   async save(name: string, data: Buffer): Promise<void> {
@@ -41,7 +41,7 @@ export class FileStorage {
   }
 }
 
-class RealFileSystem implements FileSystemInterface {
+class RealFileStorage implements FileStorageInterface {
   private basePath: string;
 
   constructor(basePath: string) {
@@ -72,7 +72,7 @@ class RealFileSystem implements FileSystemInterface {
   }
 }
 
-class StubbedFileSystem implements FileSystemInterface {
+class StubbedFileStorage implements FileStorageInterface {
   private store = new Map<string, Buffer>();
 
   save(name: string, data: Buffer): Promise<void> {

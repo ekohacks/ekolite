@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ConfigurableResponse } from '../../server/infrastructure/output_tracker.ts';
+import { ConfigurableResponse } from '../../server/infrastructure/outputTracker.ts';
 
 describe('ConfigurableResponse', () => {
   it('returns responses in order', () => {

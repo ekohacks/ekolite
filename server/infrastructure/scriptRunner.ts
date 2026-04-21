@@ -1,23 +1,23 @@
 import { execFile } from 'node:child_process';
 import { ScriptResult } from '../../shared/types.ts';
 
-interface ProcessRunnerInterface {
+interface ScriptRunnerInterface {
   exec(command: string, args: string[]): Promise<ScriptResult>;
 }
 
-export class ScriptRunner {
-  private runner: ProcessRunnerInterface;
+export class ScriptRunnerWrapper {
+  private runner: ScriptRunnerInterface;
 
-  private constructor(runner: ProcessRunnerInterface) {
+  private constructor(runner: ScriptRunnerInterface) {
     this.runner = runner;
   }
 
-  static create(): ScriptRunner {
-    return new ScriptRunner(new RealProcessRunner());
+  static create(): ScriptRunnerWrapper {
+    return new ScriptRunnerWrapper(new RealScriptRunner());
   }
 
-  static createNull(responses: Record<string, string> = {}): ScriptRunner {
-    return new ScriptRunner(new StubbedProcessRunner(responses));
+  static createNull(responses: Record<string, string> = {}): ScriptRunnerWrapper {
+    return new ScriptRunnerWrapper(new StubbedScriptRunner(responses));
   }
 
   async exec(command: string, args: string[]): Promise<ScriptResult> {
@@ -25,7 +25,7 @@ export class ScriptRunner {
   }
 }
 
-class RealProcessRunner implements ProcessRunnerInterface {
+class RealScriptRunner implements ScriptRunnerInterface {
   exec(command: string, args: string[]): Promise<ScriptResult> {
     return new Promise((resolve) => {
       execFile(command, args, (error, stdout, stderr) => {
@@ -39,7 +39,7 @@ class RealProcessRunner implements ProcessRunnerInterface {
   }
 }
 
-class StubbedProcessRunner implements ProcessRunnerInterface {
+class StubbedScriptRunner implements ScriptRunnerInterface {
   private responses: Record<string, string>;
 
   constructor(responses: Record<string, string>) {

@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { ScriptRunner } from '../../server/infrastructure/scriptRunner.ts';
+import { ScriptRunnerWrapper } from '../../server/infrastructure/scriptRunner.ts';
 
-describe('ScriptRunner (real)', () => {
-  const runner = ScriptRunner.create();
+describe('ScriptRunnerWrapper (real)', () => {
+  const runner = ScriptRunnerWrapper.create();
 
   it('executes a command and returns stdout', async () => {
     const result = await runner.exec('echo', ['hello']);

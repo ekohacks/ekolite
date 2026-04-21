@@ -145,3 +145,6 @@ ekolite-*.md
 
 #Ignore vscode AI rules
 .github/instructions/codacy.instructions.md
+
+#Vim temp backup files
+*.swp

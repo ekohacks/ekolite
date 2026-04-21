@@ -1,8 +1,8 @@
 import { Db, MongoClient as Driver, ObjectId } from 'mongodb';
 import { ChangeEvent } from '../../shared/types.ts';
-import { ConfigurableResponse, EventEmitter, OutputTracker } from './output_tracker.ts';
+import { ConfigurableResponse, EventEmitter, OutputTracker } from './outputTracker.ts';
 
-interface MongoClientInterface {
+interface MongoInterface {
   find<T>(collection: string, query: object): Promise<T[]>;
   insert(collection: string, doc: object): Promise<void>;
   update(collection: string, query: object, changes: object): Promise<void>;
@@ -11,14 +11,14 @@ interface MongoClientInterface {
 }
 
 export class MongoWrapper {
-  private client: MongoClientInterface;
+  private client: MongoInterface;
 
-  private constructor(client: MongoClientInterface) {
+  private constructor(client: MongoInterface) {
     this.client = client;
   }
 
   static create(uri: string): MongoWrapper {
-    return new MongoWrapper(new RealMongoClient(uri));
+    return new MongoWrapper(new RealMongo(uri));
   }
 
   static createNull(
@@ -29,7 +29,7 @@ export class MongoWrapper {
       remove?: unknown[];
     } = {},
   ): MongoWrapper {
-    return new MongoWrapper(new StubbedMongoClient(options));
+    return new MongoWrapper(new StubbedMongo(options));
   }
 
   async find<T>(collection: string, query: object): Promise<T[]> {
@@ -53,7 +53,7 @@ export class MongoWrapper {
   }
 }
 
-class RealMongoClient implements MongoClientInterface {
+class RealMongo implements MongoInterface {
   private db: Db;
 
   constructor(uri: string) {
@@ -89,7 +89,7 @@ interface StubbedMongoOptions {
   remove?: unknown[];
 }
 
-class StubbedMongoClient implements MongoClientInterface {
+class StubbedMongo implements MongoInterface {
   private emitter = new EventEmitter();
   private findResponses?: ConfigurableResponse;
   private insertResponses?: ConfigurableResponse;
