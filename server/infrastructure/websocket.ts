@@ -9,6 +9,7 @@ const MESSAGE_EVENT = 'message';
 
 interface WebSocketServerInterface {
   start?(): Promise<void>;
+  attach?(fastify: FastifyInstance): Promise<void>;
   close?(): Promise<void>;
   get clientCount(): number;
   send(clientId: string, message: unknown): void;
@@ -25,8 +26,8 @@ export class WebSocketWrapper {
     this.server = server;
   }
 
-  static create(fastify: FastifyInstance): WebSocketWrapper {
-    return new WebSocketWrapper(new FastifyWebSocketServer(fastify));
+  static create(): WebSocketWrapper {
+    return new WebSocketWrapper(new FastifyWebSocketServer());
   }
 
   static createRawWs(options: { port: number }): WebSocketWrapper {
@@ -39,6 +40,10 @@ export class WebSocketWrapper {
 
   async start(): Promise<void> {
     await this.server.start?.();
+  }
+
+  async attach(fastify: FastifyInstance): Promise<void> {
+    await this.server.attach?.(fastify);
   }
 
   async close(): Promise<void> {
@@ -146,21 +151,16 @@ class RealWebSocketServer implements WebSocketServerInterface {
 }
 
 class FastifyWebSocketServer implements WebSocketServerInterface {
-  private fastify: FastifyInstance;
+  private fastify?: FastifyInstance;
   private clients = new Map<string, WebSocket>();
   private nextId = 0;
 
-  constructor(fastify: FastifyInstance) {
+  async attach(fastify: FastifyInstance): Promise<void> {
     this.fastify = fastify;
-  }
-
-  async start(): Promise<void> {
-    await this.fastify.register(fastifyWebsocket);
-
-    this.fastify.get('/ws', { websocket: true }, (socket) => {
+    await fastify.register(fastifyWebsocket);
+    fastify.get('/ws', { websocket: true }, (socket) => {
       const id = String(this.nextId++);
       this.clients.set(id, socket);
-
       socket.on('close', () => {
         this.clients.delete(id);
       });
@@ -168,7 +168,7 @@ class FastifyWebSocketServer implements WebSocketServerInterface {
   }
 
   async close(): Promise<void> {
-    await this.fastify.close();
+    await this.fastify?.close();
   }
 
   get clientCount(): number {

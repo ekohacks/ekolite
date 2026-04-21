@@ -22,25 +22,25 @@ describe('Server', () => {
 });
 describe('Websocket fastify integration test', () => {
   let server: Awaited<ReturnType<typeof createServer>>;
-  let ws: WebSocket;
+  let client: WebSocket;
 
   afterEach(async () => {
-    ws.close();
+    client.close();
     await server.close();
   });
   it('accepts Websocket connection on /ws', async () => {
-    const wsRaw = WebSocketWrapper.createRawWs({ port: 1010 });
-    server = await createServer({ ws: wsRaw });
+    const ws = WebSocketWrapper.create();
+    server = await createServer({ ws });
     await server.listen({ port: 0 });
     const port = String(server.addresses()[0].port);
 
-    ws = new WebSocket(`ws://localhost:${port}/ws`);
+    client = new WebSocket(`ws://localhost:${port}/ws`);
 
     await new Promise((resolve, reject) => {
-      ws.on('open', resolve);
-      ws.on('error', reject);
+      client.on('open', resolve);
+      client.on('error', reject);
     });
 
-    expect(ws.readyState).toBe(WebSocket.OPEN);
+    expect(client.readyState).toBe(WebSocket.OPEN);
   });
 });

@@ -16,6 +16,6 @@ export async function createServer(options: ServerOptions) {
   await server.register(fastifyStatic, {
     root: resolve(__dirname, '..', 'dist', 'client'),
   });
-  await options.ws.start();
+  await options.ws.attach(server);
   return server;
 }
