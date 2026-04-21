@@ -1,4 +1,4 @@
-import { EventEmitter, OutputTracker } from '../server/infrastructure/output_tracker.ts';
+import { EventEmitter, OutputTracker } from '../server/infrastructure/outputTracker.ts';
 import { ClientMessage, ServerMessage } from '../shared/protocol.ts';
 
 interface ClientSocketInterface {
@@ -11,14 +11,14 @@ interface ClientSocketInterface {
 
 const EVENT_MESSAGES = 'message';
 
-export class ClientSocket {
+export class ClientSocketWrapper {
   private readonly client: ClientSocketInterface;
 
   private constructor(client: ClientSocketInterface) {
     this.client = client;
   }
 
-  static create(url: string, options?: { token?: string }): ClientSocket {
+  static create(url: string, options?: { token?: string }): ClientSocketWrapper {
     const parsed = new URL(url);
     if (parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') {
       throw new Error(`Invalid WebSocket URL: expected ws:// or wss://, got ${parsed.protocol}`);
@@ -27,11 +27,11 @@ export class ClientSocket {
       parsed.searchParams.set('token', options.token);
     }
 
-    return new ClientSocket(new RealClientSocket(parsed.toString()));
+    return new ClientSocketWrapper(new RealClientSocket(parsed.toString()));
   }
 
-  static createNull(): ClientSocket {
-    return new ClientSocket(new StubbedClientSocket());
+  static createNull(): ClientSocketWrapper {
+    return new ClientSocketWrapper(new StubbedClientSocket());
   }
 
   get isConnected(): boolean {

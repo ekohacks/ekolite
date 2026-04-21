@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { WebSocketServer } from 'ws';
-import { ClientSocket } from '../../client/clientSocket.ts';
+import { ClientSocketWrapper } from '../../client/clientSocket.ts';
 import { WebSocketWrapper } from '../../server/infrastructure/websocket.ts';
 
-describe('ClientSocket (real)', () => {
+describe('ClientSocketWrapper (real)', () => {
   const PORT = 9877;
   let webSocketServer: WebSocketWrapper;
-  let client: ClientSocket;
+  let client: ClientSocketWrapper;
 
   afterEach(async () => {
     await client.close();
@@ -16,14 +16,14 @@ describe('ClientSocket (real)', () => {
   it('connects to a real server', async () => {
     webSocketServer = WebSocketWrapper.createRawWs({ port: PORT });
     await webSocketServer.start();
-    client = ClientSocket.create(`ws://localhost:${String(PORT)}`);
+    client = ClientSocketWrapper.create(`ws://localhost:${String(PORT)}`);
     await client.connect();
     expect(client.isConnected).toBe(true);
     expect(webSocketServer.clientCount).toBe(1);
   });
 });
 
-describe('ClientSocket connect settles once', () => {
+describe('ClientSocketWrapper connect settles once', () => {
   const PORT = 9879;
   let webSocketServer: WebSocketWrapper;
 
@@ -34,7 +34,7 @@ describe('ClientSocket connect settles once', () => {
   it('ignores onerror after onopen has already resolved', async () => {
     webSocketServer = WebSocketWrapper.createRawWs({ port: PORT });
     await webSocketServer.start();
-    const client = ClientSocket.create(`ws://localhost:${String(PORT)}`);
+    const client = ClientSocketWrapper.create(`ws://localhost:${String(PORT)}`);
 
     await client.connect();
     expect(client.isConnected).toBe(true);
@@ -47,12 +47,12 @@ describe('ClientSocket connect settles once', () => {
     await webSocketServer.start();
     await webSocketServer.close();
 
-    const client = ClientSocket.create(`ws://localhost:${String(PORT)}`);
+    const client = ClientSocketWrapper.create(`ws://localhost:${String(PORT)}`);
     await expect(client.connect()).rejects.toThrow();
   });
 });
 
-describe('ClientSocket auth', () => {
+describe('ClientSocketWrapper auth', () => {
   const PORT = 9878;
   let rawServer: WebSocketServer;
 
@@ -81,13 +81,13 @@ describe('ClientSocket auth', () => {
 
   it('rejects connections without a token', async () => {
     rawServer = createAuthServer();
-    const client = ClientSocket.create(`ws://localhost:${String(PORT)}`);
+    const client = ClientSocketWrapper.create(`ws://localhost:${String(PORT)}`);
     await expect(client.connect()).rejects.toThrow();
   });
 
   it('connects when a valid token is provided', async () => {
     rawServer = createAuthServer();
-    const client = ClientSocket.create(`ws://localhost:${String(PORT)}`, {
+    const client = ClientSocketWrapper.create(`ws://localhost:${String(PORT)}`, {
       token: 'test-token',
     });
     await client.connect();

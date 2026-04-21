@@ -1,13 +1,13 @@
 import fastifyWebsocket from '@fastify/websocket';
 import { type FastifyInstance } from 'fastify';
 import { WebSocketServer, type WebSocket } from 'ws';
-import { EventEmitter, OutputTracker } from './output_tracker.ts';
+import { EventEmitter, OutputTracker } from './outputTracker.ts';
 
 const CONNECTION_EVENT = 'connection';
 const DISCONNECTION_EVENT = 'disconnection';
 const MESSAGE_EVENT = 'message';
 
-interface WebSocketServerInterface {
+interface WebSocketInterface {
   start?(): Promise<void>;
   close?(): Promise<void>;
   get clientCount(): number;
@@ -19,22 +19,22 @@ interface WebSocketServerInterface {
 }
 
 export class WebSocketWrapper {
-  private server: WebSocketServerInterface;
+  private server: WebSocketInterface;
 
-  private constructor(server: WebSocketServerInterface) {
+  private constructor(server: WebSocketInterface) {
     this.server = server;
   }
 
   static create(fastify: FastifyInstance): WebSocketWrapper {
-    return new WebSocketWrapper(new FastifyWebSocketServer(fastify));
+    return new WebSocketWrapper(new FastifyWebSocket(fastify));
   }
 
   static createRawWs(options: { port: number }): WebSocketWrapper {
-    return new WebSocketWrapper(new RealWebSocketServer(options.port));
+    return new WebSocketWrapper(new RealWebSocket(options.port));
   }
 
   static createNull(): WebSocketWrapper {
-    return new WebSocketWrapper(new StubbedWebSocketServer());
+    return new WebSocketWrapper(new StubbedWebSocket());
   }
 
   async start(): Promise<void> {
@@ -50,7 +50,7 @@ export class WebSocketWrapper {
   }
 
   simulateConnection(): StubbedClient {
-    const stub = this.server as StubbedWebSocketServer;
+    const stub = this.server as StubbedWebSocket;
     return stub.simulateConnection();
   }
 
@@ -75,7 +75,7 @@ export class WebSocketWrapper {
   }
 }
 
-class RealWebSocketServer implements WebSocketServerInterface {
+class RealWebSocket implements WebSocketInterface {
   private wss: WebSocketServer | null = null;
   private port: number;
   private clients = new Map<string, WebSocket>();
@@ -145,7 +145,7 @@ class RealWebSocketServer implements WebSocketServerInterface {
   }
 }
 
-class FastifyWebSocketServer implements WebSocketServerInterface {
+class FastifyWebSocket implements WebSocketInterface {
   private fastify: FastifyInstance;
   private clients = new Map<string, WebSocket>();
   private nextId = 0;
@@ -205,9 +205,9 @@ class FastifyWebSocketServer implements WebSocketServerInterface {
 export class StubbedClient {
   readonly id: string;
   readonly messages: unknown[] = [];
-  private server: StubbedWebSocketServer;
+  private server: StubbedWebSocket;
 
-  constructor(id: string, server: StubbedWebSocketServer) {
+  constructor(id: string, server: StubbedWebSocket) {
     this.id = id;
     this.server = server;
   }
@@ -221,7 +221,7 @@ export class StubbedClient {
   }
 }
 
-class StubbedWebSocketServer implements WebSocketServerInterface {
+class StubbedWebSocket implements WebSocketInterface {
   private clients = new Map<string, StubbedClient>();
   private emitter = new EventEmitter();
   private nextId = 0;
