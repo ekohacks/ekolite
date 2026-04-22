@@ -67,7 +67,7 @@ class StubbedProcessRunner implements ScriptRunnerInterface {
 
   exec(command: string, args: string[]): Promise<ScriptResult> {
     const responseQueue = this.responses.get(command);
-    const response = responseQueue?.hasNext() ? responseQueue.next() : undefined;
+    const response = responseQueue !== undefined ? responseQueue.next() : undefined;
     const result = toScriptResult(response);
 
     this.emitter.emit(EXECUTION_EVENT, {
