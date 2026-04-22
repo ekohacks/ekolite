@@ -23,7 +23,7 @@ export class Publications implements PublicationInterface {
     this.publications.set(name, queryFn);
   }
 
-  handleMessage(clientId: string, message: ClientMessage): Promise<void> {
+  async handleMessage(clientId: string, message: ClientMessage): Promise<void> {
     if (message.type === 'subscribe') {
       const queryFn = this.publications.get(message.name);
       if (!queryFn) {
