@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { Publications } from '../../server/logic/publications.ts';
+import { PublicationsWrapper } from '../../server/logic/publications.ts';
 import { MongoWrapper } from '../../server/infrastructure/mongo.ts';
 import { WebSocketWrapper } from '../../server/infrastructure/websocket.ts';
 
-describe('Publications', () => {
+describe('PublicationsWrapper (null) ', () => {
   it('sends error when subscribing to unknown publication', async () => {
     const mongo = MongoWrapper.createNull();
     const ws = WebSocketWrapper.createNull();
     const client = ws.simulateConnection();
-    const pubs = new Publications(mongo, ws);
+    const pubs = PublicationsWrapper.createNull(mongo, ws);
 
     await pubs.handleMessage(client.id, {
       type: 'subscribe',

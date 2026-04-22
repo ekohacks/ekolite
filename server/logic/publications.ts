@@ -9,14 +9,34 @@ interface PublicationInterface {
 
 type PublicationDef = () => { collection: string; query: object };
 
-export class Publications implements PublicationInterface {
+export class PublicationsWrapper {
+  private client: PublicationInterface;
+
+  private constructor(client: PublicationInterface) {
+    this.client = client;
+  }
+
+  static createNull(mongo: MongoWrapper, ws: WebSocketWrapper): PublicationsWrapper {
+    return new PublicationsWrapper(new StubbedPublication(mongo, ws));
+  }
+
+  define(name: string, queryFn: PublicationDef): void {
+    this.client.define(name, queryFn);
+  }
+
+  async handleMessage(clientId: string, message: ClientMessage): Promise<void> {
+    return this.client.handleMessage(clientId, message);
+  }
+}
+
+class StubbedPublication implements PublicationInterface {
   private publications = new Map<string, PublicationDef>();
   private ws: WebSocketWrapper;
   private mongo: MongoWrapper;
 
   constructor(mongo: MongoWrapper, ws: WebSocketWrapper) {
-    this.ws = ws;
     this.mongo = mongo;
+    this.ws = ws;
   }
 
   define(name: string, queryFn: PublicationDef): void {
