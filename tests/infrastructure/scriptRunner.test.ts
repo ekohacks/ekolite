@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { ScriptRunnerWrapper } from '../../server/infrastructure/scriptRunner.ts';
 
 describe('ScriptRunnerWrapper (null)', () => {
@@ -6,28 +6,6 @@ describe('ScriptRunnerWrapper (null)', () => {
     const runner = ScriptRunnerWrapper.createNull({ echo: 'hello\n' });
     const result = await runner.exec('echo', ['hello']);
     expect(result).toEqual({ stdout: 'hello\n', stderr: '', exitCode: 0 });
-  });
-
-  it('consumes configured responses for repeated command calls before falling back', async () => {
-    const runner = ScriptRunnerWrapper.createNull({
-      echo: ['hello\n', { stdout: 'again\n', stderr: '', exitCode: 0 }],
-    });
-
-    await expect(runner.exec('echo', ['hello'])).resolves.toEqual({
-      stdout: 'hello\n',
-      stderr: '',
-      exitCode: 0,
-    });
-    await expect(runner.exec('echo', ['again'])).resolves.toEqual({
-      stdout: 'again\n',
-      stderr: '',
-      exitCode: 0,
-    });
-    await expect(runner.exec('echo', ['fallback'])).resolves.toEqual({
-      stdout: '',
-      stderr: '',
-      exitCode: 0,
-    });
   });
 
   it('returns configured non-zero exit codes', async () => {
@@ -87,5 +65,25 @@ describe('ScriptRunnerWrapper (null)', () => {
     const runner = ScriptRunnerWrapper.createNull();
     const result = await runner.exec('unknown', []);
     expect(result).toEqual({ stdout: '', stderr: '', exitCode: 0 });
+  });
+  it('throws when a configured command queue is exhausted', async () => {
+    const runner = ScriptRunnerWrapper.createNull({
+      echo: ['hello\n'],
+    });
+
+    await runner.exec('echo', ['first']);
+    await expect(runner.exec('echo', ['second'])).rejects.toThrow('queue exhausted');
+  });
+
+  it('returns default for commands that were never configured', async () => {
+    const runner = ScriptRunnerWrapper.createNull({
+      echo: ['hello\n'],
+    });
+
+    await expect(runner.exec('unknown', [])).resolves.toEqual({
+      stdout: '',
+      stderr: '',
+      exitCode: 0,
+    });
   });
 });
