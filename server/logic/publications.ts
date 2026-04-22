@@ -3,12 +3,14 @@ import { MongoWrapper } from '../infrastructure/mongo.ts';
 import { WebSocketWrapper } from '../infrastructure/websocket.ts';
 
 interface PublicationInterface {
-  define(name: string, queryFn: (params: unknown) => void): void;
+  define(name: string, queryFn: PublicationDef): void;
   handleMessage(clientId: string, message: ClientMessage): Promise<void>;
 }
 
+type PublicationDef = () => { collection: string; query: object };
+
 export class Publications implements PublicationInterface {
-  private publications: Map<string, (params: unknown) => unknown> = new Map();
+  private publications = new Map<string, PublicationDef>();
   private ws: WebSocketWrapper;
   private mongo: MongoWrapper;
 
@@ -17,7 +19,7 @@ export class Publications implements PublicationInterface {
     this.mongo = mongo;
   }
 
-  define(name: string, queryFn: (params: unknown) => unknown): void {
+  define(name: string, queryFn: PublicationDef): void {
     this.publications.set(name, queryFn);
   }
 
