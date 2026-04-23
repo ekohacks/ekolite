@@ -1,5 +1,4 @@
 import { ClientMessage } from '../../shared/protocol.ts';
-import { ChangeEvent } from '../../shared/types.ts';
 import { MongoWrapper } from '../infrastructure/mongo.ts';
 import { WebSocketWrapper } from '../infrastructure/websocket.ts';
 
@@ -52,7 +51,7 @@ export class Publications {
       }
       this.ws.send(clientId, readyMessage(message.id));
       
-      this.mongo.watchChanges(collection, (change) => {
+      this.mongo.watchChanges(collection, (change: any) => {
         if (change.type === 'insert') {
           this.ws.send(clientId, addedMessage(collection, change.fields));
         }
