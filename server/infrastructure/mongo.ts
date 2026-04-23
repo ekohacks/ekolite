@@ -1,5 +1,5 @@
 import { Db, MongoClient as Driver, ObjectId } from 'mongodb';
-import { ChangeEvent } from '../../shared/types.ts';
+import { ChangeEvent, isChangeEvent } from '../../shared/types.ts';
 import { ConfigurableResponse, EventEmitter, OutputTracker } from './outputTracker.ts';
 
 interface MongoInterface {
@@ -7,9 +7,8 @@ interface MongoInterface {
   insert(collection: string, doc: object): Promise<void>;
   update(collection: string, query: object, changes: object): Promise<void>;
   remove(collection: string, query: object): Promise<void>;
-  watchChanges(collection: string, cb: (data: unknown) => void): void;
+  watchChanges(collection: string, cb: (change: ChangeEvent) => void): void;
   trackChanges(collection: string): OutputTracker;
-  
 }
 
 export class MongoWrapper {
@@ -50,8 +49,8 @@ export class MongoWrapper {
     return this.client.remove(collection, query);
   }
 
-  async watchChanges(collection: string, cb: (data: unknown) => void): Promise<void> {
-    return this.client.watchChanges(collection, cb);
+  watchChanges(collection: string, cb: (change: ChangeEvent) => void): void {
+    this.client.watchChanges(collection, cb);
   }
 
   trackChanges(collection: string): OutputTracker {
@@ -83,7 +82,7 @@ class RealMongo implements MongoInterface {
     await this.db.collection(collection).deleteMany(query);
   }
 
-  watchChanges(collection: string, cb: (data: unknown) => void): void {
+  watchChanges(_collection: string, _cb: (change: ChangeEvent) => void): void {
     throw new Error('watchChanges is not implemented for RealMongo');
   }
 
@@ -169,11 +168,13 @@ class StubbedMongo implements MongoInterface {
     } satisfies ChangeEvent);
     return Promise.resolve();
   }
-  
-  watchChanges(collection: string, cb: (data: unknown) => void): void {
-    this.emitter.on(collection, cb);
+
+  watchChanges(collection: string, cb: (change: ChangeEvent) => void): void {
+    this.emitter.on(collection, (data) => {
+      if (isChangeEvent(data)) cb(data);
+    });
   }
-  
+
   trackChanges(collection: string): OutputTracker {
     return new OutputTracker(this.emitter, collection);
   }
