@@ -33,7 +33,6 @@ export class Publications {
   async handleMessage(clientId: string, message: ClientMessage): Promise<void> {
     if (message.type === 'subscribe') {
       const queryFn = this.publications.get(message.name);
-      const publicationsExists = this.publications.has(message.name);
 
       if (!queryFn) {
         this.ws.send(clientId, {
@@ -44,15 +43,13 @@ export class Publications {
         return Promise.resolve();
       }
 
-      if (publicationsExists) {
-        const { collection, query } = queryFn();
-        const docs = await this.mongo.find<{ _id: string }>(collection, query);
+      const { collection, query } = queryFn();
+      const docs = await this.mongo.find<{ _id: string }>(collection, query);
 
-        for (const doc of docs) {
-          this.ws.send(clientId, toAddedMsg(collection, doc));
-        }
-        this.ws.send(clientId, toReadyMsg(message.id));
+      for (const doc of docs) {
+        this.ws.send(clientId, toAddedMsg(collection, doc));
       }
+      this.ws.send(clientId, toReadyMsg(message.id));
     }
     return Promise.resolve();
   }
