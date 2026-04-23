@@ -7,7 +7,9 @@ interface MongoInterface {
   insert(collection: string, doc: object): Promise<void>;
   update(collection: string, query: object, changes: object): Promise<void>;
   remove(collection: string, query: object): Promise<void>;
+  watchChanges(collection: string, cb: (data: unknown) => void): void;
   trackChanges(collection: string): OutputTracker;
+  
 }
 
 export class MongoWrapper {
@@ -48,6 +50,10 @@ export class MongoWrapper {
     return this.client.remove(collection, query);
   }
 
+  async watchChanges(collection: string, cb: (data: unknown) => void): Promise<void> {
+    return this.client.watchChanges(collection, cb);
+  }
+
   trackChanges(collection: string): OutputTracker {
     return this.client.trackChanges(collection);
   }
@@ -75,6 +81,10 @@ class RealMongo implements MongoInterface {
 
   async remove(collection: string, query: object): Promise<void> {
     await this.db.collection(collection).deleteMany(query);
+  }
+
+  watchChanges(collection: string, cb: (data: unknown) => void): void {
+    throw new Error('watchChanges is not implemented for RealMongo');
   }
 
   trackChanges(_collection: string): OutputTracker {
@@ -159,7 +169,11 @@ class StubbedMongo implements MongoInterface {
     } satisfies ChangeEvent);
     return Promise.resolve();
   }
-
+  
+  watchChanges(collection: string, cb: (data: unknown) => void): void {
+    this.emitter.on(collection, cb);
+  }
+  
   trackChanges(collection: string): OutputTracker {
     return new OutputTracker(this.emitter, collection);
   }

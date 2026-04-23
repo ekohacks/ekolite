@@ -91,10 +91,12 @@ describe('Publications', () => {
     });
 
     const countAfterSubscribe = client.messages.length;
+    expect(countAfterSubscribe).toBe(1);
 
     await mongo.insert('files', { name: 'new.bam' });
 
     const newMessages = client.messages.slice(countAfterSubscribe);
+    expect(newMessages).toHaveLength(1);
     expect(newMessages).toContainEqual(
       expect.objectContaining({
         type: 'added',
