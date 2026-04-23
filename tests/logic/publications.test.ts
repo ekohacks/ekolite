@@ -39,16 +39,19 @@ describe('Publications', () => {
       name: 'files.all',
     });
 
-    expect(client.messages).toContainEqual({
-      type: 'added',
-      collection: 'files',
-      id: '1',
-      fields: { name: 'existing.bam' },
-    });
-    expect(client.messages).toContainEqual({
-      type: 'ready',
-      id: 'sub1',
-    });
+    expect(client.messages).toHaveLength(2);
+    expect(client.messages).toEqual([
+      {
+        type: 'added',
+        collection: 'files',
+        id: '1',
+        fields: { name: 'existing.bam' },
+      },
+      {
+        type: 'ready',
+        id: 'sub1',
+      },
+    ]);
   });
 
   it('sends ready even when no documents exist', async () => {
