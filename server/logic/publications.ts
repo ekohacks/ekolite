@@ -10,8 +10,8 @@ export class Publications {
   private mongo: MongoWrapper;
 
   constructor(mongo: MongoWrapper, ws: WebSocketWrapper) {
-    this.ws = ws;
     this.mongo = mongo;
+    this.ws = ws;
   }
 
   define(name: string, queryFn: PublicationDef): void {
