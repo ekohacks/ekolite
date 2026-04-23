@@ -4,14 +4,14 @@ import { WebSocketWrapper } from '../infrastructure/websocket.ts';
 
 type PublicationDef = () => { collection: string; query: object };
 
-const toAddedMsg = (collection: string, doc: Record<string, unknown>) => ({
+const addedMessage = (collection: string, doc: Record<string, unknown>) => ({
   type: 'added',
   collection,
   id: doc._id as string,
   fields: Object.fromEntries(Object.entries(doc).filter(([key]) => key !== '_id')),
 });
 
-const toReadyMsg = (subId: string) => ({
+const readyMessage = (subId: string) => ({
   type: 'ready',
   id: subId,
 });
@@ -47,9 +47,9 @@ export class Publications {
       const docs = await this.mongo.find<{ _id: string }>(collection, query);
 
       for (const doc of docs) {
-        this.ws.send(clientId, toAddedMsg(collection, doc));
+        this.ws.send(clientId, addedMessage(collection, doc));
       }
-      this.ws.send(clientId, toReadyMsg(message.id));
+      this.ws.send(clientId, readyMessage(message.id));
     }
     return Promise.resolve();
   }
