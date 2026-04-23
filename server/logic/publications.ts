@@ -2,14 +2,9 @@ import { ClientMessage } from '../../shared/protocol.ts';
 import { MongoWrapper } from '../infrastructure/mongo.ts';
 import { WebSocketWrapper } from '../infrastructure/websocket.ts';
 
-interface PublicationInterface {
-  define(name: string, queryFn: PublicationDef): void;
-  handleMessage(clientId: string, message: ClientMessage): Promise<void>;
-}
-
 type PublicationDef = () => { collection: string; query: object };
 
-export class Publications implements PublicationInterface {
+export class Publications {
   private publications = new Map<string, PublicationDef>();
   private ws: WebSocketWrapper;
   private mongo: MongoWrapper;
