@@ -21,6 +21,8 @@ export class Publications {
   async handleMessage(clientId: string, message: ClientMessage): Promise<void> {
     if (message.type === 'subscribe') {
       const queryFn = this.publications.get(message.name);
+      const publicationsExists = this.publications.has(message.name);
+
       if (!queryFn) {
         this.ws.send(clientId, {
           type: 'error',
@@ -28,6 +30,24 @@ export class Publications {
           error: { code: 404, message: `Unknown publication: ${message.name}` },
         });
         return Promise.resolve();
+      }
+
+      if (publicationsExists) {
+        const { collection, query } = queryFn();
+        const docs = await this.mongo.find<{ _id: string }>(collection, query);
+
+        for (const doc of docs) {
+          this.ws.send(clientId, {
+            type: 'added',
+            collection,
+            id: doc._id,
+            fields: Object.fromEntries(Object.entries(doc).filter(([key]) => key !== '_id')),
+          });
+        }
+        this.ws.send(clientId, {
+          type: 'ready',
+          id: message.id,
+        });
       }
     }
     return Promise.resolve();
