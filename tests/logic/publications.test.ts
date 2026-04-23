@@ -22,4 +22,32 @@ describe('Publications', () => {
       error: { code: 404, message: 'Unknown publication: nonexistent' },
     });
   });
+
+  it('sends initial documents and ready signal on subscribe', async () => {
+    const mongo = MongoWrapper.createNull({
+      find: [[{ _id: '1', name: 'existing.bam' }]],
+    });
+    const ws = WebSocketWrapper.createNull();
+    const client = ws.simulateConnection();
+    const pubs = new Publications(mongo, ws);
+
+    pubs.define('files.all', () => ({ collection: 'files', query: {} }));
+
+    await pubs.handleMessage(client.id, {
+      type: 'subscribe',
+      id: 'sub1',
+      name: 'files.all',
+    });
+
+    expect(client.messages).toContainEqual({
+      type: 'added',
+      collection: 'files',
+      id: '1',
+      fields: { name: 'existing.bam' },
+    });
+    expect(client.messages).toContainEqual({
+      type: 'ready',
+      id: 'sub1',
+    });
+  });
 });
