@@ -133,4 +133,34 @@ describe('Publications', () => {
     const newMessages = client.messages.slice(countAfterUnsub);
     expect(newMessages).toHaveLength(0);
   });
+
+  it('does not leak watchers on repeated subscribe/unsubscribe', async () => {
+    const mongo = MongoWrapper.createNull({
+      find: [[], [], []],
+    });
+    const ws = WebSocketWrapper.createNull();
+    const client = ws.simulateConnection();
+    const pubs = new Publications(mongo, ws);
+
+    pubs.define('files.all', () => ({ collection: 'files', query: {} }));
+
+    for (let i = 0; i < 3; i++) {
+      await pubs.handleMessage(client.id, {
+        type: 'subscribe',
+        id: `sub${String(i)}`,
+        name: 'files.all',
+      });
+      await pubs.handleMessage(client.id, {
+        type: 'unsubscribe',
+        id: `sub${String(i)}`,
+      });
+    }
+
+    const countAfterAll = client.messages.length;
+
+    await mongo.insert('files', { name: 'leaked.bam' });
+
+    const newMessages = client.messages.slice(countAfterAll);
+    expect(newMessages).toHaveLength(0);
+  });
 });
