@@ -31,11 +31,18 @@ export interface ScriptResult {
 
 // ── Change events (MongoDB wrapper) ─────────────────────────────────────────
 
-export interface ChangeEvent {
-  type: 'insert' | 'update' | 'remove';
-  collection: string;
-  id: string;
-  fields?: Record<string, unknown>;
+export type ChangeEvent =
+  | { type: 'insert'; collection: string; id: string; fields: Record<string, unknown> }
+  | { type: 'update'; collection: string; id: string; fields: Record<string, unknown> }
+  | { type: 'remove'; collection: string; id: string };
+
+export function isChangeEvent(data: unknown): data is ChangeEvent {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    'type' in data &&
+    (data.type === 'insert' || data.type === 'update' || data.type === 'remove')
+  );
 }
 
 // ── Method definitions ──────────────────────────────────────────────────────

@@ -73,4 +73,35 @@ describe('Publications', () => {
     expect(client.messages).toHaveLength(1);
     expect(client.messages[0]).toEqual({ type: 'ready', id: 'sub1' });
   });
+
+  it('pushes live changes to subscribed clients', async () => {
+    const mongo = MongoWrapper.createNull({
+      find: [[]],
+    });
+    const ws = WebSocketWrapper.createNull();
+    const client = ws.simulateConnection();
+    const pubs = new Publications(mongo, ws);
+
+    pubs.define('files.all', () => ({ collection: 'files', query: {} }));
+
+    await pubs.handleMessage(client.id, {
+      type: 'subscribe',
+      id: 'sub1',
+      name: 'files.all',
+    });
+
+    const countAfterSubscribe = client.messages.length;
+    expect(countAfterSubscribe).toBe(1);
+
+    await mongo.insert('files', { name: 'new.bam' });
+
+    const newMessages = client.messages.slice(countAfterSubscribe);
+    expect(newMessages).toHaveLength(1);
+    expect(newMessages).toContainEqual(
+      expect.objectContaining({
+        type: 'added',
+        collection: 'files',
+      }),
+    );
+  });
 });

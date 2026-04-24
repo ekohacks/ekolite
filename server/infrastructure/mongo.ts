@@ -1,5 +1,5 @@
 import { Db, MongoClient as Driver, ObjectId } from 'mongodb';
-import { ChangeEvent } from '../../shared/types.ts';
+import { ChangeEvent, isChangeEvent } from '../../shared/types.ts';
 import { ConfigurableResponse, EventEmitter, OutputTracker } from './outputTracker.ts';
 
 interface MongoInterface {
@@ -7,6 +7,7 @@ interface MongoInterface {
   insert(collection: string, doc: object): Promise<void>;
   update(collection: string, query: object, changes: object): Promise<void>;
   remove(collection: string, query: object): Promise<void>;
+  watchChanges(collection: string, cb: (change: ChangeEvent) => void): void;
   trackChanges(collection: string): OutputTracker;
 }
 
@@ -48,6 +49,10 @@ export class MongoWrapper {
     return this.client.remove(collection, query);
   }
 
+  watchChanges(collection: string, cb: (change: ChangeEvent) => void): void {
+    this.client.watchChanges(collection, cb);
+  }
+
   trackChanges(collection: string): OutputTracker {
     return this.client.trackChanges(collection);
   }
@@ -75,6 +80,10 @@ class RealMongo implements MongoInterface {
 
   async remove(collection: string, query: object): Promise<void> {
     await this.db.collection(collection).deleteMany(query);
+  }
+
+  watchChanges(_collection: string, _cb: (change: ChangeEvent) => void): void {
+    throw new Error('watchChanges is not implemented for RealMongo');
   }
 
   trackChanges(_collection: string): OutputTracker {
@@ -158,6 +167,12 @@ class StubbedMongo implements MongoInterface {
       id: new ObjectId().toString(),
     } satisfies ChangeEvent);
     return Promise.resolve();
+  }
+
+  watchChanges(collection: string, cb: (change: ChangeEvent) => void): void {
+    this.emitter.on(collection, (data) => {
+      if (isChangeEvent(data)) cb(data);
+    });
   }
 
   trackChanges(collection: string): OutputTracker {
