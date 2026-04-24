@@ -104,4 +104,32 @@ describe('Publications', () => {
       }),
     );
   });
+  it('stops sending updates after unsubscribe', async () => {
+    const mongo = MongoWrapper.createNull({
+      find: [[]],
+    });
+    const ws = WebSocketWrapper.createNull();
+    const client = ws.simulateConnection();
+    const pubs = new Publications(mongo, ws);
+
+    pubs.define('files.all', () => ({ collection: 'files', query: {} }));
+
+    await pubs.handleMessage(client.id, {
+      type: 'subscribe',
+      id: 'sub1',
+      name: 'files.all',
+    });
+
+    await pubs.handleMessage(client.id, {
+      type: 'unsubscribe',
+      id: 'sub1',
+    });
+
+    const countAfterUnsub = client.messages.length;
+
+    await mongo.insert('files', { name: 'should-not-appear.bam' });
+
+    const newMessages = client.messages.slice(countAfterUnsub);
+    expect(newMessages).toHaveLength(0);
+  });
 });
