@@ -21,6 +21,7 @@ export class Publications {
   private publications = new Map<string, PublicationDef>();
   private ws: WebSocketWrapper;
   private mongo: MongoWrapper;
+  private subscriptions = new Map<string, () => void>();
 
   constructor(mongo: MongoWrapper, ws: WebSocketWrapper) {
     this.mongo = mongo;
@@ -52,11 +53,18 @@ export class Publications {
       }
       this.ws.send(clientId, readyMessage(message.id));
 
-      this.mongo.watchChanges(collection, (change: ChangeEvent) => {
+      const cleanup = this.mongo.watchChanges(collection, (change: ChangeEvent) => {
         if (change.type === 'insert') {
           this.ws.send(clientId, addedMessage(collection, change.fields));
         }
       });
+      this.subscriptions.set(message.id, cleanup);
+    } else if (message.type === 'unsubscribe') {
+      const cleanup = this.subscriptions.get(message.id);
+      if (cleanup) {
+        cleanup();
+        this.subscriptions.delete(message.id);
+      }
     }
     return Promise.resolve();
   }

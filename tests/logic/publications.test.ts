@@ -104,6 +104,7 @@ describe('Publications', () => {
       }),
     );
   });
+
   it('stops sending updates after unsubscribe', async () => {
     const mongo = MongoWrapper.createNull({
       find: [[]],
