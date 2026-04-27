@@ -45,4 +45,23 @@ describe('ReactiveStore', () => {
 
     expect(callCount).toBe(1);
   });
+
+  it('stops calling the listener after off() is called', () => {
+  const store = new ReactiveStore();
+  let callCount = 0;
+  const off = store.onChange(() => {
+    callCount++;
+  });
+
+  off();
+
+  store.handleMessage({
+    type: 'added',
+    collection: 'files',
+    id: '1',
+    fields: { name: 'existing.bam' },
+  });
+
+  expect(callCount).toBe(0);
+});
 });
