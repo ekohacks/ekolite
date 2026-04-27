@@ -15,4 +15,12 @@ export class ReactiveStore {
       ...fields,
     }));
   }
+
+  getById(id: string): Record<string, unknown> | undefined {
+    const fields = this.serverMessages.get(id);
+    if (fields) {
+      return { _id: id, ...fields };
+    }
+    return undefined;
+  }
 }
