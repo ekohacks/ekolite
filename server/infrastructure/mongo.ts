@@ -83,7 +83,7 @@ class RealMongo implements MongoInterface {
   }
 
   watchChanges(_collection: string, _cb: (change: ChangeEvent) => void): () => void {
-    throw new Error('watchChanges is not implemented for RealMongo');
+    throw new Error('watchChanges is only available on null instances');
   }
 
   trackChanges(_collection: string): OutputTracker {
