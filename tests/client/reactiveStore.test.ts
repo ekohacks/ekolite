@@ -14,4 +14,19 @@ describe('ReactiveStore', () => {
 
     expect(store.getAll()).toEqual([{ _id: '1', name: 'existing.bam' }]);
   });
+
+  it('returns a single document by id', () => {
+  const store = new ReactiveStore();
+
+  store.handleMessage({
+    type: 'added',
+    collection: 'files',
+    id: '1',
+    fields: { name: 'existing.bam' },
+  });
+
+  expect(store.getById('1')).toEqual({ _id: '1', name: 'existing.bam' });
+  expect(store.getById('does-not-exist')).toBeUndefined();
+});
+
 });
