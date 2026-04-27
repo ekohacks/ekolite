@@ -1,5 +1,11 @@
 import { DataMsg } from '../shared/protocol.ts';
 
+type StoredDoc = Record<string, unknown>;
+
+function withId(id: string, fields: StoredDoc): StoredDoc & { _id: string } {
+  return { _id: id, ...fields };
+}
+
 export class ReactiveStore {
   private serverMessages = new Map<string, Record<string, unknown>>();
 
@@ -9,17 +15,14 @@ export class ReactiveStore {
     }
   }
 
-  getAll(): Record<string, unknown>[] {
-    return Array.from(this.serverMessages.entries()).map(([id, fields]) => ({
-      _id: id,
-      ...fields,
-    }));
+  getAll(): StoredDoc[] {
+    return Array.from(this.serverMessages.entries()).map(([id, fields]) => withId(id, fields));
   }
 
-  getById(id: string): Record<string, unknown> | undefined {
+  getById(id: string): StoredDoc | undefined {
     const fields = this.serverMessages.get(id);
     if (fields) {
-      return { _id: id, ...fields };
+      return withId(id, fields);
     }
     return undefined;
   }
