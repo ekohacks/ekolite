@@ -1,3 +1,4 @@
+import { EventEmitter } from '../server/infrastructure/outputTracker.ts';
 import { DataMsg } from '../shared/protocol.ts';
 
 type StoredDoc = Record<string, unknown>;
@@ -8,10 +9,12 @@ function withId(id: string, fields: StoredDoc): StoredDoc & { _id: string } {
 
 export class ReactiveStore {
   private serverMessages = new Map<string, Record<string, unknown>>();
+  private emitter = new EventEmitter();
 
   handleMessage(msg: DataMsg): void {
     if (msg.type === 'added') {
       this.serverMessages.set(msg.id, msg?.fields ?? {});
+      this.emitter.emit('change', null);
     }
   }
 
@@ -25,5 +28,9 @@ export class ReactiveStore {
       return withId(id, fields);
     }
     return undefined;
+  }
+
+  onChange(listener: () => void): void {
+    this.emitter.on('change', listener);
   }
 }
