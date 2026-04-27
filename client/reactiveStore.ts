@@ -30,7 +30,11 @@ export class ReactiveStore {
     return undefined;
   }
 
-  onChange(listener: () => void): void {
+  onChange(listener: () => void): () => void {
     this.emitter.on('change', listener);
+
+    return () => {
+      this.emitter.off('change', listener);
+    };
   }
 }
