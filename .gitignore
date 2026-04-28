@@ -148,3 +148,5 @@ ekolite-*.md
 
 #Vim temp backup files
 *.swp
+
+story-*.md
