@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EkoLite Visualiser</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>EkoLite visualiser</h1>
+      <p>Click the buttons. Watch the dots. The lessons live next to the post in <code>learning/</code>.</p>
+    </header>
+
+    <main>
+      <section id="scene-splice" data-scene="splice">
+        <h2>Scene one: the mid emit splice</h2>
+        <p>Three handlers, one removes another mid emit. Toggle the iteration mode to see what changes.</p>
+        <div class="scene-mount" data-mount="splice"></div>
+      </section>
+
+      <section id="scene-disconnect" data-scene="disconnect">
+        <h2>Scene two: the disconnect leak</h2>
+        <p>Connect a client, subscribe, close the tab. Toggle the fix to watch the watcher count diverge.</p>
+        <div class="scene-mount" data-mount="disconnect"></div>
+      </section>
+    </main>
+
+    <script type="module" src="/main.ts"></script>
+  </body>
+</html>

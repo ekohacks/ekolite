@@ -21,6 +21,8 @@
   "scripts": {
     "dev:server": "tsx watch server/start.ts",
     "dev:client": "vite",
+    "dev:viz": "vite --config learning/visualiser/vite.config.ts",
+    "build:viz": "vite build --config learning/visualiser/vite.config.ts",
     "build": "tsc && vite build",
     "start": "node dist/server/index.js",
     "typecheck": "tsc --noEmit",
@@ -68,6 +70,7 @@
     "eslint": "^10.1.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.5",
+    "happy-dom": "^20.9.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
     "prettier": "^3.8.1",

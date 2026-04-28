@@ -1,0 +1,417 @@
+:root {
+  --ink: #1a1a1a;
+  --paper: #fafaf7;
+  --rule: #d8d4cc;
+  --muted: #6b6b6b;
+  --accent: #2b6cb0;
+  --fired: #2f855a;
+  --idle: #b9b3a7;
+  --leak: #c05621;
+  --shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+  --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  --serif: 'Georgia', 'Iowan Old Style', serif;
+  --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 17px;
+  line-height: 1.55;
+}
+
+header {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 4rem 1.5rem 2rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+header h1 {
+  font-family: var(--sans);
+  font-size: 1.6rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+  letter-spacing: -0.01em;
+}
+
+header p {
+  margin: 0;
+  color: var(--muted);
+}
+
+header code {
+  font-family: var(--mono);
+  font-size: 0.92em;
+  background: rgba(0, 0, 0, 0.04);
+  padding: 0.05rem 0.35rem;
+  border-radius: 3px;
+}
+
+main {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 1rem 1.5rem 6rem;
+}
+
+section {
+  margin: 3.5rem 0;
+}
+
+section h2 {
+  font-family: var(--sans);
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0 0 0.4rem;
+  letter-spacing: -0.005em;
+}
+
+section > p {
+  margin: 0 0 1.5rem;
+  color: var(--muted);
+}
+
+.scene-mount {
+  border: 1px solid var(--rule);
+  background: white;
+  border-radius: 6px;
+  padding: 1.5rem;
+  box-shadow: var(--shadow);
+  font-family: var(--sans);
+  font-size: 0.95rem;
+}
+
+.scene-mount > * + * {
+  margin-top: 1rem;
+}
+
+.scene-mount .canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: linear-gradient(180deg, #fbfaf6 0%, #f3f0e8 100%);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+}
+
+.scene-mount .scene-caption {
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--ink);
+  background: rgba(43, 108, 176, 0.06);
+  border-left: 3px solid var(--accent);
+  padding: 0.7rem 1rem;
+  border-radius: 4px;
+  min-height: 2.5rem;
+}
+
+.scene-mount .scene-caption strong {
+  color: var(--accent);
+}
+
+.scene-mount .canvas--splice {
+  min-height: 280px;
+}
+
+.scene-mount .canvas .slot-group {
+  transition:
+    transform 0.55s cubic-bezier(0.4, 0.05, 0.3, 1),
+    opacity 0.45s ease;
+  transform-box: fill-box;
+}
+
+.scene-mount .canvas .slot-group--gone {
+  opacity: 0;
+  transform: translate(-200px, 280px);
+  pointer-events: none;
+}
+
+.scene-mount .canvas .slot-group--ghost .slot {
+  fill: rgba(192, 86, 33, 0.05);
+  stroke: var(--leak);
+  stroke-dasharray: 5 5;
+}
+
+.scene-mount .canvas .slot-group--ghost .slot-label {
+  fill: var(--leak);
+  font-style: italic;
+}
+
+.scene-mount .canvas .slot {
+  fill: white;
+  stroke: var(--idle);
+  stroke-width: 2;
+  transition:
+    fill 0.4s ease,
+    stroke 0.4s ease;
+}
+
+.scene-mount .canvas .slot--fired {
+  fill: rgba(47, 133, 90, 0.18);
+  stroke: var(--fired);
+  stroke-width: 2.5;
+}
+
+.scene-mount .canvas .slot-label {
+  font-family: var(--mono);
+  font-size: 19px;
+  font-weight: 500;
+  fill: var(--ink);
+  pointer-events: none;
+  transition: fill 0.4s ease;
+}
+
+.scene-mount .canvas .slot-label--fired {
+  fill: var(--fired);
+  font-weight: 700;
+}
+
+.scene-mount .canvas .slot-index {
+  font-family: var(--mono);
+  font-size: 12px;
+  fill: var(--muted);
+  letter-spacing: 0.05em;
+}
+
+.scene-mount .canvas .pointer-group {
+  transition: opacity 0.3s ease;
+}
+
+.scene-mount .canvas .pointer-i {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 700;
+  fill: var(--fired);
+  transition: x 0.5s cubic-bezier(0.4, 0.05, 0.3, 1);
+}
+
+.scene-mount .canvas .pointer-line {
+  stroke: var(--fired);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  transition:
+    x1 0.5s cubic-bezier(0.4, 0.05, 0.3, 1),
+    x2 0.5s cubic-bezier(0.4, 0.05, 0.3, 1);
+}
+
+.scene-mount .canvas .step-readout {
+  font-family: var(--mono);
+  font-size: 12px;
+  fill: var(--muted);
+}
+
+.scene-mount .canvas .lane-label {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  fill: var(--ink);
+  letter-spacing: 0.02em;
+}
+
+.scene-mount .canvas .emitter-box {
+  fill: white;
+  stroke: var(--rule);
+  stroke-width: 2;
+}
+
+.scene-mount .canvas .emitter-count {
+  font-family: var(--mono);
+  font-size: 56px;
+  font-weight: 600;
+  fill: var(--ink);
+}
+
+.scene-mount .canvas .emitter-caption {
+  font-family: var(--sans);
+  font-size: 11px;
+  fill: var(--muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.scene-mount .canvas .client-node {
+  fill: rgba(43, 108, 176, 0.12);
+  stroke: var(--accent);
+  stroke-width: 2;
+  transition:
+    fill 0.3s ease,
+    stroke 0.3s ease,
+    opacity 0.3s ease;
+}
+
+.scene-mount .canvas .client-node--gone {
+  fill: white;
+  stroke: var(--leak);
+  stroke-dasharray: 3 3;
+  opacity: 0.7;
+}
+
+.scene-mount .canvas .client-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  fill: var(--accent);
+  pointer-events: none;
+}
+
+.scene-mount .canvas .link {
+  stroke: var(--idle);
+  stroke-width: 2;
+  transition:
+    stroke 0.4s ease,
+    opacity 0.4s ease;
+}
+
+.scene-mount .canvas .link--active {
+  stroke: var(--fired);
+  stroke-width: 3;
+}
+
+.scene-mount .canvas .link--orphan {
+  stroke: var(--leak);
+  stroke-width: 3;
+  stroke-dasharray: 6 4;
+  animation: leak-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes leak-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.scene-mount [data-action] {
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  background: white;
+  border: 1px solid var(--rule);
+  color: var(--ink);
+  padding: 0.4rem 0.8rem;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-right: 0.4rem;
+  margin-bottom: 0.4rem;
+  transition:
+    background 0.1s ease,
+    border-color 0.1s ease;
+}
+
+.scene-mount [data-action]:hover {
+  background: rgba(43, 108, 176, 0.06);
+  border-color: var(--accent);
+}
+
+.scene-mount [data-action]:active {
+  background: rgba(43, 108, 176, 0.12);
+}
+
+.scene-mount [data-role='handler-dot'],
+.scene-mount [data-role='client-dot'] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 4.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--idle);
+  background: var(--paper);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  border-radius: 999px;
+  margin-right: 0.4rem;
+  margin-bottom: 0.4rem;
+  padding: 0 0.9rem;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.scene-mount [data-role='handler-dot'][data-fired='true'] {
+  background: rgba(47, 133, 90, 0.1);
+  border-color: var(--fired);
+  color: var(--fired);
+  font-weight: 600;
+}
+
+.scene-mount [data-role='handler-dot'][data-fired='false'] {
+  border-style: dashed;
+  opacity: 0.55;
+}
+
+.scene-mount [data-role='client-dot'] {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(43, 108, 176, 0.06);
+}
+
+.scene-mount [data-role='mode'],
+.scene-mount [data-role='fix-state'],
+.scene-mount [data-role='watcher-count'],
+.scene-mount [data-role='client-count'],
+.scene-mount [data-role='last-run'] {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.scene-mount [data-role='watcher-count'] strong,
+.scene-mount [data-role='client-count'] strong {
+  color: var(--ink);
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.scene-mount [data-role='fix-state'][data-value='off'] strong {
+  color: var(--leak);
+}
+
+.scene-mount [data-role='transition-log'] {
+  border-top: 1px dashed var(--rule);
+  padding-top: 0.8rem;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--muted);
+  max-height: 10rem;
+  overflow-y: auto;
+}
+
+.scene-mount [data-role='transition-entry'] {
+  padding: 0.15rem 0;
+}
+
+.scene-mount [data-role='transition-entry']:last-child {
+  color: var(--ink);
+}
+
+.scene-mount [data-role='transition-entry'][data-kind='cleanup'] {
+  color: var(--fired);
+}
+
+.scene-mount [data-role='transition-entry'][data-kind='disconnect'] {
+  color: var(--leak);
+}
+
+.scene-mount .row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.scene-mount .stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
