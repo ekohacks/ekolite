@@ -9,6 +9,7 @@ interface MongoInterface {
   remove(collection: string, query: object): Promise<void>;
   watchChanges(collection: string, cb: (change: ChangeEvent) => void): () => void;
   trackChanges(collection: string): OutputTracker;
+  watcherCount(collection: string): number;
 }
 
 export class MongoWrapper {
@@ -56,6 +57,10 @@ export class MongoWrapper {
   trackChanges(collection: string): OutputTracker {
     return this.client.trackChanges(collection);
   }
+
+  watcherCount(collection: string): number {
+    return this.client.watcherCount(collection);
+  }
 }
 
 class RealMongo implements MongoInterface {
@@ -88,6 +93,10 @@ class RealMongo implements MongoInterface {
 
   trackChanges(_collection: string): OutputTracker {
     throw new Error('trackChanges is only available on null instances');
+  }
+
+  watcherCount(_collection: string): number {
+    throw new Error('watcherCount is only available on null instances');
   }
 }
 
@@ -181,5 +190,9 @@ class StubbedMongo implements MongoInterface {
 
   trackChanges(collection: string): OutputTracker {
     return new OutputTracker(this.emitter, collection);
+  }
+
+  watcherCount(collection: string): number {
+    return this.emitter.listenerCount(collection);
   }
 }

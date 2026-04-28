@@ -37,12 +37,18 @@ export type ChangeEvent =
   | { type: 'remove'; collection: string; id: string };
 
 export function isChangeEvent(data: unknown): data is ChangeEvent {
-  return (
-    typeof data === 'object' &&
-    data !== null &&
-    'type' in data &&
-    (data.type === 'insert' || data.type === 'update' || data.type === 'remove')
-  );
+  if (typeof data !== 'object' || data === null) return false;
+  if (!('type' in data) || !('collection' in data) || !('id' in data)) return false;
+  if (typeof (data as { collection: unknown }).collection !== 'string') return false;
+  if (typeof (data as { id: unknown }).id !== 'string') return false;
+
+  const type = (data as { type: unknown }).type;
+  if (type === 'insert' || type === 'update') {
+    if (!('fields' in data)) return false;
+    const fields = (data as { fields: unknown }).fields;
+    return typeof fields === 'object' && fields !== null && !Array.isArray(fields);
+  }
+  return type === 'remove';
 }
 
 // ── Method definitions ──────────────────────────────────────────────────────
