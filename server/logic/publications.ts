@@ -21,10 +21,25 @@ export class Publications {
   private publications = new Map<string, PublicationDef>();
   private ws: WebSocketWrapper;
   private mongo: MongoWrapper;
+  private subscriptions = new Map<string, Map<string, () => void>>();
 
   constructor(mongo: MongoWrapper, ws: WebSocketWrapper) {
     this.mongo = mongo;
     this.ws = ws;
+    this.ws.onDisconnect((clientId) => {
+      this.tearDownClient(clientId);
+    });
+  }
+
+  tearDownClient(clientId: string): void {
+    const clientSubs = this.subscriptions.get(clientId);
+    if (!clientSubs) return;
+
+    for (const cleanup of clientSubs.values()) {
+      cleanup();
+    }
+
+    this.subscriptions.delete(clientId);
   }
 
   define(name: string, queryFn: PublicationDef): void {
@@ -52,11 +67,39 @@ export class Publications {
       }
       this.ws.send(clientId, readyMessage(message.id));
 
-      this.mongo.watchChanges(collection, (change: ChangeEvent) => {
+      const cleanup = this.mongo.watchChanges(collection, (change: ChangeEvent) => {
         if (change.type === 'insert') {
           this.ws.send(clientId, addedMessage(collection, change.fields));
         }
       });
+
+      let clientSubs = this.subscriptions.get(clientId);
+
+      if (!clientSubs) {
+        clientSubs = new Map();
+        this.subscriptions.set(clientId, clientSubs);
+      }
+
+      const existing = clientSubs.get(message.id);
+      if (existing) {
+        existing();
+      }
+
+      clientSubs.set(message.id, cleanup);
+    } else if (message.type === 'unsubscribe') {
+      const clientSubs = this.subscriptions.get(clientId);
+
+      if (!clientSubs) return;
+
+      const cleanup = clientSubs.get(message.id);
+      if (cleanup) {
+        cleanup();
+        clientSubs.delete(message.id);
+      }
+
+      if (clientSubs.size === 0) {
+        this.subscriptions.delete(clientId);
+      }
     }
     return Promise.resolve();
   }

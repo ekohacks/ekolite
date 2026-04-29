@@ -10,9 +10,23 @@ export class EventEmitter {
 
   emit(eventType: string, data: unknown): void {
     const handlers = this.handlers.get(eventType) ?? [];
-    for (const handler of handlers) {
+    for (const handler of [...handlers]) {
       handler(data);
     }
+  }
+
+  off(eventType: string, handler: (data: unknown) => void): void {
+    const handlers = this.handlers.get(eventType);
+    if (handlers) {
+      const index = handlers.indexOf(handler);
+      if (index > -1) {
+        handlers.splice(index, 1);
+      }
+    }
+  }
+
+  listenerCount(eventType: string): number {
+    return this.handlers.get(eventType)?.length ?? 0;
   }
 }
 

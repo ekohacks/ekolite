@@ -201,4 +201,31 @@ describe('MongoWrapper (null)', () => {
     });
     expect(tracker.data[1]).toHaveProperty('id');
   });
+
+  it('reports zero watchers for an unwatched collection', () => {
+    const mongo = MongoWrapper.createNull();
+    expect(mongo.watcherCount('files')).toBe(0);
+  });
+
+  it('counts active watchers from watchChanges', () => {
+    const mongo = MongoWrapper.createNull();
+    const stop1 = mongo.watchChanges('files', () => {});
+    expect(mongo.watcherCount('files')).toBe(1);
+    const stop2 = mongo.watchChanges('files', () => {});
+    expect(mongo.watcherCount('files')).toBe(2);
+    stop1();
+    expect(mongo.watcherCount('files')).toBe(1);
+    stop2();
+    expect(mongo.watcherCount('files')).toBe(0);
+  });
+
+  it('counts watchers per collection', () => {
+    const mongo = MongoWrapper.createNull();
+    mongo.watchChanges('files', () => {});
+    mongo.watchChanges('scripts', () => {});
+    mongo.watchChanges('scripts', () => {});
+    expect(mongo.watcherCount('files')).toBe(1);
+    expect(mongo.watcherCount('scripts')).toBe(2);
+    expect(mongo.watcherCount('other')).toBe(0);
+  });
 });
