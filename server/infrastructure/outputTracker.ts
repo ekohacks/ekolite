@@ -10,7 +10,7 @@ export class EventEmitter {
 
   emit(eventType: string, data: unknown): void {
     const handlers = this.handlers.get(eventType) ?? [];
-    for (const handler of handlers) {
+    for (const handler of [...handlers]) {
       handler(data);
     }
   }
