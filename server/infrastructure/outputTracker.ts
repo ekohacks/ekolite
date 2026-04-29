@@ -24,6 +24,10 @@ export class EventEmitter {
       }
     }
   }
+
+  listenerCount(eventType: string): number {
+    return this.handlers.get(eventType)?.length ?? 0;
+  }
 }
 
 export class OutputTracker {
