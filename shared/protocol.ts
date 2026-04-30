@@ -35,12 +35,24 @@ export interface ReadyMsg {
   id: string;
 }
 
-export interface DataMsg {
-  type: 'added' | 'changed' | 'removed';
-  collection: string;
-  id: string;
-  fields?: Record<string, unknown>;
-}
+export type DataMsg =
+  | {
+      type: 'added';
+      collection: string;
+      id: string;
+      fields?: Record<string, unknown>;
+    }
+  | {
+      type: 'changed';
+      collection: string;
+      id: string;
+      fields?: Record<string, unknown>;
+    }
+  | {
+      type: 'removed';
+      collection: string;
+      id: string;
+    };
 
 export interface ResultMsg {
   type: 'result';

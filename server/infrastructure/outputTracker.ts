@@ -10,7 +10,7 @@ export class EventEmitter {
 
   emit(eventType: string, data: unknown): void {
     const handlers = this.handlers.get(eventType) ?? [];
-    for (const handler of handlers) {
+    for (const handler of [...handlers]) {
       handler(data);
     }
   }
@@ -23,6 +23,10 @@ export class EventEmitter {
         handlers.splice(index, 1);
       }
     }
+  }
+
+  listenerCount(eventType: string): number {
+    return this.handlers.get(eventType)?.length ?? 0;
   }
 }
 

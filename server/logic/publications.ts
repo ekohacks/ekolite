@@ -26,6 +26,20 @@ export class Publications {
   constructor(mongo: MongoWrapper, ws: WebSocketWrapper) {
     this.mongo = mongo;
     this.ws = ws;
+    this.ws.onDisconnect((clientId) => {
+      this.tearDownClient(clientId);
+    });
+  }
+
+  private tearDownClient(clientId: string): void {
+    const clientSubs = this.subscriptions.get(clientId);
+    if (!clientSubs) return;
+
+    for (const cleanup of clientSubs.values()) {
+      cleanup();
+    }
+
+    this.subscriptions.delete(clientId);
   }
 
   define(name: string, queryFn: PublicationDef): void {
