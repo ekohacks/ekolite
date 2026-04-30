@@ -14,6 +14,7 @@ interface WebSocketInterface {
   get clientCount(): number;
   send(clientId: string, message: unknown): void;
   broadcast(message: unknown): void;
+  onDisconnect?(cb: (clientId: string) => void): void;
   trackConnections(): OutputTracker;
   trackDisconnections(): OutputTracker;
   trackMessages(): OutputTracker;
@@ -67,6 +68,10 @@ export class WebSocketWrapper {
     this.server.broadcast(message);
   }
 
+  onDisconnect(cb: (clientId: string) => void): () => void {
+    return this.server.onDisconnect?.(cb) || (() => {});
+  }
+
   trackConnections(): OutputTracker {
     return this.server.trackConnections();
   }
@@ -85,6 +90,7 @@ class RealWebSocket implements WebSocketInterface {
   private port: number;
   private clients = new Map<string, WebSocket>();
   private nextId = 0;
+  private emitter = new EventEmitter();
 
   constructor(port: number) {
     this.port = port;
@@ -102,6 +108,7 @@ class RealWebSocket implements WebSocketInterface {
 
         socket.on('close', () => {
           this.clients.delete(id);
+          this.emitter.emit(DISCONNECTION_EVENT, { clientId: id });
         });
       });
     });
@@ -137,12 +144,30 @@ class RealWebSocket implements WebSocketInterface {
     }
   }
 
+  onDisconnect(cb: (clientId: string) => void): () => void {
+    const listener = (data: unknown): void => {
+      if (
+        typeof data === 'object' &&
+        data !== null &&
+        'clientId' in data &&
+        typeof data.clientId === 'string'
+      ) {
+        cb(data.clientId);
+      }
+    };
+    this.emitter.on(DISCONNECTION_EVENT, listener);
+
+    return () => {
+      this.emitter.off(DISCONNECTION_EVENT, listener);
+    };
+  }
+
   trackConnections(): OutputTracker {
     throw new Error('trackConnections is only available on null instances');
   }
 
   trackDisconnections(): OutputTracker {
-    throw new Error('trackDisconnections is only available on null instances');
+    return new OutputTracker(this.emitter, DISCONNECTION_EVENT);
   }
 
   trackMessages(): OutputTracker {
@@ -154,6 +179,7 @@ class FastifyWebSocket implements WebSocketInterface {
   private fastify: FastifyInstance | null = null;
   private clients = new Map<string, WebSocket>();
   private nextId = 0;
+  private emitter = new EventEmitter();
 
   async attach(fastify: FastifyInstance): Promise<void> {
     this.fastify = fastify;
@@ -164,6 +190,7 @@ class FastifyWebSocket implements WebSocketInterface {
 
       socket.on('close', () => {
         this.clients.delete(id);
+        this.emitter.emit(DISCONNECTION_EVENT, { clientId: id });
       });
     });
   }
@@ -190,12 +217,30 @@ class FastifyWebSocket implements WebSocketInterface {
     }
   }
 
+  onDisconnect(cb: (clientId: string) => void): () => void {
+    const listener = (data: unknown): void => {
+      if (
+        typeof data === 'object' &&
+        data !== null &&
+        'clientId' in data &&
+        typeof data.clientId === 'string'
+      ) {
+        cb(data.clientId);
+      }
+    };
+    this.emitter.on(DISCONNECTION_EVENT, listener);
+
+    return () => {
+      this.emitter.off(DISCONNECTION_EVENT, listener);
+    };
+  }
+
   trackConnections(): OutputTracker {
     throw new Error('trackConnections is only available on null instances');
   }
 
   trackDisconnections(): OutputTracker {
-    throw new Error('trackDisconnections is only available on null instances');
+    return new OutputTracker(this.emitter, DISCONNECTION_EVENT);
   }
 
   trackMessages(): OutputTracker {
@@ -259,6 +304,20 @@ class StubbedWebSocket implements WebSocketInterface {
     for (const client of this.clients.values()) {
       client.messages.push(message);
     }
+  }
+
+  onDisconnect(cb: (clientId: string) => void): void {
+    const listener = (data: unknown): void => {
+      if (
+        typeof data === 'object' &&
+        data !== null &&
+        'clientId' in data &&
+        typeof data.clientId === 'string'
+      ) {
+        cb(data.clientId);
+      }
+    };
+    this.emitter.on(DISCONNECTION_EVENT, listener);
   }
 
   trackConnections(): OutputTracker {

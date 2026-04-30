@@ -162,5 +162,98 @@ describe('Publications', () => {
 
     const newMessages = client.messages.slice(countAfterAll);
     expect(newMessages).toHaveLength(0);
+    expect(mongo.watcherCount('files')).toBe(0);
+  });
+
+  it('tears down watchers when a client disconnects without unsubscribing', async () => {
+    const mongo = MongoWrapper.createNull({
+      find: [[]],
+    });
+    const ws = WebSocketWrapper.createNull();
+    const client = ws.simulateConnection();
+    const pubs = new Publications(mongo, ws);
+
+    pubs.define('files.all', () => ({ collection: 'files', query: {} }));
+
+    await pubs.handleMessage(client.id, {
+      type: 'subscribe',
+      id: 'sub1',
+      name: 'files.all',
+    });
+
+    expect(mongo.watcherCount('files')).toBe(1);
+
+    client.close();
+
+    expect(mongo.watcherCount('files')).toBe(0);
+  });
+
+  it('tears down only the disconnecting client and leaves others intact', async () => {
+    const mongo = MongoWrapper.createNull({
+      find: [[], []],
+    });
+    const ws = WebSocketWrapper.createNull();
+    const clientA = ws.simulateConnection();
+    const clientB = ws.simulateConnection();
+    const pubs = new Publications(mongo, ws);
+
+    pubs.define('files.all', () => ({ collection: 'files', query: {} }));
+
+    await pubs.handleMessage(clientA.id, {
+      type: 'subscribe',
+      id: 'sub1',
+      name: 'files.all',
+    });
+    await pubs.handleMessage(clientB.id, {
+      type: 'subscribe',
+      id: 'sub1',
+      name: 'files.all',
+    });
+
+    expect(mongo.watcherCount('files')).toBe(2);
+
+    clientA.close();
+
+    expect(mongo.watcherCount('files')).toBe(1);
+
+    const countAfterClose = clientB.messages.length;
+    await mongo.insert('files', { name: 'still-flowing.bam' });
+    const newForB = clientB.messages.slice(countAfterClose);
+    expect(newForB).toHaveLength(1);
+  });
+
+  it('keys subscriptions per client so two clients can pick the same sub id', async () => {
+    const mongo = MongoWrapper.createNull({
+      find: [[], []],
+    });
+    const ws = WebSocketWrapper.createNull();
+    const clientA = ws.simulateConnection();
+    const clientB = ws.simulateConnection();
+    const pubs = new Publications(mongo, ws);
+
+    pubs.define('files.all', () => ({ collection: 'files', query: {} }));
+
+    await pubs.handleMessage(clientA.id, {
+      type: 'subscribe',
+      id: 'sub1',
+      name: 'files.all',
+    });
+    await pubs.handleMessage(clientB.id, {
+      type: 'subscribe',
+      id: 'sub1',
+      name: 'files.all',
+    });
+
+    await pubs.handleMessage(clientA.id, {
+      type: 'unsubscribe',
+      id: 'sub1',
+    });
+
+    expect(mongo.watcherCount('files')).toBe(1);
+
+    const countAfterUnsub = clientB.messages.length;
+    await mongo.insert('files', { name: 'for-b.bam' });
+    const newForB = clientB.messages.slice(countAfterUnsub);
+    expect(newForB).toHaveLength(1);
   });
 });
