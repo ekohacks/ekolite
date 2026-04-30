@@ -22,12 +22,8 @@ export class ReactiveStore {
         break;
 
       case 'changed':
-        // handle changed message
-        break;
-
       case 'removed':
-        // handle removed message
-        break;
+        throw new Error(`Not implemented: ${msg.type}`);
 
       default:
         assertNever(msg);
