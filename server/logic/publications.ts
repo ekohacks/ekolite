@@ -31,7 +31,7 @@ export class Publications {
     });
   }
 
-  tearDownClient(clientId: string): void {
+  private tearDownClient(clientId: string): void {
     const clientSubs = this.subscriptions.get(clientId);
     if (!clientSubs) return;
 
