@@ -42,14 +42,12 @@ export function isChangeEvent(data: unknown): data is ChangeEvent {
   if (!('collection' in data) || typeof data.collection !== 'string') return false;
   if (!('id' in data) || typeof data.id !== 'string') return false;
   if (data.type === 'insert' || data.type === 'update') {
-    if (
+    return !(
       !('fields' in data) ||
       typeof data.fields !== 'object' ||
       data.fields === null ||
       Array.isArray(data.fields)
-    )
-      return false;
-    return true;
+    );
   }
   return data.type === 'remove';
 }
