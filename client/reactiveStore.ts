@@ -2,25 +2,44 @@ import { DataMsg } from '../shared/protocol.ts';
 
 type StoredDoc = Record<string, unknown>;
 
-function withId(id: string, fields: StoredDoc): StoredDoc & { _id: string } {
-  return { _id: id, ...fields };
+type StoredDocWithId = StoredDoc & { _id: string };
+
+function withId(id: string, fields: StoredDoc): StoredDocWithId {
+  return { ...fields, _id: id };
+}
+
+function assertNever(x: never): never {
+  throw new Error(`Unexpected value: ${JSON.stringify(x)}`);
 }
 
 export class ReactiveStore {
-  private serverMessages = new Map<string, Record<string, unknown>>();
+  private docs = new Map<string, Record<string, unknown>>();
 
   handleMessage(msg: DataMsg): void {
-    if (msg.type === 'added') {
-      this.serverMessages.set(msg.id, msg?.fields ?? {});
+    switch (msg.type) {
+      case 'added':
+        this.docs.set(msg.id, msg.fields ?? {});
+        break;
+
+      case 'changed':
+        // handle changed message
+        break;
+
+      case 'removed':
+        // handle removed message
+        break;
+
+      default:
+        assertNever(msg);
     }
   }
 
   getAll(): StoredDoc[] {
-    return Array.from(this.serverMessages.entries()).map(([id, fields]) => withId(id, fields));
+    return Array.from(this.docs.entries()).map(([id, fields]) => withId(id, fields));
   }
 
   getById(id: string): StoredDoc | undefined {
-    const fields = this.serverMessages.get(id);
+    const fields = this.docs.get(id);
     if (fields) {
       return withId(id, fields);
     }
