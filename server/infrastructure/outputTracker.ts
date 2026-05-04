@@ -2,13 +2,17 @@ export class EventEmitter {
   private handlers: Map<string, ((data: unknown) => void)[]> = new Map();
 
   on(eventType: string, handler: (data: unknown) => void): void {
-    if (!this.handlers.has(eventType)) {
-      this.handlers.set(eventType, []);
+    let handlers = this.handlers.get(eventType);
+    if (!handlers) {
+      handlers = [];
+      this.handlers.set(eventType, handlers);
     }
-    this.handlers.get(eventType)?.push(handler);
+    if (!handlers.includes(handler)) {
+      handlers.push(handler);
+    }
   }
 
-  emit(eventType: string, data: unknown): void {
+  emit(eventType: string, data?: unknown): void {
     const handlers = this.handlers.get(eventType) ?? [];
     for (const handler of [...handlers]) {
       handler(data);

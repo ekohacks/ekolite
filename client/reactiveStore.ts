@@ -21,10 +21,20 @@ export class ReactiveStore {
     switch (msg.type) {
       case 'added':
         this.docs.set(msg.id, msg.fields ?? {});
-        this.emitter.emit('change', null);
+        this.emitter.emit('change');
         break;
 
-      case 'changed':
+      case 'changed': {
+        const existing = this.docs.get(msg.id);
+        if (!existing) {
+          return;
+        }
+
+        this.docs.set(msg.id, { ...existing, ...msg.fields });
+        this.emitter.emit('change');
+        break;
+      }
+
       case 'removed':
         throw new Error(`Not implemented: ${msg.type}`);
 
