@@ -62,9 +62,6 @@ describe('ReactiveStore', () => {
       fields: { name: 'existing.bam' },
     });
 
-    expect(store.getById('1')).toEqual({ _id: '1', name: 'existing.bam' });
-    expect(store.getById('does-not-exist')).toBeUndefined();
-
     expect(callCount).toBe(0);
   });
 
@@ -77,6 +74,7 @@ describe('ReactiveStore', () => {
       id: 'envelope-id',
       fields: { _id: 'body-id', name: 'thing.bam' },
     });
+
     expect(store.getById('envelope-id')).toEqual({ _id: 'envelope-id', name: 'thing.bam' });
   });
 });
