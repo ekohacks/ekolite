@@ -21,7 +21,6 @@ export class ReactiveStore {
     switch (msg.type) {
       case 'added':
         this.docs.set(msg.id, msg.fields ?? {});
-        this.emitter.emit('change');
         break;
 
       case 'changed': {
@@ -31,19 +30,17 @@ export class ReactiveStore {
         }
 
         this.docs.set(msg.id, { ...existing, ...msg.fields });
-        this.emitter.emit('change');
         break;
       }
 
       case 'removed':
-        if (this.docs.delete(msg.id)) {
-          this.emitter.emit('change');
-        }
+        this.docs.delete(msg.id);
         break;
 
       default:
         assertNever(msg);
     }
+    this.emitter.emit('change');
   }
 
   getAll(): StoredDocWithId[] {
