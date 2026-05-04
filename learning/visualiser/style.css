@@ -403,6 +403,86 @@ section > p {
   color: var(--leak);
 }
 
+.scene-mount [data-role='transition-entry'][data-kind='leakedCleanup'] {
+  color: var(--leak);
+  font-weight: 600;
+}
+
+.scene-mount [data-role='transition-entry'][data-kind='trigger'] {
+  color: var(--accent);
+}
+
+.scene-mount .canvas .wrapper-box {
+  fill: rgba(47, 133, 90, 0.1);
+  stroke: var(--fired);
+  stroke-width: 2;
+  transition:
+    fill 0.3s ease,
+    stroke 0.3s ease;
+}
+
+.scene-mount .canvas .wrapper-box--leaked {
+  fill: rgba(192, 86, 33, 0.1);
+  stroke: var(--leak);
+  stroke-dasharray: 5 4;
+  animation: leak-pulse 1.4s ease-in-out infinite;
+}
+
+.scene-mount .canvas .wrapper-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  fill: var(--ink);
+  pointer-events: none;
+}
+
+.scene-mount [data-role='subscription-row'] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  color: var(--ink);
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: white;
+}
+
+.scene-mount [data-role='subscription-row'][data-alive='false'][data-leaked='false'] {
+  opacity: 0.55;
+  background: var(--paper);
+}
+
+.scene-mount [data-role='subscription-row'][data-leaked='true'] {
+  border-color: var(--leak);
+  background: rgba(192, 86, 33, 0.04);
+}
+
+.scene-mount [data-role='subscription-row'] .leak-note {
+  color: var(--leak);
+  font-style: italic;
+}
+
+.scene-mount [data-role='mode-state'][data-value='direct'] strong {
+  color: var(--leak);
+}
+
+.scene-mount [data-role='mode-state'] strong,
+.scene-mount [data-role='listener-count'] strong,
+.scene-mount [data-role='call-count'] strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.scene-mount [data-role='listener-count'] strong {
+  font-size: 1.05rem;
+}
+
+.scene-mount .canvas--closure {
+  min-height: 320px;
+}
+
 .scene-mount .row {
   display: flex;
   flex-wrap: wrap;
