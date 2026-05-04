@@ -21,16 +21,29 @@ export class ReactiveStore {
     switch (msg.type) {
       case 'added':
         this.docs.set(msg.id, msg.fields ?? {});
-        this.emitter.emit('change');
         break;
 
-      case 'changed':
+      case 'changed': {
+        const existing = this.docs.get(msg.id);
+        if (!existing) {
+          return;
+        }
+
+        this.docs.set(msg.id, { ...existing, ...msg.fields });
+        break;
+      }
+
       case 'removed':
-        throw new Error(`Not implemented: ${msg.type}`);
+        if (!this.docs.has(msg.id)) {
+          return;
+        }
+        this.docs.delete(msg.id);
+        break;
 
       default:
         assertNever(msg);
     }
+    this.emitter.emit('change');
   }
 
   getAll(): StoredDocWithId[] {

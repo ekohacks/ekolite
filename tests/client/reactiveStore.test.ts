@@ -155,4 +155,85 @@ describe('ReactiveStore', () => {
 
     expect(store.getById('envelope-id')).toEqual({ _id: 'envelope-id', name: 'thing.bam' });
   });
+
+  it('merges fields into the existing document on changed message', () => {
+    const store = new ReactiveStore();
+
+    store.handleMessage({
+      type: 'added',
+      collection: 'files',
+      id: '1',
+      fields: { name: 'existing.bam', size: 100 },
+    });
+
+    store.handleMessage({
+      type: 'changed',
+      collection: 'files',
+      id: '1',
+      fields: { size: 200 },
+    });
+
+    expect(store.getById('1')).toEqual({ _id: '1', name: 'existing.bam', size: 200 });
+  });
+
+  it('deletes the document on removed message', () => {
+    const store = new ReactiveStore();
+
+    store.handleMessage({
+      type: 'added',
+      collection: 'files',
+      id: '1',
+      fields: { name: 'existing.bam' },
+    });
+
+    store.handleMessage({
+      type: 'removed',
+      collection: 'files',
+      id: '1',
+    });
+
+    expect(store.getById('1')).toBeUndefined();
+    expect(store.getAll()).toEqual([]);
+  });
+
+  it('emits a change event for added, changed, and removed', () => {
+    const store = new ReactiveStore();
+    let callCount = 0;
+    store.onChange(() => {
+      callCount++;
+    });
+
+    store.handleMessage({ type: 'added', collection: 'files', id: '1', fields: { name: 'a' } });
+    store.handleMessage({ type: 'changed', collection: 'files', id: '1', fields: { name: 'b' } });
+    store.handleMessage({ type: 'removed', collection: 'files', id: '1' });
+
+    expect(callCount).toBe(3);
+  });
+
+  it('does nothing when changed arrives for an unknown id', () => {
+    const store = new ReactiveStore();
+    let callCount = 0;
+    store.onChange(() => callCount++);
+
+    store.handleMessage({
+      type: 'changed',
+      collection: 'files',
+      id: 'ghost',
+      fields: { name: 'a' },
+    });
+
+    expect(store.getById('ghost')).toBeUndefined();
+    expect(callCount).toBe(0);
+  });
+
+  it('does nothing when removed arrives for an unknown id', () => {
+    const store = new ReactiveStore();
+    let callCount = 0;
+    store.onChange(() => callCount++);
+
+    store.handleMessage({ type: 'removed', collection: 'files', id: 'ghost' });
+
+    expect(store.getById('ghost')).toBeUndefined();
+    expect(callCount).toBe(0);
+  });
 });
