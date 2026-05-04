@@ -34,6 +34,9 @@ export class ReactiveStore {
       }
 
       case 'removed':
+        if (!this.docs.has(msg.id)) {
+          return;
+        }
         this.docs.delete(msg.id);
         break;
 
