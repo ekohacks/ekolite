@@ -69,6 +69,28 @@ describe('ReactiveStore', () => {
     expect(secondCalled).toBe(1);
   });
 
+  it('does not crash when off() is called twice', () => {
+    const store = new ReactiveStore();
+    let callCount = 0;
+    const off = store.onChange(() => {
+      callCount++;
+    });
+
+    off();
+    expect(() => {
+      off();
+    }).not.toThrow();
+
+    store.handleMessage({
+      type: 'added',
+      collection: 'files',
+      id: '1',
+      fields: { name: 'existing.bam' },
+    });
+
+    expect(callCount).toBe(0);
+  });
+
   it('stops calling the listener after off() is called', () => {
     const store = new ReactiveStore();
     let callCount = 0;
