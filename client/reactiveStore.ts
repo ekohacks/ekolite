@@ -1,3 +1,4 @@
+import { EventEmitter } from '../server/infrastructure/outputTracker.ts';
 import { DataMsg } from '../shared/protocol.ts';
 
 type StoredDoc = Record<string, unknown>;
@@ -14,11 +15,13 @@ function assertNever(x: never): never {
 
 export class ReactiveStore {
   private docs = new Map<string, Record<string, unknown>>();
+  private emitter = new EventEmitter();
 
   handleMessage(msg: DataMsg): void {
     switch (msg.type) {
       case 'added':
         this.docs.set(msg.id, msg.fields ?? {});
+        this.emitter.emit('change');
         break;
 
       case 'changed':
@@ -40,5 +43,13 @@ export class ReactiveStore {
       return withId(id, fields);
     }
     return undefined;
+  }
+
+  onChange(listener: () => void): () => void {
+    this.emitter.on('change', listener);
+
+    return () => {
+      this.emitter.off('change', listener);
+    };
   }
 }
