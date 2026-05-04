@@ -15,6 +15,14 @@ describe('EventEmitter.listenerCount', () => {
     expect(emitter.listenerCount('files')).toBe(2);
   });
 
+  it('does not register the same handler twice', () => {
+    const emitter = new EventEmitter();
+    const handler = (): void => {};
+    emitter.on('files', handler);
+    emitter.on('files', handler);
+    expect(emitter.listenerCount('files')).toBe(1);
+  });
+
   it('decrements when a handler is removed', () => {
     const emitter = new EventEmitter();
     const handler = (): void => {};
