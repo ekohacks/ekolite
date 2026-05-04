@@ -23,6 +23,18 @@ describe('EventEmitter.listenerCount', () => {
     expect(emitter.listenerCount('files')).toBe(1);
   });
 
+  it('does not crash when removing the same handler twice', () => {
+    const emitter = new EventEmitter();
+    const handler = (): void => {};
+    emitter.on('files', handler);
+
+    emitter.off('files', handler);
+    expect(() => {
+      emitter.off('files', handler);
+    }).not.toThrow();
+    expect(emitter.listenerCount('files')).toBe(0);
+  });
+
   it('decrements when a handler is removed', () => {
     const emitter = new EventEmitter();
     const handler = (): void => {};
