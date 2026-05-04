@@ -5,10 +5,14 @@ export class EventEmitter {
     if (!this.handlers.has(eventType)) {
       this.handlers.set(eventType, []);
     }
-    this.handlers.get(eventType)?.push(handler);
+
+    const handlers = this.handlers.get(eventType) ?? [];
+    if (handlers.indexOf(handler) === -1) {
+      handlers.push(handler);
+    }
   }
 
-  emit(eventType: string, data: unknown): void {
+  emit(eventType: string, data?: unknown): void {
     const handlers = this.handlers.get(eventType) ?? [];
     for (const handler of [...handlers]) {
       handler(data);
