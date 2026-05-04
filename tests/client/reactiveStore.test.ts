@@ -91,6 +91,39 @@ describe('ReactiveStore', () => {
     expect(callCount).toBe(0);
   });
 
+  it('does not notify listeners when documents are only read', () => {
+    const store = new ReactiveStore();
+    let callCount = 0;
+
+    store.onChange(() => {
+      callCount++;
+    });
+
+    store.handleMessage({
+      type: 'added',
+      collection: 'files',
+      id: '1',
+      fields: { name: 'existing.bam' },
+    });
+
+    expect(callCount).toBe(1);
+    expect(store.getAll()).toEqual([{ _id: '1', name: 'existing.bam' }]);
+
+    store.getAll();
+    store.getById('1');
+
+    expect(callCount).toBe(1);
+
+    store.handleMessage({
+      type: 'added',
+      collection: 'files',
+      id: '2',
+      fields: { name: 'another.bam' },
+    });
+
+    expect(callCount).toBe(2);
+  });
+
   it('stops calling the listener after off() is called', () => {
     const store = new ReactiveStore();
     let callCount = 0;
