@@ -33,11 +33,11 @@ export class ReactiveStore {
     }
   }
 
-  getAll(): StoredDoc[] {
+  getAll(): StoredDocWithId[] {
     return Array.from(this.docs.entries()).map(([id, fields]) => withId(id, fields));
   }
 
-  getById(id: string): StoredDoc | undefined {
+  getById(id: string): StoredDocWithId | undefined {
     const fields = this.docs.get(id);
     if (fields) {
       return withId(id, fields);
