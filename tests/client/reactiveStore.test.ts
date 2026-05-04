@@ -195,4 +195,18 @@ describe('ReactiveStore', () => {
     expect(store.getById('1')).toBeUndefined();
     expect(store.getAll()).toEqual([]);
   });
+
+  it('emits a change event for added, changed, and removed', () => {
+    const store = new ReactiveStore();
+    let callCount = 0;
+    store.onChange(() => {
+      callCount++;
+    });
+
+    store.handleMessage({ type: 'added', collection: 'files', id: '1', fields: { name: 'a' } });
+    store.handleMessage({ type: 'changed', collection: 'files', id: '1', fields: { name: 'b' } });
+    store.handleMessage({ type: 'removed', collection: 'files', id: '1' });
+
+    expect(callCount).toBe(3);
+  });
 });
