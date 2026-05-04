@@ -175,4 +175,24 @@ describe('ReactiveStore', () => {
 
     expect(store.getById('1')).toEqual({ _id: '1', name: 'existing.bam', size: 200 });
   });
+
+  it('deletes the document on removed message', () => {
+    const store = new ReactiveStore();
+
+    store.handleMessage({
+      type: 'added',
+      collection: 'files',
+      id: '1',
+      fields: { name: 'existing.bam' },
+    });
+
+    store.handleMessage({
+      type: 'removed',
+      collection: 'files',
+      id: '1',
+    });
+
+    expect(store.getById('1')).toBeUndefined();
+    expect(store.getAll()).toEqual([]);
+  });
 });
