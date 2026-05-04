@@ -36,7 +36,10 @@ export class ReactiveStore {
       }
 
       case 'removed':
-        throw new Error(`Not implemented: ${msg.type}`);
+        if (this.docs.delete(msg.id)) {
+          this.emitter.emit('change');
+        }
+        break;
 
       default:
         assertNever(msg);
