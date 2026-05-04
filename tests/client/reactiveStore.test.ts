@@ -46,6 +46,29 @@ describe('ReactiveStore', () => {
     expect(callCount).toBe(1);
   });
 
+  it('calls all registered listeners for the same change', () => {
+    const store = new ReactiveStore();
+    let firstCalled = 0;
+    let secondCalled = 0;
+
+    store.onChange(() => {
+      firstCalled++;
+    });
+    store.onChange(() => {
+      secondCalled++;
+    });
+
+    store.handleMessage({
+      type: 'added',
+      collection: 'files',
+      id: '1',
+      fields: { name: 'existing.bam' },
+    });
+
+    expect(firstCalled).toBe(1);
+    expect(secondCalled).toBe(1);
+  });
+
   it('stops calling the listener after off() is called', () => {
     const store = new ReactiveStore();
     let callCount = 0;
