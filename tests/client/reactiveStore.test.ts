@@ -77,4 +77,24 @@ describe('ReactiveStore', () => {
 
     expect(store.getById('envelope-id')).toEqual({ _id: 'envelope-id', name: 'thing.bam' });
   });
+
+  it('merges fields into the existing document on changed message', () => {
+    const store = new ReactiveStore();
+
+    store.handleMessage({
+      type: 'added',
+      collection: 'files',
+      id: '1',
+      fields: { name: 'existing.bam', size: 100 },
+    });
+
+    store.handleMessage({
+      type: 'changed',
+      collection: 'files',
+      id: '1',
+      fields: { size: 200 },
+    });
+
+    expect(store.getById('1')).toEqual({ _id: '1', name: 'existing.bam', size: 200 });
+  });
 });
