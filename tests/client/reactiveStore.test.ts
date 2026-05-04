@@ -209,4 +209,31 @@ describe('ReactiveStore', () => {
 
     expect(callCount).toBe(3);
   });
+
+  it('does nothing when changed arrives for an unknown id', () => {
+    const store = new ReactiveStore();
+    let callCount = 0;
+    store.onChange(() => callCount++);
+
+    store.handleMessage({
+      type: 'changed',
+      collection: 'files',
+      id: 'ghost',
+      fields: { name: 'a' },
+    });
+
+    expect(store.getById('ghost')).toBeUndefined();
+    expect(callCount).toBe(0);
+  });
+
+  it('does nothing when removed arrives for an unknown id', () => {
+    const store = new ReactiveStore();
+    let callCount = 0;
+    store.onChange(() => callCount++);
+
+    store.handleMessage({ type: 'removed', collection: 'files', id: 'ghost' });
+
+    expect(store.getById('ghost')).toBeUndefined();
+    expect(callCount).toBe(0);
+  });
 });
