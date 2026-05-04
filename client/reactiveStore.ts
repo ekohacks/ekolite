@@ -21,7 +21,7 @@ export class ReactiveStore {
     switch (msg.type) {
       case 'added':
         this.docs.set(msg.id, msg.fields ?? {});
-        this.emitter.emit('change', null);
+        this.emitter.emit('change');
         break;
 
       case 'changed':
