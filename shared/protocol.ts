@@ -57,7 +57,7 @@ export type DataMsg =
 export type ObserverOutcome = 'applied' | 'skipped' | 'failed';
 
 export interface ReactiveStoreObserver {
-  onMessage(msg: DataMsg, outcome: ObserverOutcome, reason?: string): void;
+  onMessage(msg: DataMsg | ClientMessage, outcome: ObserverOutcome, reason?: string): void;
 }
 
 export interface ResultMsg {
