@@ -54,6 +54,25 @@ describe('ReactiveStore', () => {
     expect(observed).toEqual([{ outcome: 'skipped', reason: 'unknown-id' }]);
   });
 
+  it('ignores observer errors and continues normal processing', () => {
+    const store = new ReactiveStore({
+      onMessage() {
+        throw new Error('observer failure');
+      },
+    });
+
+    expect(() => {
+      store.handleMessage({
+        type: 'added',
+        collection: 'files',
+        id: '1',
+        fields: { name: 'existing.bam' },
+      });
+    }).not.toThrow();
+
+    expect(store.getAll()).toEqual([{ _id: '1', name: 'existing.bam' }]);
+  });
+
   it('returns a single document by id', () => {
     const store = new ReactiveStore();
 
