@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { ReactiveStore } from '../../client/reactiveStore.ts';
+import { ObserverOutcome } from '../../shared/protocol.ts';
 
 describe('ReactiveStore', () => {
   it('inserts a document on added message', () => {
@@ -33,6 +34,24 @@ describe('ReactiveStore', () => {
     });
 
     expect(applied).toEqual([{ outcome: 'applied' }]);
+  });
+
+  it('notifies observer when changed arrives for an unknown id', () => {
+    const observed: Array<{ outcome: ObserverOutcome; reason?: string | undefined }> = [];
+    const store = new ReactiveStore({
+      onMessage(_, outcome, reason) {
+        observed.push({ outcome, reason });
+      },
+    });
+
+    store.handleMessage({
+      type: 'changed',
+      collection: 'files',
+      id: 'ghost',
+      fields: { name: 'a' },
+    });
+
+    expect(observed).toEqual([{ outcome: 'skipped', reason: 'unknown-id' }]);
   });
 
   it('returns a single document by id', () => {
