@@ -97,6 +97,35 @@ describe('Publications', () => {
     );
   });
 
+  it('continues normal behaviour if observer throws', async () => {
+    const mongo = MongoWrapper.createNull({
+      find: [[{ _id: '1', name: 'existing.bam' }]],
+    });
+    const ws = WebSocketWrapper.createNull();
+    const client = ws.simulateConnection();
+    const observer = {
+      onMessage: () => {
+        throw new Error('observer failed');
+      },
+    };
+    const pubs = new Publications(mongo, ws, observer);
+
+    pubs.define('files.all', () => ({ collection: 'files', query: {} }));
+
+    await expect(
+      pubs.handleMessage(client.id, {
+        type: 'subscribe',
+        id: 'sub1',
+        name: 'files.all',
+      }),
+    ).resolves.not.toThrow();
+
+    expect(client.messages).toContainEqual({
+      type: 'ready',
+      id: 'sub1',
+    });
+  });
+
   it('sends initial documents and ready signal on subscribe', async () => {
     const mongo = MongoWrapper.createNull({
       find: [[{ _id: '1', name: 'existing.bam' }]],
