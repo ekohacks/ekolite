@@ -1,4 +1,4 @@
-import { ClientMessage } from '../../shared/protocol.ts';
+import { ClientMessage, ReactiveStoreObserver } from '../../shared/protocol.ts';
 import { MongoWrapper } from '../infrastructure/mongo.ts';
 import { WebSocketWrapper } from '../infrastructure/websocket.ts';
 import { ChangeEvent } from '../../shared/types.ts';
@@ -22,13 +22,31 @@ export class Publications {
   private ws: WebSocketWrapper;
   private mongo: MongoWrapper;
   private subscriptions = new Map<string, Map<string, () => void>>();
+  private observer: ReactiveStoreObserver;
 
-  constructor(mongo: MongoWrapper, ws: WebSocketWrapper) {
+  constructor(
+    mongo: MongoWrapper,
+    ws: WebSocketWrapper,
+    observer: ReactiveStoreObserver = { onMessage: () => {} },
+  ) {
     this.mongo = mongo;
     this.ws = ws;
+    this.observer = observer;
     this.ws.onDisconnect((clientId) => {
       this.tearDownClient(clientId);
     });
+  }
+
+  private notifyObserver(
+    msg: ClientMessage,
+    outcome: 'applied' | 'skipped' | 'failed',
+    reason?: string,
+  ): void {
+    try {
+      this.observer.onMessage(msg, outcome, reason);
+    } catch (err) {
+      console.error('Observer error:', err);
+    }
   }
 
   private tearDownClient(clientId: string): void {
@@ -56,6 +74,7 @@ export class Publications {
           id: message.id,
           error: { code: 404, message: `Unknown publication: ${message.name}` },
         });
+        this.notifyObserver(message, 'failed', 'unknown-publication');
         return Promise.resolve();
       }
 
@@ -86,20 +105,29 @@ export class Publications {
       }
 
       clientSubs.set(message.id, cleanup);
+      this.notifyObserver(message, 'applied', existing ? 'duplicate-sub-id' : undefined);
     } else if (message.type === 'unsubscribe') {
       const clientSubs = this.subscriptions.get(clientId);
 
-      if (!clientSubs) return;
+      if (!clientSubs) {
+        this.notifyObserver(message, 'skipped', 'unknown-sub-id');
+        return Promise.resolve();
+      }
 
       const cleanup = clientSubs.get(message.id);
-      if (cleanup) {
-        cleanup();
-        clientSubs.delete(message.id);
+      if (!cleanup) {
+        this.notifyObserver(message, 'skipped', 'unknown-sub-id');
+        return Promise.resolve();
       }
+
+      cleanup();
+      clientSubs.delete(message.id);
 
       if (clientSubs.size === 0) {
         this.subscriptions.delete(clientId);
       }
+
+      this.notifyObserver(message, 'applied');
     }
     return Promise.resolve();
   }

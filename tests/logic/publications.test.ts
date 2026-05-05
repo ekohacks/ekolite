@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { Publications } from '../../server/logic/publications.ts';
 import { MongoWrapper } from '../../server/infrastructure/mongo.ts';
 import { WebSocketWrapper } from '../../server/infrastructure/websocket.ts';
@@ -20,6 +20,109 @@ describe('Publications', () => {
       type: 'error',
       id: 'sub1',
       error: { code: 404, message: 'Unknown publication: nonexistent' },
+    });
+  });
+
+  it('notifies observer on failed subscribe for unknown publication', async () => {
+    const mongo = MongoWrapper.createNull();
+    const ws = WebSocketWrapper.createNull();
+    const client = ws.simulateConnection();
+    const observer = { onMessage: vi.fn() };
+    const pubs = new Publications(mongo, ws, observer);
+
+    await pubs.handleMessage(client.id, {
+      type: 'subscribe',
+      id: 'sub1',
+      name: 'nonexistent',
+    });
+
+    expect(observer.onMessage).toHaveBeenCalledWith(
+      {
+        type: 'subscribe',
+        id: 'sub1',
+        name: 'nonexistent',
+      },
+      'failed',
+      'unknown-publication',
+    );
+  });
+
+  it('notifies observer on applied subscribe request', async () => {
+    const mongo = MongoWrapper.createNull({
+      find: [[{ _id: '1', name: 'existing.bam' }]],
+    });
+    const ws = WebSocketWrapper.createNull();
+    const client = ws.simulateConnection();
+    const observer = { onMessage: vi.fn() };
+    const pubs = new Publications(mongo, ws, observer);
+
+    pubs.define('files.all', () => ({ collection: 'files', query: {} }));
+
+    await pubs.handleMessage(client.id, {
+      type: 'subscribe',
+      id: 'sub1',
+      name: 'files.all',
+    });
+
+    expect(observer.onMessage).toHaveBeenCalledWith(
+      {
+        type: 'subscribe',
+        id: 'sub1',
+        name: 'files.all',
+      },
+      'applied',
+      undefined,
+    );
+  });
+
+  it('notifies observer when unsubscribe cannot find the sub id', async () => {
+    const mongo = MongoWrapper.createNull({ find: [[]] });
+    const ws = WebSocketWrapper.createNull();
+    const client = ws.simulateConnection();
+    const observer = { onMessage: vi.fn() };
+    const pubs = new Publications(mongo, ws, observer);
+
+    await pubs.handleMessage(client.id, {
+      type: 'unsubscribe',
+      id: 'sub1',
+    });
+
+    expect(observer.onMessage).toHaveBeenCalledWith(
+      {
+        type: 'unsubscribe',
+        id: 'sub1',
+      },
+      'skipped',
+      'unknown-sub-id',
+    );
+  });
+
+  it('continues normal behaviour if observer throws', async () => {
+    const mongo = MongoWrapper.createNull({
+      find: [[{ _id: '1', name: 'existing.bam' }]],
+    });
+    const ws = WebSocketWrapper.createNull();
+    const client = ws.simulateConnection();
+    const observer = {
+      onMessage: () => {
+        throw new Error('observer failed');
+      },
+    };
+    const pubs = new Publications(mongo, ws, observer);
+
+    pubs.define('files.all', () => ({ collection: 'files', query: {} }));
+
+    await expect(
+      pubs.handleMessage(client.id, {
+        type: 'subscribe',
+        id: 'sub1',
+        name: 'files.all',
+      }),
+    ).resolves.not.toThrow();
+
+    expect(client.messages).toContainEqual({
+      type: 'ready',
+      id: 'sub1',
     });
   });
 
