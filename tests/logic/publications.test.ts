@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { Publications } from '../../server/logic/publications.ts';
 import { MongoWrapper } from '../../server/infrastructure/mongo.ts';
 import { WebSocketWrapper } from '../../server/infrastructure/websocket.ts';
@@ -21,6 +21,30 @@ describe('Publications', () => {
       id: 'sub1',
       error: { code: 404, message: 'Unknown publication: nonexistent' },
     });
+  });
+
+  it('notifies observer on failed subscribe for unknown publication', async () => {
+    const mongo = MongoWrapper.createNull();
+    const ws = WebSocketWrapper.createNull();
+    const client = ws.simulateConnection();
+    const observer = { onMessage: vi.fn() };
+    const pubs = new Publications(mongo, ws, observer);
+
+    await pubs.handleMessage(client.id, {
+      type: 'subscribe',
+      id: 'sub1',
+      name: 'nonexistent',
+    });
+
+    expect(observer.onMessage).toHaveBeenCalledWith(
+      {
+        type: 'subscribe',
+        id: 'sub1',
+        name: 'nonexistent',
+      },
+      'failed',
+      'unknown-publication',
+    );
   });
 
   it('sends initial documents and ready signal on subscribe', async () => {
