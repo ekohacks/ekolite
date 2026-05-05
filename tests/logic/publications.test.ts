@@ -75,6 +75,28 @@ describe('Publications', () => {
     );
   });
 
+  it('notifies observer when unsubscribe cannot find the sub id', async () => {
+    const mongo = MongoWrapper.createNull({ find: [[]] });
+    const ws = WebSocketWrapper.createNull();
+    const client = ws.simulateConnection();
+    const observer = { onMessage: vi.fn() };
+    const pubs = new Publications(mongo, ws, observer);
+
+    await pubs.handleMessage(client.id, {
+      type: 'unsubscribe',
+      id: 'sub1',
+    });
+
+    expect(observer.onMessage).toHaveBeenCalledWith(
+      {
+        type: 'unsubscribe',
+        id: 'sub1',
+      },
+      'skipped',
+      'unknown-sub-id',
+    );
+  });
+
   it('sends initial documents and ready signal on subscribe', async () => {
     const mongo = MongoWrapper.createNull({
       find: [[{ _id: '1', name: 'existing.bam' }]],
