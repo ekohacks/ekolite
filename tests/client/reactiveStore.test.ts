@@ -15,6 +15,26 @@ describe('ReactiveStore', () => {
     expect(store.getAll()).toEqual([{ _id: '1', name: 'existing.bam' }]);
   });
 
+  it('notifies observer on applied added message', () => {
+    const applied: Array<{ outcome: string; reason?: string }> = [];
+    const store = new ReactiveStore({
+      onMessage(msg) {
+        if (msg.type === 'added') {
+          applied.push({ outcome: 'applied' });
+        }
+      },
+    });
+
+    store.handleMessage({
+      type: 'added',
+      collection: 'files',
+      id: '1',
+      fields: { name: 'existing.bam' },
+    });
+
+    expect(applied).toEqual([{ outcome: 'applied' }]);
+  });
+
   it('returns a single document by id', () => {
     const store = new ReactiveStore();
 
