@@ -47,6 +47,34 @@ describe('Publications', () => {
     );
   });
 
+  it('notifies observer on applied subscribe request', async () => {
+    const mongo = MongoWrapper.createNull({
+      find: [[{ _id: '1', name: 'existing.bam' }]],
+    });
+    const ws = WebSocketWrapper.createNull();
+    const client = ws.simulateConnection();
+    const observer = { onMessage: vi.fn() };
+    const pubs = new Publications(mongo, ws, observer);
+
+    pubs.define('files.all', () => ({ collection: 'files', query: {} }));
+
+    await pubs.handleMessage(client.id, {
+      type: 'subscribe',
+      id: 'sub1',
+      name: 'files.all',
+    });
+
+    expect(observer.onMessage).toHaveBeenCalledWith(
+      {
+        type: 'subscribe',
+        id: 'sub1',
+        name: 'files.all',
+      },
+      'applied',
+      undefined,
+    );
+  });
+
   it('sends initial documents and ready signal on subscribe', async () => {
     const mongo = MongoWrapper.createNull({
       find: [[{ _id: '1', name: 'existing.bam' }]],
