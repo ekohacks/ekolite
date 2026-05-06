@@ -1,12 +1,17 @@
 import { EventEmitter, OutputTracker } from '../server/infrastructure/outputTracker.ts';
 import { ClientMessage, ServerMessage } from '../shared/protocol.ts';
 
+function isServerMessage(data: unknown): data is ServerMessage {
+  return typeof data === 'object' && data !== null && 'type' in data;
+}
+
 interface ClientSocketInterface {
   connect(): Promise<void>;
   close(): Promise<void>;
   send(message: unknown): Promise<void>;
   get isConnected(): boolean;
   trackMessages(): OutputTracker;
+  onMessage(listener: (message: ServerMessage) => void): () => void;
 }
 
 const EVENT_MESSAGES = 'message';
@@ -46,6 +51,9 @@ export class ClientSocketWrapper {
   async send(message: ClientMessage): Promise<void> {
     await this.client.send(message);
   }
+  onMessage(listener: (message: ServerMessage) => void): () => void {
+    return this.client.onMessage(listener);
+  }
   simulateServer(): StubbedServer {
     const stub = this.client as StubbedClientSocket;
     return stub.simulateServer();
@@ -84,6 +92,20 @@ class RealClientSocket implements ClientSocketInterface {
           reject(new Error('WebSocket connection failed'));
         }
       };
+      this.socket.onmessage = (event) => {
+        try {
+          const raw: unknown = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+
+          if (!isServerMessage(raw)) {
+            console.error('Invalid server message shape', raw);
+            return;
+          }
+
+          this.emitter.emit(EVENT_MESSAGES, raw);
+        } catch (error) {
+          console.error('Failed to parse server message', error);
+        }
+      };
     });
   }
 
@@ -111,6 +133,16 @@ class RealClientSocket implements ClientSocketInterface {
   trackMessages(): OutputTracker {
     return new OutputTracker(this.emitter, EVENT_MESSAGES);
   }
+
+  onMessage(listener: (message: ServerMessage) => void): () => void {
+    const handler = (data: unknown) => {
+      listener(data as ServerMessage);
+    };
+    this.emitter.on(EVENT_MESSAGES, handler);
+    return () => {
+      this.emitter.off(EVENT_MESSAGES, handler);
+    };
+  }
 }
 
 export class StubbedServer {
@@ -122,7 +154,7 @@ export class StubbedServer {
   }
 
   send(message: ServerMessage): void {
-    this._client.onMessage(message);
+    this._client.receiveMessage(message);
   }
 }
 
@@ -154,11 +186,21 @@ class StubbedClientSocket implements ClientSocketInterface {
     return new StubbedServer(this);
   }
 
-  onMessage(message: ServerMessage): void {
-    this.emitter.emit('message', message);
+  receiveMessage(message: ServerMessage): void {
+    this.emitter.emit(EVENT_MESSAGES, message);
   }
 
   trackMessages(): OutputTracker {
     return new OutputTracker(this.emitter, EVENT_MESSAGES);
+  }
+
+  onMessage(listener: (message: ServerMessage) => void): () => void {
+    const handler = (data: unknown) => {
+      listener(data as ServerMessage);
+    };
+    this.emitter.on(EVENT_MESSAGES, handler);
+    return () => {
+      this.emitter.off(EVENT_MESSAGES, handler);
+    };
   }
 }

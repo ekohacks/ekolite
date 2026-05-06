@@ -75,3 +75,9 @@ export interface EkoLiteError {
   message: string;
   details?: unknown;
 }
+
+export type ObserverOutcome = 'applied' | 'skipped' | 'failed';
+
+export interface ReactiveStoreObserver {
+  onMessage(msg: DataMsg | ClientMessage, outcome: ObserverOutcome, reason?: string): void;
+}

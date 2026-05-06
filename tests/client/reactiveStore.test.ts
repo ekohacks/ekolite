@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { ReactiveStore } from '../../client/reactiveStore.ts';
+import { ObserverOutcome } from '../../shared/protocol.ts';
 
 describe('ReactiveStore', () => {
   it('inserts a document on added message', () => {
@@ -11,6 +12,63 @@ describe('ReactiveStore', () => {
       id: '1',
       fields: { name: 'existing.bam' },
     });
+
+    expect(store.getAll()).toEqual([{ _id: '1', name: 'existing.bam' }]);
+  });
+
+  it('notifies observer on applied added message', () => {
+    const applied: Array<{ outcome: string; reason?: string }> = [];
+    const store = new ReactiveStore({
+      onMessage(msg) {
+        if (msg.type === 'added') {
+          applied.push({ outcome: 'applied' });
+        }
+      },
+    });
+
+    store.handleMessage({
+      type: 'added',
+      collection: 'files',
+      id: '1',
+      fields: { name: 'existing.bam' },
+    });
+
+    expect(applied).toEqual([{ outcome: 'applied' }]);
+  });
+
+  it('notifies observer when changed arrives for an unknown id', () => {
+    const observed: Array<{ outcome: ObserverOutcome; reason?: string | undefined }> = [];
+    const store = new ReactiveStore({
+      onMessage(_, outcome, reason) {
+        observed.push({ outcome, reason });
+      },
+    });
+
+    store.handleMessage({
+      type: 'changed',
+      collection: 'files',
+      id: 'ghost',
+      fields: { name: 'a' },
+    });
+
+    expect(observed).toEqual([{ outcome: 'skipped', reason: 'unknown-id' }]);
+  });
+
+  it('ignores observer errors and continues normal processing', () => {
+    const store = new ReactiveStore({
+      onMessage() {
+        throw new Error('observer failure');
+      },
+    });
+
+    expect(() => {
+      store.handleMessage({
+        type: 'added',
+        collection: 'files',
+        id: '1',
+        fields: { name: 'existing.bam' },
+      });
+    }).not.toThrow();
 
     expect(store.getAll()).toEqual([{ _id: '1', name: 'existing.bam' }]);
   });
