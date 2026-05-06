@@ -1,6 +1,7 @@
-import { expect, it } from "vitest";
-import { ClientSocketWrapper } from "../../client/clientSocket.ts";
-import { SubscribeMsg } from "../../shared/protocol.ts";
+import { expect, it } from 'vitest';
+import { ClientSocketWrapper } from '../../client/clientSocket.ts';
+import { ConnectionManager } from '../../client/connectionManager.ts';
+import { SubscribeMsg } from '../../shared/protocol.ts';
 
 it('subscribe sends a subscribe message and routes added documents into the store', async () => {
   const socket = ClientSocketWrapper.createNull();
