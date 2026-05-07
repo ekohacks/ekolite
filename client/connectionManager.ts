@@ -7,6 +7,30 @@ interface SubscriptionHandle {
   ready: Promise<void>;
 }
 
+interface SubscriptionState {
+  id: string;
+  live: boolean;
+  collections: Set<string>;
+  readyResolver: () => void;
+  readyRejector: (error: unknown) => void;
+}
+
+class SubscriptionHandleImpl implements SubscriptionHandle {
+  readonly ready: Promise<void>;
+
+  constructor(
+    private manager: ConnectionManager,
+    private subscriptionId: string,
+    readyPromise: Promise<void>,
+  ) {
+    this.ready = readyPromise;
+  }
+
+  stop(): void {
+    this.manager.stopSubscription(this.subscriptionId);
+  }
+}
+
 const generateSubscriptionId = (() => {
   let counter = 0;
   return (): string => {
@@ -25,8 +49,7 @@ const generateSubscriptionId = (() => {
 export class ConnectionManager {
   private readonly socket: ClientSocketWrapper;
   private readonly stores = new Map<string, ReactiveStore>();
-  private readonly pendingReadyResolvers = new Map<string, () => void>();
-  private readonly subscriptions = new Map<string, { live: boolean; collections: Set<string> }>();
+  private readonly subscriptions = new Map<string, SubscriptionState>();
   private readonly collectionLiveSubscriptions = new Map<string, Set<string>>();
 
   constructor(socket: ClientSocketWrapper) {
@@ -46,8 +69,13 @@ export class ConnectionManager {
       rejectReady = reject;
     });
 
-    this.pendingReadyResolvers.set(id, resolveReady);
-    this.subscriptions.set(id, { live: true, collections: new Set<string>() });
+    this.subscriptions.set(id, {
+      id,
+      live: true,
+      collections: new Set<string>(),
+      readyResolver: resolveReady,
+      readyRejector: rejectReady,
+    });
 
     const subscribeMessage: SubscribeMsg = {
       type: 'subscribe',
@@ -57,21 +85,18 @@ export class ConnectionManager {
 
     this.socket.send(subscribeMessage).catch((error: unknown) => {
       this.subscriptions.delete(id);
-      this.pendingReadyResolvers.delete(id);
       rejectReady(error);
     });
 
-    return {
-      stop: () => {
-        const unsubscribeMessage: UnsubscribeMsg = { type: 'unsubscribe', id };
-        this.socket.send(unsubscribeMessage).catch((error: unknown) => {
-          console.error('Failed to send unsubscribe message:', error);
-        });
-        this.markSubscriptionStopped(id);
-        this.pendingReadyResolvers.delete(id);
-      },
-      ready,
-    };
+    return new SubscriptionHandleImpl(this, id, ready);
+  }
+
+  stopSubscription(id: string): void {
+    const unsubscribeMessage: UnsubscribeMsg = { type: 'unsubscribe', id };
+    this.socket.send(unsubscribeMessage).catch((error: unknown) => {
+      console.error('Failed to send unsubscribe message:', error);
+    });
+    this.markSubscriptionStopped(id);
   }
 
   store(collection: string): ReactiveStore {
@@ -98,10 +123,9 @@ export class ConnectionManager {
         break;
       }
       case 'ready': {
-        const resolveReady = this.pendingReadyResolvers.get(message.id);
-        if (resolveReady) {
-          resolveReady();
-          this.pendingReadyResolvers.delete(message.id);
+        const subscription = this.subscriptions.get(message.id);
+        if (subscription) {
+          subscription.readyResolver();
         }
         break;
       }
