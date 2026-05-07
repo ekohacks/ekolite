@@ -25,13 +25,14 @@ describe('Publications', () => {
   });
 
   it('notifies observer on failed subscribe for unknown publication', async () => {
-    const failed: { type: string; outcome: ObserverOutcome; reason?: string | undefined }[] = [];
+    const notifications: { type: string; outcome: ObserverOutcome; reason?: string | undefined }[] =
+      [];
     const mongo = MongoWrapper.createNull();
     const ws = WebSocketWrapper.createNull();
     const client = ws.simulateConnection();
     const observer: ReactiveStoreObserver = {
       onMessage(msg, outcome, reason) {
-        failed.push({ type: msg.type, outcome, reason });
+        notifications.push({ type: msg.type, outcome, reason });
       },
     };
 
@@ -43,7 +44,8 @@ describe('Publications', () => {
       name: 'nonexistent',
     });
 
-    expect(failed).toEqual([
+    expect(notifications).toHaveLength(1);
+    expect(notifications).toEqual([
       {
         type: 'subscribe',
         outcome: 'failed',
@@ -53,7 +55,8 @@ describe('Publications', () => {
   });
 
   it('notifies observer on applied subscribe request', async () => {
-    const applied: { type: string; outcome: ObserverOutcome; reason?: string | undefined }[] = [];
+    const notifications: { type: string; outcome: ObserverOutcome; reason?: string | undefined }[] =
+      [];
     const mongo = MongoWrapper.createNull({
       find: [[{ _id: '1', name: 'existing.bam' }]],
     });
@@ -61,7 +64,7 @@ describe('Publications', () => {
     const client = ws.simulateConnection();
     const observer = {
       onMessage(msg, outcome, reason) {
-        applied.push({ type: msg.type, outcome, reason });
+        notifications.push({ type: msg.type, outcome, reason });
       },
     } as ReactiveStoreObserver;
     const pubs = new Publications(mongo, ws, observer);
@@ -74,7 +77,59 @@ describe('Publications', () => {
       name: 'files.all',
     });
 
-    expect(applied).toEqual([{ type: 'subscribe', outcome: 'applied', reason: undefined }]);
+    expect(notifications).toHaveLength(1);
+    expect(notifications).toEqual([{ type: 'subscribe', outcome: 'applied', reason: undefined }]);
+  });
+
+  it('replaces the watcher when the same client resubscribes with the same id', async () => {
+    const notifications: { type: string; outcome: ObserverOutcome; reason?: string | undefined }[] =
+      [];
+    const mongo = MongoWrapper.createNull({
+      find: [[], []],
+    });
+    const ws = WebSocketWrapper.createNull();
+    const client = ws.simulateConnection();
+    const observer = {
+      onMessage(msg, outcome, reason) {
+        notifications.push({ type: msg.type, outcome, reason });
+      },
+    } as ReactiveStoreObserver;
+    const pubs = new Publications(mongo, ws, observer);
+
+    pubs.define('files.all', () => ({ collection: 'files', query: {} }));
+
+    await pubs.handleMessage(client.id, {
+      type: 'subscribe',
+      id: 'sub1',
+      name: 'files.all',
+    });
+
+    expect(mongo.watcherCount('files')).toBe(1);
+
+    await pubs.handleMessage(client.id, {
+      type: 'subscribe',
+      id: 'sub1',
+      name: 'files.all',
+    });
+
+    expect(mongo.watcherCount('files')).toBe(1);
+    expect(notifications).toContainEqual({
+      type: 'subscribe',
+      outcome: 'applied',
+      reason: 'duplicate-sub-id',
+    });
+
+    const countAfterResub = client.messages.length;
+    await mongo.insert('files', { name: 'still-one-watcher.bam' });
+
+    const newMessages = client.messages.slice(countAfterResub);
+    expect(newMessages).toHaveLength(1);
+    expect(newMessages[0]).toEqual(
+      expect.objectContaining({
+        type: 'added',
+        collection: 'files',
+      }),
+    );
   });
 
   it('notifies observer when unsubscribe cannot find the sub id', async () => {

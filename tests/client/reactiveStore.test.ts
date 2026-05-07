@@ -17,10 +17,10 @@ describe('ReactiveStore', () => {
   });
 
   it('notifies observer on applied added message', () => {
-    const applied: { type: string; outcome: ObserverOutcome; reason?: string }[] = [];
+    const notifications: { type: string; outcome: ObserverOutcome; reason?: string }[] = [];
     const store = new ReactiveStore({
       onMessage(msg, outcome) {
-        applied.push({ type: msg.type, outcome });
+        notifications.push({ type: msg.type, outcome });
       },
     });
 
@@ -31,14 +31,15 @@ describe('ReactiveStore', () => {
       fields: { name: 'existing.bam' },
     });
 
-    expect(applied).toEqual([{ type: 'added', outcome: 'applied' }]);
+    expect(notifications).toHaveLength(1);
+    expect(notifications).toEqual([{ type: 'added', outcome: 'applied' }]);
   });
 
   it('notifies observer when changed arrives for an unknown id', () => {
-    const observed: { outcome: ObserverOutcome; reason?: string | undefined }[] = [];
+    const notifications: { outcome: ObserverOutcome; reason?: string | undefined }[] = [];
     const store = new ReactiveStore({
       onMessage(_, outcome, reason) {
-        observed.push({ outcome, reason });
+        notifications.push({ outcome, reason });
       },
     });
 
@@ -49,7 +50,8 @@ describe('ReactiveStore', () => {
       fields: { name: 'a' },
     });
 
-    expect(observed).toEqual([{ outcome: 'skipped', reason: 'unknown-id' }]);
+    expect(notifications).toHaveLength(1);
+    expect(notifications).toEqual([{ outcome: 'skipped', reason: 'unknown-id' }]);
   });
 
   it('ignores observer errors and continues normal processing', () => {
