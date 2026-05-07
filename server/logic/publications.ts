@@ -1,4 +1,8 @@
-import { ClientMessage, ReactiveStoreObserver } from '../../shared/protocol.ts';
+import {
+  ClientMessage,
+  PublicationsReasons,
+  ReactiveStoreObserver,
+} from '../../shared/protocol.ts';
 import { MongoWrapper } from '../infrastructure/mongo.ts';
 import { WebSocketWrapper } from '../infrastructure/websocket.ts';
 import { ChangeEvent } from '../../shared/types.ts';
@@ -40,7 +44,7 @@ export class Publications {
   private notifyObserver(
     msg: ClientMessage,
     outcome: 'applied' | 'skipped' | 'failed',
-    reason?: string,
+    reason?: PublicationsReasons,
   ): void {
     try {
       this.observer.onMessage(msg, outcome, reason);
@@ -105,7 +109,12 @@ export class Publications {
       }
 
       clientSubs.set(message.id, cleanup);
-      this.notifyObserver(message, 'applied', existing ? 'duplicate-sub-id' : undefined);
+
+      if (existing) {
+        this.notifyObserver(message, 'applied', 'duplicate-sub-id');
+      } else {
+        this.notifyObserver(message, 'applied');
+      }
     } else if (message.type === 'unsubscribe') {
       const clientSubs = this.subscriptions.get(clientId);
 

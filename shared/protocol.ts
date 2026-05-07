@@ -81,3 +81,15 @@ export interface EkoLiteError {
   message: string;
   details?: unknown;
 }
+
+type ReactiveStoreSkipReason = 'unknown-id';
+type ReactiveStoreFailReason = 'unsupported-message-type';
+type PublicationsSkipReason = 'unknown-sub-id';
+type PublicationsFailReason = 'unknown-publication';
+type PublicationsDublicateSubIdReason = 'duplicate-sub-id';
+
+export type ReactiveStoreReasons = ReactiveStoreSkipReason | ReactiveStoreFailReason;
+export type PublicationsReasons =
+  | PublicationsSkipReason
+  | PublicationsFailReason
+  | PublicationsDublicateSubIdReason;
