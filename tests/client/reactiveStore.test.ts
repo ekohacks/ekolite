@@ -17,12 +17,10 @@ describe('ReactiveStore', () => {
   });
 
   it('notifies observer on applied added message', () => {
-    const applied: Array<{ outcome: string; reason?: string }> = [];
+    const applied: { type: string; outcome: ObserverOutcome; reason?: string }[] = [];
     const store = new ReactiveStore({
-      onMessage(msg) {
-        if (msg.type === 'added') {
-          applied.push({ outcome: 'applied' });
-        }
+      onMessage(msg, outcome) {
+        applied.push({ type: msg.type, outcome });
       },
     });
 
@@ -33,11 +31,11 @@ describe('ReactiveStore', () => {
       fields: { name: 'existing.bam' },
     });
 
-    expect(applied).toEqual([{ outcome: 'applied' }]);
+    expect(applied).toEqual([{ type: 'added', outcome: 'applied' }]);
   });
 
   it('notifies observer when changed arrives for an unknown id', () => {
-    const observed: Array<{ outcome: ObserverOutcome; reason?: string | undefined }> = [];
+    const observed: { outcome: ObserverOutcome; reason?: string | undefined }[] = [];
     const store = new ReactiveStore({
       onMessage(_, outcome, reason) {
         observed.push({ outcome, reason });

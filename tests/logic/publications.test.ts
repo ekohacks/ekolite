@@ -1,7 +1,8 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { Publications } from '../../server/logic/publications.ts';
 import { MongoWrapper } from '../../server/infrastructure/mongo.ts';
 import { WebSocketWrapper } from '../../server/infrastructure/websocket.ts';
+import { ObserverOutcome, ReactiveStoreObserver } from '../../shared/protocol.ts';
 
 describe('Publications', () => {
   it('sends error when subscribing to unknown publication', async () => {
@@ -24,10 +25,16 @@ describe('Publications', () => {
   });
 
   it('notifies observer on failed subscribe for unknown publication', async () => {
+    const failed: { type: string; outcome: ObserverOutcome; reason?: string | undefined }[] = [];
     const mongo = MongoWrapper.createNull();
     const ws = WebSocketWrapper.createNull();
     const client = ws.simulateConnection();
-    const observer = { onMessage: vi.fn() };
+    const observer: ReactiveStoreObserver = {
+      onMessage(msg, outcome, reason) {
+        failed.push({ type: msg.type, outcome, reason });
+      },
+    };
+
     const pubs = new Publications(mongo, ws, observer);
 
     await pubs.handleMessage(client.id, {
@@ -36,24 +43,27 @@ describe('Publications', () => {
       name: 'nonexistent',
     });
 
-    expect(observer.onMessage).toHaveBeenCalledWith(
+    expect(failed).toEqual([
       {
         type: 'subscribe',
-        id: 'sub1',
-        name: 'nonexistent',
+        outcome: 'failed',
+        reason: 'unknown-publication',
       },
-      'failed',
-      'unknown-publication',
-    );
+    ]);
   });
 
   it('notifies observer on applied subscribe request', async () => {
+    const applied: { type: string; outcome: ObserverOutcome; reason?: string | undefined }[] = [];
     const mongo = MongoWrapper.createNull({
       find: [[{ _id: '1', name: 'existing.bam' }]],
     });
     const ws = WebSocketWrapper.createNull();
     const client = ws.simulateConnection();
-    const observer = { onMessage: vi.fn() };
+    const observer = {
+      onMessage(msg, outcome, reason) {
+        applied.push({ type: msg.type, outcome, reason });
+      },
+    } as ReactiveStoreObserver;
     const pubs = new Publications(mongo, ws, observer);
 
     pubs.define('files.all', () => ({ collection: 'files', query: {} }));
@@ -64,22 +74,19 @@ describe('Publications', () => {
       name: 'files.all',
     });
 
-    expect(observer.onMessage).toHaveBeenCalledWith(
-      {
-        type: 'subscribe',
-        id: 'sub1',
-        name: 'files.all',
-      },
-      'applied',
-      undefined,
-    );
+    expect(applied).toEqual([{ type: 'subscribe', outcome: 'applied', reason: undefined }]);
   });
 
   it('notifies observer when unsubscribe cannot find the sub id', async () => {
+    const skipped: { type: string; outcome: ObserverOutcome; reason?: string | undefined }[] = [];
     const mongo = MongoWrapper.createNull({ find: [[]] });
     const ws = WebSocketWrapper.createNull();
     const client = ws.simulateConnection();
-    const observer = { onMessage: vi.fn() };
+    const observer = {
+      onMessage(msg, outcome, reason) {
+        skipped.push({ type: msg.type, outcome, reason });
+      },
+    } as ReactiveStoreObserver;
     const pubs = new Publications(mongo, ws, observer);
 
     await pubs.handleMessage(client.id, {
@@ -87,14 +94,13 @@ describe('Publications', () => {
       id: 'sub1',
     });
 
-    expect(observer.onMessage).toHaveBeenCalledWith(
+    expect(skipped).toEqual([
       {
         type: 'unsubscribe',
-        id: 'sub1',
+        outcome: 'skipped',
+        reason: 'unknown-sub-id',
       },
-      'skipped',
-      'unknown-sub-id',
-    );
+    ]);
   });
 
   it('continues normal behaviour if observer throws', async () => {
