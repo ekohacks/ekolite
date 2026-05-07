@@ -1,6 +1,6 @@
 import { ClientSocketWrapper } from './clientSocket.ts';
 import { ReactiveStore } from './reactiveStore.ts';
-import { ServerMessage, SubscribeMsg } from '../shared/protocol.ts';
+import { ServerMessage, SubscribeMsg, UnsubscribeMsg } from '../shared/protocol.ts';
 
 interface SubscriptionHandle {
   stop(): void;
@@ -26,6 +26,8 @@ export class ConnectionManager {
   private readonly socket: ClientSocketWrapper;
   private readonly stores = new Map<string, ReactiveStore>();
   private readonly pendingReadyResolvers = new Map<string, () => void>();
+  private readonly subscriptions = new Map<string, { live: boolean; collections: Set<string> }>();
+  private readonly collectionLiveSubscriptions = new Map<string, Set<string>>();
 
   constructor(socket: ClientSocketWrapper) {
     this.socket = socket;
@@ -45,6 +47,7 @@ export class ConnectionManager {
     });
 
     this.pendingReadyResolvers.set(id, resolveReady);
+    this.subscriptions.set(id, { live: true, collections: new Set<string>() });
 
     const subscribeMessage: SubscribeMsg = {
       type: 'subscribe',
@@ -53,12 +56,20 @@ export class ConnectionManager {
     };
 
     this.socket.send(subscribeMessage).catch((error: unknown) => {
+      this.subscriptions.delete(id);
       this.pendingReadyResolvers.delete(id);
       rejectReady(error);
     });
 
     return {
-      stop: () => {},
+      stop: () => {
+        const unsubscribeMessage: UnsubscribeMsg = { type: 'unsubscribe', id };
+        this.socket.send(unsubscribeMessage).catch((error: unknown) => {
+          console.error('Failed to send unsubscribe message:', error);
+        });
+        this.markSubscriptionStopped(id);
+        this.pendingReadyResolvers.delete(id);
+      },
       ready,
     };
   }
@@ -77,9 +88,15 @@ export class ConnectionManager {
     switch (message.type) {
       case 'added':
       case 'changed':
-      case 'removed':
+      case 'removed': {
+        if (!this.shouldRouteDataForCollection(message.collection)) {
+          return;
+        }
+
+        this.markCollectionAsLive(message.collection);
         this.store(message.collection).handleMessage(message);
         break;
+      }
       case 'ready': {
         const resolveReady = this.pendingReadyResolvers.get(message.id);
         if (resolveReady) {
@@ -91,5 +108,63 @@ export class ConnectionManager {
       default:
         break;
     }
+  }
+
+  private shouldRouteDataForCollection(collection: string): boolean {
+    const liveSubscribersForCollection = this.collectionLiveSubscriptions.get(collection);
+    if (liveSubscribersForCollection && liveSubscribersForCollection.size > 0) {
+      return true;
+    }
+
+    return this.hasAnyLiveSubscription();
+  }
+
+  private markCollectionAsLive(collection: string): void {
+    if (this.collectionLiveSubscriptions.has(collection)) {
+      return;
+    }
+
+    const liveSubscribers = new Set<string>();
+    for (const [id, subscription] of this.subscriptions.entries()) {
+      if (subscription.live) {
+        liveSubscribers.add(id);
+        subscription.collections.add(collection);
+      }
+    }
+
+    if (liveSubscribers.size > 0) {
+      this.collectionLiveSubscriptions.set(collection, liveSubscribers);
+    }
+  }
+
+  private markSubscriptionStopped(id: string): void {
+    const subscription = this.subscriptions.get(id);
+    if (!subscription?.live) {
+      return;
+    }
+
+    subscription.live = false;
+
+    for (const collection of subscription.collections) {
+      const activeSet = this.collectionLiveSubscriptions.get(collection);
+      if (!activeSet) {
+        continue;
+      }
+      activeSet.delete(id);
+      if (activeSet.size === 0) {
+        this.collectionLiveSubscriptions.delete(collection);
+      }
+    }
+
+    subscription.collections.clear();
+  }
+
+  private hasAnyLiveSubscription(): boolean {
+    for (const subscription of this.subscriptions.values()) {
+      if (subscription.live) {
+        return true;
+      }
+    }
+    return false;
   }
 }
