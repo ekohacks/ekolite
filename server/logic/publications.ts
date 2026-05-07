@@ -1,8 +1,4 @@
-import {
-  ClientMessage,
-  PublicationsReasons,
-  ReactiveStoreObserver,
-} from '../../shared/protocol.ts';
+import { ClientMessage, PublicationsObserver, PublicationsReasons } from '../../shared/protocol.ts';
 import { MongoWrapper } from '../infrastructure/mongo.ts';
 import { WebSocketWrapper } from '../infrastructure/websocket.ts';
 import { ChangeEvent } from '../../shared/types.ts';
@@ -26,12 +22,12 @@ export class Publications {
   private ws: WebSocketWrapper;
   private mongo: MongoWrapper;
   private subscriptions = new Map<string, Map<string, () => void>>();
-  private observer: ReactiveStoreObserver;
+  private observer: PublicationsObserver;
 
   constructor(
     mongo: MongoWrapper,
     ws: WebSocketWrapper,
-    observer: ReactiveStoreObserver = { onMessage: () => {} },
+    observer: PublicationsObserver = { onMessage: () => {} },
   ) {
     this.mongo = mongo;
     this.ws = ws;

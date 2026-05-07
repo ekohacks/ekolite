@@ -57,7 +57,11 @@ export type DataMsg =
 export type ObserverOutcome = 'applied' | 'skipped' | 'failed';
 
 export interface ReactiveStoreObserver {
-  onMessage(msg: DataMsg | ClientMessage, outcome: ObserverOutcome, reason?: string): void;
+  onMessage(msg: DataMsg, outcome: ObserverOutcome, reason?: ReactiveStoreReasons): void;
+}
+
+export interface PublicationsObserver {
+  onMessage(msg: ClientMessage, outcome: ObserverOutcome, reason?: PublicationsReasons): void;
 }
 
 export interface ResultMsg {
@@ -86,10 +90,10 @@ type ReactiveStoreSkipReason = 'unknown-id';
 type ReactiveStoreFailReason = 'unsupported-message-type';
 type PublicationsSkipReason = 'unknown-sub-id';
 type PublicationsFailReason = 'unknown-publication';
-type PublicationsDublicateSubIdReason = 'duplicate-sub-id';
+type PublicationsDuplicateSubIdReason = 'duplicate-sub-id';
 
 export type ReactiveStoreReasons = ReactiveStoreSkipReason | ReactiveStoreFailReason;
 export type PublicationsReasons =
   | PublicationsSkipReason
   | PublicationsFailReason
-  | PublicationsDublicateSubIdReason;
+  | PublicationsDuplicateSubIdReason;

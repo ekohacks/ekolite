@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { Publications } from '../../server/logic/publications.ts';
 import { MongoWrapper } from '../../server/infrastructure/mongo.ts';
 import { WebSocketWrapper } from '../../server/infrastructure/websocket.ts';
-import { ObserverOutcome, ReactiveStoreObserver } from '../../shared/protocol.ts';
+import { ObserverOutcome, PublicationsObserver } from '../../shared/protocol.ts';
 
 describe('Publications', () => {
   it('sends error when subscribing to unknown publication', async () => {
@@ -30,7 +30,7 @@ describe('Publications', () => {
     const mongo = MongoWrapper.createNull();
     const ws = WebSocketWrapper.createNull();
     const client = ws.simulateConnection();
-    const observer: ReactiveStoreObserver = {
+    const observer: PublicationsObserver = {
       onMessage(msg, outcome, reason) {
         notifications.push({ type: msg.type, outcome, reason });
       },
@@ -66,7 +66,7 @@ describe('Publications', () => {
       onMessage(msg, outcome, reason) {
         notifications.push({ type: msg.type, outcome, reason });
       },
-    } as ReactiveStoreObserver;
+    } as PublicationsObserver;
     const pubs = new Publications(mongo, ws, observer);
 
     pubs.define('files.all', () => ({ collection: 'files', query: {} }));
@@ -93,7 +93,7 @@ describe('Publications', () => {
       onMessage(msg, outcome, reason) {
         notifications.push({ type: msg.type, outcome, reason });
       },
-    } as ReactiveStoreObserver;
+    } as PublicationsObserver;
     const pubs = new Publications(mongo, ws, observer);
 
     pubs.define('files.all', () => ({ collection: 'files', query: {} }));
@@ -141,7 +141,7 @@ describe('Publications', () => {
       onMessage(msg, outcome, reason) {
         skipped.push({ type: msg.type, outcome, reason });
       },
-    } as ReactiveStoreObserver;
+    } as PublicationsObserver;
     const pubs = new Publications(mongo, ws, observer);
 
     await pubs.handleMessage(client.id, {
