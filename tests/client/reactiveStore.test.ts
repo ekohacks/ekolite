@@ -54,6 +54,24 @@ describe('ReactiveStore', () => {
     expect(notifications).toEqual([{ outcome: 'skipped', reason: 'unknown-id' }]);
   });
 
+  it('notifies observer when removed message arrives for unknown id', () => {
+    const notifications: Array<{ outcome: ObserverOutcome; reason?: string | undefined }> = [];
+    const store = new ReactiveStore({
+      onMessage(_, outcome, reason) {
+        notifications.push({ outcome, reason });
+      },
+    });
+
+    store.handleMessage({
+      type: 'removed',
+      collection: 'files',
+      id: 'ghost',
+    });
+
+    expect(notifications).toHaveLength(1);
+    expect(notifications).toEqual([{ outcome: 'skipped', reason: 'unknown-id' }]);
+  });
+
   it('ignores observer errors and continues normal processing', () => {
     const store = new ReactiveStore({
       onMessage() {
