@@ -92,8 +92,20 @@ type PublicationsSkipReason = 'unknown-sub-id';
 type PublicationsFailReason = 'unknown-publication';
 type PublicationsDuplicateSubIdReason = 'duplicate-sub-id';
 
-export type ReactiveStoreReasons = ReactiveStoreSkipReason | ReactiveStoreFailReason;
+export type ReactiveStoreReasons =
+  /** Document with the given ID is unknown to the store.
+   * This can happen when a changed or removed message is received for an id that has not been added. */
+  | ReactiveStoreSkipReason
+  /** Message type is not supported by the store. */
+  | ReactiveStoreFailReason;
 export type PublicationsReasons =
+  /** Unsubscribe arrived for a sub id this client doesn't have.
+   *  Usually a client bug or a race between client and server. */
   | PublicationsSkipReason
+  /** Subscribe arrived for a publication name that wasn't defined
+   *  on the server. Client and server schemas are out of sync. */
   | PublicationsFailReason
+  /** Subscribe arrived with an id that already has a watcher on this
+   *  client. Old watcher torn down, new one installed. Applied,
+   *  not failed. */
   | PublicationsDuplicateSubIdReason;
