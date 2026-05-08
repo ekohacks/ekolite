@@ -1,5 +1,5 @@
 import { EventEmitter } from '../server/infrastructure/outputTracker.ts';
-import { DataMsg, ReactiveStoreObserver } from '../shared/protocol.ts';
+import { DataMsg, ReactiveStoreObserver, ReactiveStoreReasons } from '../shared/protocol.ts';
 
 type StoredDoc = Record<string, unknown>;
 
@@ -25,7 +25,7 @@ export class ReactiveStore {
   private notifyObserver(
     msg: DataMsg,
     outcome: 'applied' | 'skipped' | 'failed',
-    reason?: string,
+    reason?: ReactiveStoreReasons,
   ): void {
     try {
       this.observer.onMessage(msg, outcome, reason);
