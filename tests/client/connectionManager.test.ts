@@ -32,6 +32,24 @@ describe('ConnectionManager', () => {
     expect(manager.store('files').getById('1')).toEqual({ _id: '1', name: 'existing.bam' });
   });
 
+  it('rejects ready when subscribe fails on the server', async () => {
+    const socket = ClientSocketWrapper.createNull();
+    const server = socket.simulateServer();
+    const manager = new ConnectionManager(socket);
+    const messages = socket.trackMessages();
+
+    const handle = manager.subscribe('nope');
+    const sent = messages.data[0] as SubscribeMsg;
+
+    server.send({
+      type: 'error',
+      id: sent.id,
+      error: { code: 404, message: 'Unknown publication' },
+    });
+
+    await expect(handle.ready).rejects.toMatchObject({ code: 404 });
+  });
+
   it('handle.stop sends an unsubscribe and stops further messages reaching the store', async () => {
     const socket = ClientSocketWrapper.createNull();
     const server = socket.simulateServer();
