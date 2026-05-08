@@ -9,8 +9,6 @@ interface SubscriptionHandle {
 
 interface SubscriptionState {
   id: string;
-  live: boolean;
-  collections: Set<string>;
   readyResolver: () => void;
   readyRejector: (error: unknown) => void;
 }
@@ -50,7 +48,7 @@ export class ConnectionManager {
   private readonly socket: ClientSocketWrapper;
   private readonly stores = new Map<string, ReactiveStore>();
   private readonly subscriptions = new Map<string, SubscriptionState>();
-  private readonly collectionLiveSubscriptions = new Map<string, Set<string>>();
+  private readonly liveSubs = new Set<string>();
 
   constructor(socket: ClientSocketWrapper) {
     this.socket = socket;
@@ -71,11 +69,10 @@ export class ConnectionManager {
 
     this.subscriptions.set(id, {
       id,
-      live: true,
-      collections: new Set<string>(),
       readyResolver: resolveReady,
       readyRejector: rejectReady,
     });
+    this.liveSubs.add(id);
 
     const subscribeMessage: SubscribeMsg = {
       type: 'subscribe',
@@ -85,6 +82,7 @@ export class ConnectionManager {
 
     this.socket.send(subscribeMessage).catch((error: unknown) => {
       this.subscriptions.delete(id);
+      this.liveSubs.delete(id);
       rejectReady(error);
     });
 
@@ -114,11 +112,10 @@ export class ConnectionManager {
       case 'added':
       case 'changed':
       case 'removed': {
-        if (!this.shouldRouteDataForCollection(message.collection)) {
+        if (this.liveSubs.size === 0) {
           return;
         }
 
-        this.markCollectionAsLive(message.collection);
         this.store(message.collection).handleMessage(message);
         break;
       }
@@ -134,61 +131,7 @@ export class ConnectionManager {
     }
   }
 
-  private shouldRouteDataForCollection(collection: string): boolean {
-    const liveSubscribersForCollection = this.collectionLiveSubscriptions.get(collection);
-    if (liveSubscribersForCollection && liveSubscribersForCollection.size > 0) {
-      return true;
-    }
-
-    return this.hasAnyLiveSubscription();
-  }
-
-  private markCollectionAsLive(collection: string): void {
-    if (this.collectionLiveSubscriptions.has(collection)) {
-      return;
-    }
-
-    const liveSubscribers = new Set<string>();
-    for (const [id, subscription] of this.subscriptions.entries()) {
-      if (subscription.live) {
-        liveSubscribers.add(id);
-        subscription.collections.add(collection);
-      }
-    }
-
-    if (liveSubscribers.size > 0) {
-      this.collectionLiveSubscriptions.set(collection, liveSubscribers);
-    }
-  }
-
   private markSubscriptionStopped(id: string): void {
-    const subscription = this.subscriptions.get(id);
-    if (!subscription?.live) {
-      return;
-    }
-
-    subscription.live = false;
-
-    for (const collection of subscription.collections) {
-      const activeSet = this.collectionLiveSubscriptions.get(collection);
-      if (!activeSet) {
-        continue;
-      }
-      activeSet.delete(id);
-      if (activeSet.size === 0) {
-        this.collectionLiveSubscriptions.delete(collection);
-      }
-    }
-
-    subscription.collections.clear();
-  }
-
-  private hasAnyLiveSubscription(): boolean {
-    for (const subscription of this.subscriptions.values()) {
-      if (subscription.live) {
-        return true;
-      }
-    }
-    return false;
+    this.liveSubs.delete(id);
   }
 }
