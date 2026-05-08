@@ -14,7 +14,8 @@ interface ClientSocketInterface {
   onMessage(listener: (message: ServerMessage) => void): () => void;
 }
 
-const EVENT_MESSAGES = 'message';
+const EVENT_OUTBOUND = 'outbound';
+const EVENT_INBOUND = 'inbound';
 
 export class ClientSocketWrapper {
   private readonly client: ClientSocketInterface;
@@ -101,7 +102,7 @@ class RealClientSocket implements ClientSocketInterface {
             return;
           }
 
-          this.emitter.emit(EVENT_MESSAGES, raw);
+          this.emitter.emit(EVENT_INBOUND, raw);
         } catch (error) {
           console.error('Failed to parse server message', error);
         }
@@ -127,20 +128,21 @@ class RealClientSocket implements ClientSocketInterface {
       return Promise.reject(new Error('Socket is not connected'));
     }
     this.socket.send(JSON.stringify(message));
+    this.emitter.emit(EVENT_OUTBOUND, message);
     return Promise.resolve();
   }
 
   trackMessages(): OutputTracker {
-    return new OutputTracker(this.emitter, EVENT_MESSAGES);
+    return new OutputTracker(this.emitter, EVENT_OUTBOUND);
   }
 
   onMessage(listener: (message: ServerMessage) => void): () => void {
     const handler = (data: unknown) => {
       listener(data as ServerMessage);
     };
-    this.emitter.on(EVENT_MESSAGES, handler);
+    this.emitter.on(EVENT_INBOUND, handler);
     return () => {
-      this.emitter.off(EVENT_MESSAGES, handler);
+      this.emitter.off(EVENT_INBOUND, handler);
     };
   }
 }
@@ -177,7 +179,7 @@ class StubbedClientSocket implements ClientSocketInterface {
 
   send(message: ClientMessage): Promise<void> {
     // Implementation for sending message
-    this.emitter.emit(EVENT_MESSAGES, message);
+    this.emitter.emit(EVENT_OUTBOUND, message);
 
     return Promise.resolve();
   }
@@ -187,20 +189,20 @@ class StubbedClientSocket implements ClientSocketInterface {
   }
 
   receiveMessage(message: ServerMessage): void {
-    this.emitter.emit(EVENT_MESSAGES, message);
+    this.emitter.emit(EVENT_INBOUND, message);
   }
 
   trackMessages(): OutputTracker {
-    return new OutputTracker(this.emitter, EVENT_MESSAGES);
+    return new OutputTracker(this.emitter, EVENT_OUTBOUND);
   }
 
   onMessage(listener: (message: ServerMessage) => void): () => void {
     const handler = (data: unknown) => {
       listener(data as ServerMessage);
     };
-    this.emitter.on(EVENT_MESSAGES, handler);
+    this.emitter.on(EVENT_INBOUND, handler);
     return () => {
-      this.emitter.off(EVENT_MESSAGES, handler);
+      this.emitter.off(EVENT_INBOUND, handler);
     };
   }
 }
