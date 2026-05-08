@@ -55,7 +55,7 @@ describe('ReactiveStore', () => {
   });
 
   it('notifies observer when removed message arrives for unknown id', () => {
-    const notifications: Array<{ outcome: ObserverOutcome; reason?: string | undefined }> = [];
+    const notifications: { outcome: ObserverOutcome; reason?: string | undefined }[] = [];
     const store = new ReactiveStore({
       onMessage(_, outcome, reason) {
         notifications.push({ outcome, reason });
