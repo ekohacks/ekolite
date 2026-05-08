@@ -126,6 +126,15 @@ export class ConnectionManager {
         }
         break;
       }
+      case 'error': {
+        const subscription = this.subscriptions.get(message.id);
+        if (subscription) {
+          subscription.readyRejector(message.error);
+          this.subscriptions.delete(message.id);
+          this.liveSubs.delete(message.id);
+        }
+        break;
+      }
       default:
         break;
     }
