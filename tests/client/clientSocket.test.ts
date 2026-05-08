@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ClientSocketWrapper } from '../../client/clientSocket.ts';
-import { ReadyMsg, UnsubscribeMsg } from '../../shared/protocol.ts';
+import { ReadyMsg, ServerMessage, UnsubscribeMsg } from '../../shared/protocol.ts';
 
 describe('ClientSocketWrapper URL validation', () => {
   it('rejects non-websocket URLs', () => {
@@ -41,14 +41,19 @@ describe('ClientSocketWrapper (null)', () => {
     expect(socket.isConnected).toBe(false);
   });
   it('can receive a message from the server', async () => {
+    const received: ServerMessage[] = [];
     const message: ReadyMsg = { type: 'ready', id: '1' };
     const socket = ClientSocketWrapper.createNull();
-    const tracker = socket.trackMessages();
+    const unsubscribe = socket.onMessage((msg) => received.push(msg));
+
     await socket.connect();
     const server = socket.simulateServer();
     server.send(message);
-    expect(tracker.data).toHaveLength(1);
-    expect(tracker.data[0]).toEqual({ type: 'ready', id: '1' });
+
+    expect(received).toHaveLength(1);
+    expect(received).toEqual([{ type: 'ready', id: '1' }]);
+
+    unsubscribe();
   });
   it('can send a message to the server', async () => {
     const message: UnsubscribeMsg = { type: 'unsubscribe', id: '1' };
