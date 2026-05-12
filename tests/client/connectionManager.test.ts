@@ -84,4 +84,29 @@ describe('ConnectionManager', () => {
 
     expect(manager.store('files').getById('1')).toEqual({ _id: '1', name: 'existing.bam' });
   });
+
+  it('late data for a stopped sub does not leak when another sub is still live', async () => {
+    const socket = ClientSocketWrapper.createNull();
+    const server = socket.simulateServer();
+    const manager = new ConnectionManager(socket);
+    const messages = socket.trackMessages();
+
+    const filesHandle = manager.subscribe('files.all');
+    const otherHandle = manager.subscribe('other.all');
+
+    const filesSubId = (messages.data[0] as SubscribeMsg).id;
+    const otherSubId = (messages.data[1] as SubscribeMsg).id;
+
+    server.send({ type: 'added', collection: 'files', id: '1', fields: { name: 'existing.bam' } });
+    server.send({ type: 'ready', id: filesSubId });
+    server.send({ type: 'ready', id: otherSubId });
+    await filesHandle.ready;
+    await otherHandle.ready;
+
+    filesHandle.stop();
+
+    server.send({ type: 'changed', collection: 'files', id: '1', fields: { name: 'late.bam' } });
+
+    expect(manager.store('files').getById('1')).toEqual({ _id: '1', name: 'existing.bam' });
+  });
 });
