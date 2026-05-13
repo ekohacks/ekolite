@@ -48,7 +48,6 @@ export class ConnectionManager {
   private readonly socket: ClientSocketWrapper;
   private readonly stores = new Map<string, ReactiveStore>();
   private readonly subscriptions = new Map<string, SubscriptionState>();
-  private readonly liveSubs = new Set<string>();
 
   constructor(socket: ClientSocketWrapper) {
     this.socket = socket;
@@ -72,7 +71,6 @@ export class ConnectionManager {
       readyResolver: resolveReady,
       readyRejector: rejectReady,
     });
-    this.liveSubs.add(id);
 
     const subscribeMessage: SubscribeMsg = {
       type: 'subscribe',
@@ -82,7 +80,6 @@ export class ConnectionManager {
 
     this.socket.send(subscribeMessage).catch((error: unknown) => {
       this.subscriptions.delete(id);
-      this.liveSubs.delete(id);
       rejectReady(error);
     });
 
@@ -94,7 +91,6 @@ export class ConnectionManager {
     this.socket.send(unsubscribeMessage).catch((error: unknown) => {
       console.error('Failed to send unsubscribe message:', error);
     });
-    this.markSubscriptionStopped(id);
   }
 
   store(collection: string): ReactiveStore {
@@ -112,10 +108,6 @@ export class ConnectionManager {
       case 'added':
       case 'changed':
       case 'removed': {
-        if (this.liveSubs.size === 0) {
-          return;
-        }
-
         this.store(message.collection).handleMessage(message);
         break;
       }
@@ -131,16 +123,11 @@ export class ConnectionManager {
         if (subscription) {
           subscription.readyRejector(message.error);
           this.subscriptions.delete(message.id);
-          this.liveSubs.delete(message.id);
         }
         break;
       }
       default:
         break;
     }
-  }
-
-  private markSubscriptionStopped(id: string): void {
-    this.liveSubs.delete(id);
   }
 }
