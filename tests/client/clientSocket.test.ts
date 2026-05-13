@@ -65,6 +65,20 @@ describe('ClientSocketWrapper (null)', () => {
     expect(tracker.data).toHaveLength(1);
     expect(tracker.data[0]).toEqual({ type: 'unsubscribe', id: '1' });
   });
+
+  it('outPutTracker tracks messages sent by the client only', async () => {
+    const socket = ClientSocketWrapper.createNull();
+    const server = socket.simulateServer();
+    const tracker = socket.trackMessages();
+    await socket.connect();
+
+    await socket.send({ type: 'unsubscribe', id: '1' });
+
+    server.send({ type: 'ready', id: '1' });
+
+    expect(tracker.data).toHaveLength(1);
+    expect(tracker.data[0]).toEqual({ type: 'unsubscribe', id: '1' });
+  });
 });
 
 describe('isServerMessage type guard', () => {
