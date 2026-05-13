@@ -40,11 +40,15 @@ export class ConnectionManager {
   private readonly socket: ClientSocketWrapper;
   private readonly stores = new Map<string, ReactiveStore>();
   private readonly subscriptions = new Map<string, SubscriptionState>();
+  private readonly teardownMessageListener: () => void;
+  private disposed = false;
 
   constructor(socket: ClientSocketWrapper) {
     this.socket = socket;
-    this.socket.onMessage((message) => {
-      this.handleServerMessage(message);
+    this.teardownMessageListener = this.socket.onMessage((message) => {
+      if (!this.disposed) {
+        this.handleServerMessage(message);
+      }
     });
   }
 
@@ -95,6 +99,22 @@ export class ConnectionManager {
     }
 
     return store;
+  }
+
+  dispose(): void {
+    if (this.disposed) {
+      return;
+    }
+
+    this.disposed = true;
+    this.teardownMessageListener();
+
+    for (const id of Array.from(this.subscriptions.keys())) {
+      this.stopSubscription(id);
+    }
+
+    this.subscriptions.clear();
+    this.stores.clear();
   }
 
   activeSubscriptionCount(): number {

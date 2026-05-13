@@ -83,4 +83,29 @@ describe('ConnectionManager', () => {
 
     expect(manager.activeSubscriptionCount()).toBe(0);
   });
+
+  it('after dispose, server data does not mutate manager stores', async () => {
+    const socket = ClientSocketWrapper.createNull();
+    const server = socket.simulateServer();
+    const manager = new ConnectionManager(socket);
+    const messages = socket.trackMessages();
+    const store = manager.store('files');
+
+    const handle = manager.subscribe('files.all');
+    server.send({ type: 'ready', id: (messages.data[0] as SubscribeMsg).id });
+    await handle.ready;
+
+    manager.dispose();
+
+    expect(manager.activeSubscriptionCount()).toBe(0);
+
+    server.send({
+      type: 'added',
+      collection: 'files',
+      id: 'late',
+      fields: { name: 'x.bam' },
+    });
+
+    expect(store.getById('late')).toBeUndefined();
+  });
 });
