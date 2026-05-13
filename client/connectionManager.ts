@@ -12,6 +12,10 @@ interface SubscriptionState {
   readyRejector: (error: unknown) => void;
 }
 
+function assertNever(x: never): never {
+  throw new Error(`Unexpected value: ${JSON.stringify(x)}`);
+}
+
 class SubscriptionHandleImpl implements SubscriptionHandle {
   readonly ready: Promise<void>;
 
@@ -112,6 +116,8 @@ export class ConnectionManager {
         }
         break;
       }
+      case 'result':
+        throw new Error('result messages yet to be implemented');
       case 'error': {
         const subscription = this.subscriptions.get(message.id);
         if (subscription) {
@@ -121,7 +127,7 @@ export class ConnectionManager {
         break;
       }
       default:
-        break;
+        assertNever(message);
     }
   }
 }
