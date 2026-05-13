@@ -73,4 +73,14 @@ describe('ConnectionManager', () => {
     const unsub = messages.data.find((m) => (m as { type: string }).type === 'unsubscribe');
     expect(unsub).toEqual({ type: 'unsubscribe', id: subId });
   });
+
+  it('stop releases subscription bookkeeping', () => {
+    const socket = ClientSocketWrapper.createNull();
+    const manager = new ConnectionManager(socket);
+    const handle = manager.subscribe('files.all');
+    
+    handle.stop();
+
+    expect(manager.activeSubscriptionCount()).toBe(0);
+  });
 });
