@@ -28,20 +28,9 @@ class SubscriptionHandleImpl implements SubscriptionHandle {
   }
 }
 
-const generateSubscriptionId = (() => {
-  let counter = 0;
-  return (): string => {
-    if (
-      typeof globalThis.crypto !== 'undefined' &&
-      typeof globalThis.crypto.randomUUID === 'function'
-    ) {
-      return globalThis.crypto.randomUUID();
-    }
-
-    counter += 1;
-    return `sub-${String(counter)}`;
-  };
-})();
+const generateSubscriptionId = (): string => {
+  return globalThis.crypto.randomUUID();
+};
 
 export class ConnectionManager {
   private readonly socket: ClientSocketWrapper;
