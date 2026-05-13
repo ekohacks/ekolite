@@ -1,8 +1,35 @@
 import { EventEmitter, OutputTracker } from '../server/infrastructure/outputTracker.ts';
 import { ClientMessage, ServerMessage } from '../shared/protocol.ts';
 
-function isServerMessage(data: unknown): data is ServerMessage {
-  return typeof data === 'object' && data !== null && 'type' in data;
+export function isServerMessage(data: unknown): data is ServerMessage {
+  if (typeof data !== 'object' || data === null) {
+    return false;
+  }
+
+  const msg = data as Record<string, unknown>;
+  const type = msg.type;
+
+  switch (type) {
+    case 'ready':
+      return typeof msg.id === 'string';
+    case 'added':
+    case 'changed':
+      return typeof msg.collection === 'string' && typeof msg.id === 'string';
+    case 'removed':
+      return typeof msg.collection === 'string' && typeof msg.id === 'string';
+    case 'result':
+      return typeof msg.id === 'string';
+    case 'error':
+      return (
+        typeof msg.id === 'string' &&
+        typeof msg.error === 'object' &&
+        msg.error !== null &&
+        typeof (msg.error as Record<string, unknown>).code === 'number' &&
+        typeof (msg.error as Record<string, unknown>).message === 'string'
+      );
+    default:
+      return false;
+  }
 }
 
 interface ClientSocketInterface {
