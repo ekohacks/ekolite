@@ -8,7 +8,6 @@ interface SubscriptionHandle {
 }
 
 interface SubscriptionState {
-  id: string;
   readyResolver: () => void;
   readyRejector: (error: unknown) => void;
 }
@@ -67,7 +66,6 @@ export class ConnectionManager {
     });
 
     this.subscriptions.set(id, {
-      id,
       readyResolver: resolveReady,
       readyRejector: rejectReady,
     });
@@ -88,6 +86,9 @@ export class ConnectionManager {
 
   stopSubscription(id: string): void {
     const unsubscribeMessage: UnsubscribeMsg = { type: 'unsubscribe', id };
+
+    this.subscriptions.delete(id);
+
     this.socket.send(unsubscribeMessage).catch((error: unknown) => {
       console.error('Failed to send unsubscribe message:', error);
     });
@@ -101,6 +102,10 @@ export class ConnectionManager {
     }
 
     return store;
+  }
+
+  activeSubscriptionCount(): number {
+    return this.subscriptions.size;
   }
 
   private handleServerMessage(message: ServerMessage): void {
