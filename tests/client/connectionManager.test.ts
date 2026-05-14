@@ -108,4 +108,30 @@ describe('ConnectionManager', () => {
 
     expect(store.getById('late')).toBeUndefined();
   });
+
+  it('ignores result messages without throwing, allowing subsequent messages to be processed', async () => {
+    const socket = ClientSocketWrapper.createNull();
+    const manager = new ConnectionManager(socket);
+    const messages = socket.trackMessages();
+    const server = socket.simulateServer();
+
+    const handle = manager.subscribe('files.all');
+    const subId = (messages.data[0] as SubscribeMsg).id;
+
+    expect(() => {
+      server.send({ type: 'result', id: subId, result: { success: true } });
+    }).not.toThrow();
+
+    server.send({
+      type: 'added',
+      collection: 'files',
+      id: '1',
+      fields: { name: 'test.bam' },
+    });
+    server.send({ type: 'ready', id: subId });
+
+    await handle.ready;
+
+    expect(manager.store('files').getById('1')).toEqual({ _id: '1', name: 'test.bam' });
+  });
 });
