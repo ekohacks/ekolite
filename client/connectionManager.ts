@@ -137,7 +137,7 @@ export class ConnectionManager {
         break;
       }
       case 'result':
-        throw new Error('result messages yet to be implemented');
+        break;
       case 'error': {
         const subscription = this.subscriptions.get(message.id);
         if (subscription) {
