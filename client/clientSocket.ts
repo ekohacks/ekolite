@@ -11,14 +11,12 @@ export function isServerMessage(data: unknown): data is ServerMessage {
 
   switch (type) {
     case 'ready':
+    case 'result':
       return typeof msg.id === 'string';
     case 'added':
     case 'changed':
-      return typeof msg.collection === 'string' && typeof msg.id === 'string';
     case 'removed':
       return typeof msg.collection === 'string' && typeof msg.id === 'string';
-    case 'result':
-      return typeof msg.id === 'string';
     case 'error':
       return (
         typeof msg.id === 'string' &&
