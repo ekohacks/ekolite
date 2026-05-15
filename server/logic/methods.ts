@@ -1,7 +1,9 @@
-export class Methods {
-  private methods = new Map<string, (arg: string) => Promise<string>>();
+export type MethodFn = (...args: string[]) => Promise<string>;
 
-  define(name: string, fn: (arg: string) => Promise<string>): void {
+export class Methods {
+  private methods = new Map<string, MethodFn>();
+
+  define(name: string, fn: MethodFn): void {
     this.methods.set(name, fn);
   }
 
@@ -10,6 +12,6 @@ export class Methods {
     if (!method) {
       throw new Error(`Method not found: ${name}`);
     }
-    return method(args[0]);
+    return method(...args);
   }
 }
