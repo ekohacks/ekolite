@@ -1,6 +1,7 @@
 import { ClientSocketWrapper } from './clientSocket.ts';
 import { ReactiveStore } from './reactiveStore.ts';
 import { ServerMessage, SubscribeMsg, UnsubscribeMsg } from '../shared/protocol.ts';
+import { assertNever } from '../tests/shared/helperFunctions.ts';
 
 interface SubscriptionHandle {
   stop(): void;
@@ -10,10 +11,6 @@ interface SubscriptionHandle {
 interface SubscriptionState {
   readyResolver: () => void;
   readyRejector: (error: unknown) => void;
-}
-
-function assertNever(x: never): never {
-  throw new Error(`Unexpected value: ${JSON.stringify(x)}`);
 }
 
 class SubscriptionHandleImpl implements SubscriptionHandle {
