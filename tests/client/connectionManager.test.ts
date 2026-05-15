@@ -134,4 +134,39 @@ describe('ConnectionManager', () => {
 
     expect(manager.store('files').getById('1')).toEqual({ _id: '1', name: 'test.bam' });
   });
+
+  it('connection manager life cycle: subscribe, receive data, stop, store cleared, removed message received after stop', async () => {
+    const socket = ClientSocketWrapper.createNull();
+    const server = socket.simulateServer();
+    const manager = new ConnectionManager(socket);
+    const messages = socket.trackMessages();
+    const store = manager.store('files');
+
+    const handle = manager.subscribe('files.all');
+    const subId = (messages.data[0] as SubscribeMsg).id;
+
+    server.send({
+      type: 'added',
+      collection: 'files',
+      id: '1',
+      fields: { name: 'existing.bam' },
+    });
+    server.send({ type: 'ready', id: subId });
+
+    await handle.ready;
+
+    expect(store.getById('1')).toEqual({ _id: '1', name: 'existing.bam' });
+
+    handle.stop();
+
+    expect(manager.activeSubscriptionCount()).toBe(0);
+
+    server.send({
+      type: 'removed',
+      collection: 'files',
+      id: '1',
+    });
+
+    expect(store.getById('1')).toBeUndefined();
+  });
 });
