@@ -174,7 +174,6 @@ class RealClientSocket implements ClientSocketInterface {
 
 export class StubbedServer {
   private _client: StubbedClientSocket;
-  readonly messages = [] as ServerMessage[];
 
   constructor(client: StubbedClientSocket) {
     this._client = client;
