@@ -1,5 +1,5 @@
 export class EventEmitter {
-  private handlers: Map<string, ((data: unknown) => void)[]> = new Map();
+  private handlers = new Map<string, ((data: unknown) => void)[]>();
 
   on(eventType: string, handler: (data: unknown) => void): void {
     let handlers = this.handlers.get(eventType);

@@ -28,7 +28,9 @@ export class FileStorageWrapper {
   }
 
   async save(name: string, data: Buffer): Promise<void> {
-    if (!name) throw new Error('File name cannot be empty');
+    if (!name) {
+      throw new Error('File name cannot be empty');
+    }
     return this.fs.save(name, data);
   }
 
@@ -98,9 +100,15 @@ class StubbedFileStorage implements FileStorageInterface {
   private removeResponses?: ConfigurableResponse;
 
   constructor(options: StubbedFileSystemOptions = {}) {
-    if (options.save) this.saveResponses = new ConfigurableResponse(options.save);
-    if (options.exists) this.existsResponses = new ConfigurableResponse(options.exists);
-    if (options.remove) this.removeResponses = new ConfigurableResponse(options.remove);
+    if (options.save) {
+      this.saveResponses = new ConfigurableResponse(options.save);
+    }
+    if (options.exists) {
+      this.existsResponses = new ConfigurableResponse(options.exists);
+    }
+    if (options.remove) {
+      this.removeResponses = new ConfigurableResponse(options.remove);
+    }
   }
 
   save(name: string, data: Buffer): Promise<void> {

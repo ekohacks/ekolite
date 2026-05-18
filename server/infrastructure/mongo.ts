@@ -109,16 +109,24 @@ interface StubbedMongoOptions {
 
 class StubbedMongo implements MongoInterface {
   private emitter = new EventEmitter();
-  private findResponses?: ConfigurableResponse;
-  private insertResponses?: ConfigurableResponse;
-  private updateResponses?: ConfigurableResponse;
-  private removeResponses?: ConfigurableResponse;
+  private readonly findResponses?: ConfigurableResponse;
+  private readonly insertResponses?: ConfigurableResponse;
+  private readonly updateResponses?: ConfigurableResponse;
+  private readonly removeResponses?: ConfigurableResponse;
 
   constructor(options: StubbedMongoOptions = {}) {
-    if (options.find) this.findResponses = new ConfigurableResponse(options.find);
-    if (options.insert) this.insertResponses = new ConfigurableResponse(options.insert);
-    if (options.update) this.updateResponses = new ConfigurableResponse(options.update);
-    if (options.remove) this.removeResponses = new ConfigurableResponse(options.remove);
+    if (options.find) {
+      this.findResponses = new ConfigurableResponse(options.find);
+    }
+    if (options.insert) {
+      this.insertResponses = new ConfigurableResponse(options.insert);
+    }
+    if (options.update) {
+      this.updateResponses = new ConfigurableResponse(options.update);
+    }
+    if (options.remove) {
+      this.removeResponses = new ConfigurableResponse(options.remove);
+    }
   }
 
   find<T>(_collection: string, _query: object): Promise<T[]> {
@@ -180,7 +188,9 @@ class StubbedMongo implements MongoInterface {
 
   watchChanges(collection: string, cb: (change: ChangeEvent) => void): () => void {
     const listener = (data: unknown) => {
-      if (isChangeEvent(data)) cb(data);
+      if (isChangeEvent(data)) {
+        cb(data);
+      }
     };
     this.emitter.on(collection, listener);
     return () => {

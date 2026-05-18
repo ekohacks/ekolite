@@ -27,7 +27,11 @@ export class Publications {
   constructor(
     mongo: MongoWrapper,
     ws: WebSocketWrapper,
-    observer: PublicationsObserver = { onMessage: () => {} },
+    observer: PublicationsObserver = {
+      onMessage: () => {
+        /* empty */
+      },
+    },
   ) {
     this.mongo = mongo;
     this.ws = ws;
@@ -51,7 +55,9 @@ export class Publications {
 
   private tearDownClient(clientId: string): void {
     const clientSubs = this.subscriptions.get(clientId);
-    if (!clientSubs) return;
+    if (!clientSubs) {
+      return;
+    }
 
     for (const cleanup of clientSubs.values()) {
       cleanup();

@@ -18,7 +18,13 @@ export class ReactiveStore {
   private emitter = new EventEmitter();
   private observer: ReactiveStoreObserver;
 
-  constructor(observer: ReactiveStoreObserver = { onMessage: () => {} }) {
+  constructor(
+    observer: ReactiveStoreObserver = {
+      onMessage: () => {
+        /* empty */
+      },
+    },
+  ) {
     this.observer = observer;
   }
 
