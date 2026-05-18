@@ -63,10 +63,10 @@ describe('Publications', () => {
     const ws = WebSocketWrapper.createNull();
     const client = ws.simulateConnection();
     const observer = {
-      onMessage(msg, outcome, reason) {
+      onMessage(msg: { type: string }, outcome: ObserverOutcome, reason?: string) {
         notifications.push({ type: msg.type, outcome, reason });
       },
-    } as PublicationsObserver;
+    };
     const pubs = new Publications(mongo, ws, observer);
 
     pubs.define('files.all', () => ({ collection: 'files', query: {} }));
@@ -90,10 +90,10 @@ describe('Publications', () => {
     const ws = WebSocketWrapper.createNull();
     const client = ws.simulateConnection();
     const observer = {
-      onMessage(msg, outcome, reason) {
+      onMessage(msg: { type: string }, outcome: ObserverOutcome, reason?: string) {
         notifications.push({ type: msg.type, outcome, reason });
       },
-    } as PublicationsObserver;
+    };
     const pubs = new Publications(mongo, ws, observer);
 
     pubs.define('files.all', () => ({ collection: 'files', query: {} }));
@@ -138,10 +138,10 @@ describe('Publications', () => {
     const ws = WebSocketWrapper.createNull();
     const client = ws.simulateConnection();
     const observer = {
-      onMessage(msg, outcome, reason) {
+      onMessage(msg: { type: string }, outcome: ObserverOutcome, reason?: string) {
         skipped.push({ type: msg.type, outcome, reason });
       },
-    } as PublicationsObserver;
+    };
     const pubs = new Publications(mongo, ws, observer);
 
     await pubs.handleMessage(client.id, {
@@ -419,5 +419,16 @@ describe('Publications', () => {
     await mongo.insert('files', { name: 'for-b.bam' });
     const newForB = clientB.messages.slice(countAfterUnsub);
     expect(newForB).toHaveLength(1);
+  });
+
+  it('handles disconnect for a client that never subscribed', () => {
+    const mongo = MongoWrapper.createNull({ find: [[]] });
+    const ws = WebSocketWrapper.createNull();
+    const neverSubscribed = ws.simulateConnection();
+    new Publications(mongo, ws);
+
+    expect(() => {
+      neverSubscribed.close();
+    }).not.toThrow();
   });
 });

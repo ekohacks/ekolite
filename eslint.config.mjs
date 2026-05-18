@@ -29,5 +29,5 @@ export default defineConfig(
       'no-console': ['warn', { allow: ['warn', 'error'] }],
     },
   },
-  globalIgnores(['dist/', 'node_modules/', 'scripts/', '*.mjs']),
+  globalIgnores(['dist/', 'node_modules/', 'scripts/', 'coverage/', '*.mjs']),
 );
