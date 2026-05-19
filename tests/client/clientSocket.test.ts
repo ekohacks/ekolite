@@ -20,6 +20,22 @@ describe('ClientSocketWrapper URL validation', () => {
   });
 });
 
+describe('ClientSocketWrapper parsing contract', () => {
+  it('drops a non-JSON server payload without crashing the inbound listener', async () => {
+    const socket = ClientSocketWrapper.createNull();
+    const server = socket.simulateServer();
+    await socket.connect();
+
+    const received: ServerMessage[] = [];
+    socket.onMessage((m) => received.push(m));
+
+    server.sendRaw('not-json-at-all');
+    server.send({ type: 'ready', id: '1' });
+
+    expect(received).toEqual([{ type: 'ready', id: '1' }]);
+  });
+});
+
 describe('ClientSocketWrapper (null)', () => {
   it('is not connected before connect is called', () => {
     const socket = ClientSocketWrapper.createNull();
