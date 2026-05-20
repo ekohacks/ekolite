@@ -169,4 +169,21 @@ describe('ConnectionManager', () => {
 
     expect(store.getById('1')).toBeUndefined();
   });
+
+  it('handle.ready settles when stop() is called before the server responds', async () => {
+    const socket = ClientSocketWrapper.createNull();
+    const manager = new ConnectionManager(socket);
+    const handle = manager.subscribe('files.all');
+    handle.stop();
+    await expect(
+      Promise.race([
+        handle.ready,
+        new Promise((_, r) =>
+          setTimeout(() => {
+            r(new Error('hang'));
+          }, 50),
+        ),
+      ]),
+    ).rejects.toThrow();
+  });
 });
