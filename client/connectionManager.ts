@@ -93,7 +93,7 @@ export class ConnectionManager {
     const subscription = this.subscriptions.get(id);
 
     if (subscription) {
-      subscription.readyRejector(new Error(''));
+      subscription.readyRejector(new Error('subscription stopped before ready'));
     }
 
     this.subscriptions.delete(id);

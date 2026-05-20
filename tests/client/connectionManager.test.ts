@@ -74,12 +74,14 @@ describe('ConnectionManager', () => {
     expect(unsub).toEqual({ type: 'unsubscribe', id: subId });
   });
 
-  it('stop releases subscription bookkeeping', () => {
+  it('stop releases subscription bookkeeping', async () => {
     const socket = ClientSocketWrapper.createNull();
     const manager = new ConnectionManager(socket);
     const handle = manager.subscribe('files.all');
 
     handle.stop();
+
+    await expect(handle.ready).rejects.toThrow('subscription stopped before ready');
 
     expect(manager.activeSubscriptionCount()).toBe(0);
   });
