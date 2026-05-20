@@ -219,4 +219,8 @@ describe('isServerMessage type guard', () => {
   it('rejects objects without type', () => {
     expect(isServerMessage({ id: '1' })).toBe(false);
   });
+
+  it('rejects undefined', () => {
+    expect(isServerMessage(undefined)).toBe(false);
+  });
 });
