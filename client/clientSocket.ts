@@ -2,7 +2,7 @@ import { EventEmitter, OutputTracker } from '../server/infrastructure/outputTrac
 import { ClientMessage, ServerMessage } from '../shared/protocol.ts';
 
 export function isServerMessage(data: unknown): data is ServerMessage {
-  if (typeof data !== 'object' || data === null) {
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) {
     return false;
   }
 
