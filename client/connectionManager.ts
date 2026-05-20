@@ -42,6 +42,10 @@ export class ConnectionManager {
 
   constructor(socket: ClientSocketWrapper) {
     this.socket = socket;
+    // The disposed flag is consulted in three places to enforce the lifecycle contract:
+    // (1) in the message listener to ignore incoming messages after disposal,
+    // (2) in store() to prevent resurrecting stores, and
+    // (3) in subscribe() to prevent creating new subscriptions.
     this.teardownMessageListener = this.socket.onMessage((message) => {
       if (!this.disposed) {
         this.handleServerMessage(message);
@@ -50,6 +54,7 @@ export class ConnectionManager {
   }
 
   subscribe(name: string): SubscriptionHandle {
+    this.assertNotDisposed();
     const id = generateSubscriptionId();
     let resolveReady!: () => void;
     let rejectReady!: (error: unknown) => void;
@@ -89,6 +94,7 @@ export class ConnectionManager {
   }
 
   store(collection: string): ReactiveStore {
+    this.assertNotDisposed();
     let store = this.stores.get(collection);
     if (!store) {
       store = new ReactiveStore();
@@ -116,6 +122,12 @@ export class ConnectionManager {
 
   activeSubscriptionCount(): number {
     return this.subscriptions.size;
+  }
+
+  private assertNotDisposed(): void {
+    if (this.disposed) {
+      throw new Error('ConnectionManager is disposed');
+    }
   }
 
   private handleServerMessage(message: ServerMessage): void {
