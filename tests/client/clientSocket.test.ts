@@ -223,4 +223,9 @@ describe('isServerMessage type guard', () => {
   it('rejects undefined', () => {
     expect(isServerMessage(undefined)).toBe(false);
   });
+
+  it('rejects an array shaped like a message', () => {
+    const arrayShapedAsMessage: unknown = Object.assign([], { type: 'ready', id: '1' });
+    expect(isServerMessage(arrayShapedAsMessage)).toBe(false);
+  });
 });
