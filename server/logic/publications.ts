@@ -7,6 +7,10 @@ type PublicationDef = () => { collection: string; query: object };
 
 type SubscriptionRecord = {
   cleanup: () => void;
+  // Document ids this subscription has sent `added` for and not yet sent
+  // `removed` for. Mirrors the client's view of what's been delivered, not
+  // the live Mongo state. When watcher 'update'/'delete' get wired through,
+  // this is the field they update.
   documentIds: Set<string>;
   collection: string;
 };

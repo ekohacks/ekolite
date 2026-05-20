@@ -131,6 +131,7 @@ export class ConnectionManager {
     this.stores.clear();
   }
 
+  // Test seam: exposes internal state so tests can assert teardown happened.
   activeSubscriptionCount(): number {
     return this.subscriptions.size;
   }
