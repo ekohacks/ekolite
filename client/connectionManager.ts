@@ -38,6 +38,7 @@ export class ConnectionManager {
   private readonly stores = new Map<string, ReactiveStore>();
   private readonly subscriptions = new Map<string, SubscriptionState>();
   private readonly teardownMessageListener: () => void;
+  private readonly teardownCloseListener: () => void;
   private disposed = false;
 
   constructor(socket: ClientSocketWrapper) {
@@ -50,6 +51,9 @@ export class ConnectionManager {
       if (!this.disposed) {
         this.handleServerMessage(message);
       }
+    });
+    this.teardownCloseListener = this.socket.onClose(() => {
+      this.dispose();
     });
   }
 
@@ -111,6 +115,7 @@ export class ConnectionManager {
 
     this.disposed = true;
     this.teardownMessageListener();
+    this.teardownCloseListener();
 
     for (const id of Array.from(this.subscriptions.keys())) {
       this.stopSubscription(id);

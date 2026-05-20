@@ -14,7 +14,7 @@ describe('ConnectionManager - after socket dies', () => {
     server.send({ type: 'ready', id: (messages.data[0] as SubscribeMsg).id });
     await handle.ready;
 
-    await socket.close();
+    await server.simulateClose();
 
     expect(manager.activeSubscriptionCount()).toBe(0);
   });

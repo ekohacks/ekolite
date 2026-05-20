@@ -40,10 +40,12 @@ interface ClientSocketInterface {
   get isConnected(): boolean;
   trackMessages(): OutputTracker;
   onMessage(listener: (message: ServerMessage) => void): () => void;
+  onClose(listener: () => void): () => void;
 }
 
 const EVENT_OUTBOUND = 'outbound';
 const EVENT_INBOUND = 'inbound';
+const CLIENT_DISCONNECTION_EVENT = 'disconnetion';
 
 export class ClientSocketWrapper {
   private readonly client: ClientSocketInterface;
@@ -89,6 +91,9 @@ export class ClientSocketWrapper {
   }
   trackMessages(): OutputTracker {
     return this.client.trackMessages();
+  }
+  onClose(listener: () => void): () => void {
+    return this.client.onClose(listener);
   }
 }
 
@@ -145,6 +150,7 @@ class RealClientSocket implements ClientSocketInterface {
         return;
       }
       this.socket.onclose = () => {
+        this.emitter.emit(CLIENT_DISCONNECTION_EVENT);
         resolve();
       };
       this.socket.close();
@@ -173,6 +179,14 @@ class RealClientSocket implements ClientSocketInterface {
       this.emitter.off(EVENT_INBOUND, handler);
     };
   }
+
+  onClose(listener: () => void): () => void {
+    this.emitter.on(CLIENT_DISCONNECTION_EVENT, listener);
+
+    return () => {
+      this.emitter.off(CLIENT_DISCONNECTION_EVENT, listener);
+    };
+  }
 }
 
 export class StubbedServer {
@@ -184,6 +198,10 @@ export class StubbedServer {
 
   send(message: ServerMessage): void {
     this._client.receiveMessage(message);
+  }
+
+  simulateClose(): Promise<void> {
+    return this._client.close();
   }
 }
 
@@ -201,6 +219,7 @@ class StubbedClientSocket implements ClientSocketInterface {
 
   close(): Promise<void> {
     this._isConnected = false;
+    this.emitter.emit(CLIENT_DISCONNECTION_EVENT);
     return Promise.resolve();
   }
 
@@ -230,6 +249,14 @@ class StubbedClientSocket implements ClientSocketInterface {
     this.emitter.on(EVENT_INBOUND, handler);
     return () => {
       this.emitter.off(EVENT_INBOUND, handler);
+    };
+  }
+
+  onClose(listener: () => void): () => void {
+    this.emitter.on(CLIENT_DISCONNECTION_EVENT, listener);
+
+    return () => {
+      this.emitter.off(CLIENT_DISCONNECTION_EVENT, listener);
     };
   }
 }
