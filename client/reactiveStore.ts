@@ -1,6 +1,6 @@
 import { EventEmitter } from '../server/infrastructure/outputTracker.ts';
 import { DataMsg, ReactiveStoreObserver, ReactiveStoreReasons } from '../shared/protocol.ts';
-import { assertNever } from '../tests/shared/helperFunctions.ts';
+import { assertNever } from '../shared/helperFunctions.ts';
 
 type StoredDoc = Record<string, unknown>;
 

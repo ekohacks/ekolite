@@ -1,7 +1,7 @@
 import { ClientSocketWrapper } from './clientSocket.ts';
 import { ReactiveStore } from './reactiveStore.ts';
 import { ServerMessage, SubscribeMsg, UnsubscribeMsg } from '../shared/protocol.ts';
-import { assertNever } from '../tests/shared/helperFunctions.ts';
+import { assertNever } from '../shared/helperFunctions.ts';
 
 interface SubscriptionHandle {
   stop(): void;
