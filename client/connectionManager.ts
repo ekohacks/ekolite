@@ -90,6 +90,12 @@ export class ConnectionManager {
   stopSubscription(id: string): void {
     const unsubscribeMessage: UnsubscribeMsg = { type: 'unsubscribe', id };
 
+    const subscription = this.subscriptions.get(id);
+
+    if (subscription) {
+      subscription.readyRejector(new Error(''));
+    }
+
     this.subscriptions.delete(id);
 
     this.socket.send(unsubscribeMessage).catch((error: unknown) => {
