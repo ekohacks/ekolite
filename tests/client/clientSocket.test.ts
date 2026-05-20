@@ -228,4 +228,10 @@ describe('isServerMessage type guard', () => {
     const arrayShapedAsMessage: unknown = Object.assign([], { type: 'ready', id: '1' });
     expect(isServerMessage(arrayShapedAsMessage)).toBe(false);
   });
+
+  it('rejects a removed message carrying unexpected extras', () => {
+    expect(isServerMessage({ type: 'removed', collection: 'files', id: '1', fields: {} })).toBe(
+      false,
+    );
+  });
 });
