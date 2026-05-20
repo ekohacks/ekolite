@@ -15,8 +15,9 @@ export function isServerMessage(data: unknown): data is ServerMessage {
       return typeof msg.id === 'string';
     case 'added':
     case 'changed':
-    case 'removed':
       return typeof msg.collection === 'string' && typeof msg.id === 'string';
+    case 'removed':
+      return typeof msg.collection === 'string' && typeof msg.id === 'string' && !('fields' in msg);
     case 'error':
       return (
         typeof msg.id === 'string' &&
