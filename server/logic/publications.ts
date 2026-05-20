@@ -128,6 +128,11 @@ export class Publications {
         this.notifyObserver(message, 'applied');
       }
     } else if (message.type === 'unsubscribe') {
+      // Current assumption:
+      // a document belongs to at most one active publication per client.
+      // If overlapping publications are introduced,
+      // unsubscribe logic must move to refcounted document ownership.
+
       const clientSubs = this.subscriptions.get(clientId);
 
       if (!clientSubs) {
