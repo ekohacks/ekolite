@@ -1,6 +1,7 @@
 import { EventEmitter, OutputTracker } from '../server/infrastructure/outputTracker.ts';
 import { ClientMessage, ServerMessage } from '../shared/protocol.ts';
 
+//the switch statement should be permissive(read what we need)
 export function isServerMessage(data: unknown): data is ServerMessage {
   if (typeof data !== 'object' || data === null || Array.isArray(data)) {
     return false;
@@ -11,6 +12,7 @@ export function isServerMessage(data: unknown): data is ServerMessage {
 
   switch (type) {
     case 'ready':
+      return typeof msg.id === 'string';
     case 'result':
       return typeof msg.id === 'string';
     case 'added':
