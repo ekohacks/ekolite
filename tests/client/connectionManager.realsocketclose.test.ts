@@ -12,13 +12,15 @@ describe('ConnectionManager with a real socket', () => {
     await socket.connect();
     const manager = new ConnectionManager(socket);
 
-    manager.subscribe('files.all');
+    const handle = manager.subscribe('files.all');
 
     await new Promise<void>((resolve) => setTimeout(resolve, 50));
 
     for (const client of server.clients) {
       client.close();
     }
+
+    await expect(handle.ready).rejects.toThrow('subscription stopped before ready');
 
     await new Promise<void>((resolve) => setTimeout(resolve, 100));
 

@@ -140,20 +140,24 @@ class RealClientSocket implements ClientSocketInterface {
           console.error('Failed to parse server message', error);
         }
       };
+      this.socket.onclose = () => {
+        this.emitter.emit(CLIENT_DISCONNECTION_EVENT);
+      };
     });
   }
 
   close(): Promise<void> {
     return new Promise((resolve) => {
-      if (!this.socket) {
+      const socket = this.socket;
+      if (!socket || socket.readyState === WebSocket.CLOSED) {
         resolve();
         return;
       }
-      this.socket.onclose = () => {
-        this.emitter.emit(CLIENT_DISCONNECTION_EVENT);
+      const teardown = this.onClose(() => {
+        teardown();
         resolve();
-      };
-      this.socket.close();
+      });
+      socket.close();
     });
   }
 
