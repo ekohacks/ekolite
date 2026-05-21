@@ -1,7 +1,23 @@
 import { EventEmitter, OutputTracker } from '../server/infrastructure/outputTracker.ts';
 import { ClientMessage, ServerMessage } from '../shared/protocol.ts';
 
-//the switch statement should be permissive(read what we need)
+function listenForServerMessage(
+  emitter: EventEmitter,
+  listener: (message: ServerMessage) => void,
+): () => void {
+  const handler = (data: unknown) => {
+    if (isServerMessage(data)) {
+      listener(data);
+    }
+  };
+  emitter.on(EVENT_INBOUND, handler);
+  return () => {
+    emitter.off(EVENT_INBOUND, handler);
+  };
+}
+
+// The switch is mostly permissive and validates only fields we read.
+// Some cases intentionally reject contradictory payload shapes.
 export function isServerMessage(data: unknown): data is ServerMessage {
   if (typeof data !== 'object' || data === null || Array.isArray(data)) {
     return false;
@@ -45,7 +61,7 @@ interface ClientSocketInterface {
 
 const EVENT_OUTBOUND = 'outbound';
 const EVENT_INBOUND = 'inbound';
-const CLIENT_DISCONNECTION_EVENT = 'disconnetion';
+const CLIENT_DISCONNECTION_EVENT = 'disconnection';
 
 export class ClientSocketWrapper {
   private readonly client: ClientSocketInterface;
@@ -175,13 +191,7 @@ class RealClientSocket implements ClientSocketInterface {
   }
 
   onMessage(listener: (message: ServerMessage) => void): () => void {
-    const handler = (data: unknown) => {
-      listener(data as ServerMessage);
-    };
-    this.emitter.on(EVENT_INBOUND, handler);
-    return () => {
-      this.emitter.off(EVENT_INBOUND, handler);
-    };
+    return listenForServerMessage(this.emitter, listener);
   }
 
   onClose(listener: () => void): () => void {
@@ -247,13 +257,7 @@ class StubbedClientSocket implements ClientSocketInterface {
   }
 
   onMessage(listener: (message: ServerMessage) => void): () => void {
-    const handler = (data: unknown) => {
-      listener(data as ServerMessage);
-    };
-    this.emitter.on(EVENT_INBOUND, handler);
-    return () => {
-      this.emitter.off(EVENT_INBOUND, handler);
-    };
+    return listenForServerMessage(this.emitter, listener);
   }
 
   onClose(listener: () => void): () => void {
