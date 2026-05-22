@@ -32,6 +32,27 @@ describe('ConnectionManager', () => {
     expect(manager.store('files').getById('1')).toEqual({ _id: '1', name: 'existing.bam' });
   });
 
+  it('subscribe with params includes them in the outbound message', async () => {
+    const socket = ClientSocketWrapper.createNull();
+    const manager = new ConnectionManager(socket);
+    const messages = socket.trackMessages();
+    const server = socket.simulateServer();
+
+    const handle = manager.subscribe('files.byFolder', { folderId: 'folder-a' });
+
+    // Manager sent the subscribe message with params.
+    expect(messages.data).toHaveLength(1);
+    const sent = messages.data[0] as SubscribeMsg;
+    expect(sent.type).toBe('subscribe');
+    expect(sent.name).toBe('files.byFolder');
+    expect(sent.params).toEqual({ folderId: 'folder-a' });
+
+    // Simulate the server responding.
+    server.send({ type: 'ready', id: sent.id });
+
+    await handle.ready;
+  });
+
   it('rejects ready when subscribe fails on the server', async () => {
     const socket = ClientSocketWrapper.createNull();
     const server = socket.simulateServer();
