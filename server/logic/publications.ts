@@ -3,6 +3,8 @@ import { MongoWrapper } from '../infrastructure/mongo.ts';
 import { WebSocketWrapper } from '../infrastructure/websocket.ts';
 import { ChangeEvent } from '../../shared/types.ts';
 
+// Publication params stay loosely typed at the protocol boundary because
+// client input is unknown
 type PublicationDef = (params?: Record<string, unknown>) => { collection: string; query: object };
 
 type SubscriptionRecord = {
