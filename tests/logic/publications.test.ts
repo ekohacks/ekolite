@@ -454,4 +454,31 @@ describe('Publications', () => {
       id: '1',
     });
   });
+
+  it('passes subscribe params to the publication query', async () => {
+    const mongo = MongoWrapper.createNull({
+      find: [[{ _id: '1', name: 'in-folder.bam', folderId: 'folder-a' }]],
+    });
+    const ws = WebSocketWrapper.createNull();
+    const client = ws.simulateConnection();
+    const pubs = new Publications(mongo, ws);
+
+    let receivedParams: unknown;
+    pubs.define('files.byFolder', (params) => {
+      receivedParams = params;
+      return {
+        collection: 'files',
+        query: { folderId: (params as { folderId: string }).folderId },
+      };
+    });
+
+    await pubs.handleMessage(client.id, {
+      type: 'subscribe',
+      id: 'sub1',
+      name: 'files.byFolder',
+      params: { folderId: 'folder-a' },
+    });
+
+    expect(receivedParams).toEqual({ folderId: 'folder-a' });
+  });
 });
