@@ -5,6 +5,16 @@ import { ChangeEvent } from '../../shared/types.ts';
 
 type PublicationDef = () => { collection: string; query: object };
 
+type SubscriptionRecord = {
+  cleanup: () => void;
+  // Document ids this subscription has sent `added` for and not yet sent
+  // `removed` for. Mirrors the client's view of what's been delivered, not
+  // the live Mongo state. When watcher 'update'/'delete' get wired through,
+  // this is the field they update.
+  documentIds: Set<string>;
+  collection: string;
+};
+
 const addedMessage = (collection: string, doc: Record<string, unknown>) => ({
   type: 'added',
   collection,
@@ -17,11 +27,17 @@ const readyMessage = (subId: string) => ({
   id: subId,
 });
 
+const removedMessage = (collection: string, docId: string) => ({
+  type: 'removed',
+  collection,
+  id: docId,
+});
+
 export class Publications {
   private publications = new Map<string, PublicationDef>();
   private ws: WebSocketWrapper;
   private mongo: MongoWrapper;
-  private subscriptions = new Map<string, Map<string, () => void>>();
+  private subscriptions = new Map<string, Map<string, SubscriptionRecord>>();
   private observer: PublicationsObserver;
 
   constructor(
@@ -53,7 +69,7 @@ export class Publications {
     const clientSubs = this.subscriptions.get(clientId);
     if (!clientSubs) return;
 
-    for (const cleanup of clientSubs.values()) {
+    for (const { cleanup } of clientSubs.values()) {
       cleanup();
     }
 
@@ -80,14 +96,18 @@ export class Publications {
 
       const { collection, query } = queryFn();
       const docs = await this.mongo.find<{ _id: string }>(collection, query);
+      const documentIds = new Set<string>();
+      const collectionName = collection;
 
       for (const doc of docs) {
+        documentIds.add(doc._id);
         this.ws.send(clientId, addedMessage(collection, doc));
       }
       this.ws.send(clientId, readyMessage(message.id));
 
       const cleanup = this.mongo.watchChanges(collection, (change: ChangeEvent) => {
         if (change.type === 'insert') {
+          documentIds.add(change.fields._id as string);
           this.ws.send(clientId, addedMessage(collection, change.fields));
         }
       });
@@ -101,10 +121,10 @@ export class Publications {
 
       const existing = clientSubs.get(message.id);
       if (existing) {
-        existing();
+        existing.cleanup();
       }
 
-      clientSubs.set(message.id, cleanup);
+      clientSubs.set(message.id, { cleanup, documentIds, collection: collectionName });
 
       if (existing) {
         this.notifyObserver(message, 'applied', 'duplicate-sub-id');
@@ -112,6 +132,11 @@ export class Publications {
         this.notifyObserver(message, 'applied');
       }
     } else if (message.type === 'unsubscribe') {
+      // Current assumption:
+      // a document belongs to at most one active publication per client.
+      // If overlapping publications are introduced,
+      // unsubscribe logic must move to refcounted document ownership.
+
       const clientSubs = this.subscriptions.get(clientId);
 
       if (!clientSubs) {
@@ -119,13 +144,18 @@ export class Publications {
         return Promise.resolve();
       }
 
-      const cleanup = clientSubs.get(message.id);
-      if (!cleanup) {
+      const subscriptionRecord = clientSubs.get(message.id);
+      if (!subscriptionRecord) {
         this.notifyObserver(message, 'skipped', 'unknown-sub-id');
         return Promise.resolve();
       }
 
-      cleanup();
+      subscriptionRecord.cleanup();
+
+      for (const docId of subscriptionRecord.documentIds) {
+        this.ws.send(clientId, removedMessage(subscriptionRecord.collection, docId));
+      }
+
       clientSubs.delete(message.id);
 
       if (clientSubs.size === 0) {

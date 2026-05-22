@@ -1,5 +1,6 @@
 import { EventEmitter } from '../server/infrastructure/outputTracker.ts';
 import { DataMsg, ReactiveStoreObserver, ReactiveStoreReasons } from '../shared/protocol.ts';
+import { assertNever } from '../shared/helperFunctions.ts';
 
 type StoredDoc = Record<string, unknown>;
 
@@ -7,10 +8,6 @@ type StoredDocWithId = StoredDoc & { _id: string };
 
 function withId(id: string, fields: StoredDoc): StoredDocWithId {
   return { ...fields, _id: id };
-}
-
-function assertNever(x: never): never {
-  throw new Error(`Unexpected value: ${JSON.stringify(x)}`);
 }
 
 export class ReactiveStore {
