@@ -3,7 +3,7 @@ import { MongoWrapper } from '../infrastructure/mongo.ts';
 import { WebSocketWrapper } from '../infrastructure/websocket.ts';
 import { ChangeEvent } from '../../shared/types.ts';
 
-type PublicationDef = () => { collection: string; query: object };
+type PublicationDef = (params?: Record<string, unknown>) => { collection: string; query: object };
 
 type SubscriptionRecord = {
   cleanup: () => void;
@@ -94,7 +94,7 @@ export class Publications {
         return Promise.resolve();
       }
 
-      const { collection, query } = queryFn();
+      const { collection, query } = queryFn(message.params ?? {});
       const docs = await this.mongo.find<{ _id: string }>(collection, query);
       const documentIds = new Set<string>();
       const collectionName = collection;

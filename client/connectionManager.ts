@@ -57,7 +57,7 @@ export class ConnectionManager {
     });
   }
 
-  subscribe(name: string): SubscriptionHandle {
+  subscribe(name: string, params?: Record<string, unknown>): SubscriptionHandle {
     this.assertNotDisposed();
     const id = generateSubscriptionId();
     let resolveReady!: () => void;
@@ -77,6 +77,7 @@ export class ConnectionManager {
       type: 'subscribe',
       id,
       name,
+      ...(params ? { params } : {}),
     };
 
     this.socket.send(subscribeMessage).catch((error: unknown) => {
