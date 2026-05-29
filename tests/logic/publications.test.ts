@@ -481,4 +481,28 @@ describe('Publications', () => {
 
     expect(receivedParams).toEqual({ folderId: 'folder-a' });
   });
+
+  it('rejects subscribe params that smuggle mongo operators', async () => {
+    const mongo = MongoWrapper.createNull({ find: [[]] });
+    const ws = WebSocketWrapper.createNull();
+    const client = ws.simulateConnection();
+    const pubs = new Publications(mongo, ws);
+
+    let queryFnCalled = false;
+    pubs.define('files.byFolder', (params) => {
+      queryFnCalled = true;
+      const folderId = (params as { folderId: string }).folderId;
+      return { collection: 'files', query: { folderId } };
+    });
+
+    await pubs.handleMessage(client.id, {
+      type: 'subscribe',
+      id: 'sub1',
+      name: 'files.byFolder',
+      params: { folderId: { $ne: null } },
+    });
+
+    expect(queryFnCalled).toBe(false);
+    expect(client.messages).toContainEqual(expect.objectContaining({ type: 'error', id: 'sub1' }));
+  });
 });
