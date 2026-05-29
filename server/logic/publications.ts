@@ -96,6 +96,17 @@ export class Publications {
         return Promise.resolve();
       }
 
+      if (message.params && typeof (message.params as { folderId: string }).folderId !== 'string') {
+        this.ws.send(clientId, {
+          type: 'error',
+          id: message.id,
+          error: { code: 404, message: `Wrong message params: ${message.name}` },
+        });
+
+        this.notifyObserver(message, 'failed', 'unknown-publication');
+        return Promise.resolve();
+      }
+
       const { collection, query } = queryFn(message.params ?? {});
       const docs = await this.mongo.find<{ _id: string }>(collection, query);
       const documentIds = new Set<string>();
