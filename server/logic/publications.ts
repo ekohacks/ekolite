@@ -103,7 +103,7 @@ export class Publications {
           error: { code: 404, message: `Wrong message params: ${message.name}` },
         });
 
-        this.notifyObserver(message, 'failed', 'unknown-publication');
+        this.notifyObserver(message, 'failed', 'invalid-params-value');
         return Promise.resolve();
       }
 

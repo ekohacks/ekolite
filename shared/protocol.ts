@@ -91,6 +91,7 @@ type ReactiveStoreFailReason = 'unsupported-message-type';
 type PublicationsSkipReason = 'unknown-sub-id';
 type PublicationsFailReason = 'unknown-publication';
 type PublicationsDuplicateSubIdReason = 'duplicate-sub-id';
+type PublicationsInvalidParamsValueReason = 'invalid-params-value';
 
 export type ReactiveStoreReasons =
   /** Document with the given ID is unknown to the store.
@@ -108,4 +109,6 @@ export type PublicationsReasons =
   /** Subscribe arrived with an id that already has a watcher on this
    *  client. Old watcher torn down, new one installed. Applied,
    *  not failed. */
-  | PublicationsDuplicateSubIdReason;
+  | PublicationsDuplicateSubIdReason
+  /** Subscribe arrived with a params with invalid structure */
+  | PublicationsInvalidParamsValueReason;
