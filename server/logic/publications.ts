@@ -95,7 +95,7 @@ export class Publications {
         this.notifyObserver(message, 'failed', 'unknown-publication');
         return Promise.resolve();
       }
-      // Reject any params containing mongo operators (keys starting with '$')
+
       const hasMongoOperator = (obj: unknown): boolean => {
         if (obj === null || obj === undefined) return false;
         if (Array.isArray(obj)) return obj.some((item) => hasMongoOperator(item));
