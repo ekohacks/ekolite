@@ -95,18 +95,30 @@ export class Publications {
         this.notifyObserver(message, 'failed', 'unknown-publication');
         return Promise.resolve();
       }
+      // Reject any params containing mongo operators (keys starting with '$')
+      const hasMongoOperator = (obj: unknown): boolean => {
+        if (obj === null || obj === undefined) return false;
+        if (Array.isArray(obj)) return obj.some((item) => hasMongoOperator(item));
+        if (typeof obj === 'object') {
+          for (const [key, val] of Object.entries(obj as Record<string, unknown>)) {
+            if (key.startsWith('$')) return true;
+            if (hasMongoOperator(val)) return true;
+          }
+        }
+        return false;
+      };
 
-      if (message.params && typeof (message.params as { folderId: string }).folderId !== 'string') {
+      if (message.params && hasMongoOperator(message.params)) {
         this.ws.send(clientId, {
           type: 'error',
           id: message.id,
           error: {
             code: 400,
-            message: `Publication query failed: folderId is required and must be a string`,
+            message: `Invalid subscription params: mongo operators are not allowed`,
           },
         });
 
-        this.notifyObserver(message, 'failed', 'publication-threw');
+        this.notifyObserver(message, 'failed', 'invalid-params');
         return Promise.resolve();
       }
 
@@ -127,7 +139,7 @@ export class Publications {
           error: { code: 400, message: messageText },
         });
 
-        this.notifyObserver(message, 'failed', 'publication-threw');
+        this.notifyObserver(message, 'failed', 'publication-query-failed');
         return Promise.resolve();
       }
 
@@ -146,7 +158,7 @@ export class Publications {
           error: { code: 400, message: messageText },
         });
 
-        this.notifyObserver(message, 'failed', 'publication-threw');
+        this.notifyObserver(message, 'failed', 'publication-query-failed');
         return Promise.resolve();
       }
 

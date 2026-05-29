@@ -91,7 +91,8 @@ type ReactiveStoreFailReason = 'unsupported-message-type';
 type PublicationsSkipReason = 'unknown-sub-id';
 type PublicationsFailReason = 'unknown-publication';
 type PublicationsDuplicateSubIdReason = 'duplicate-sub-id';
-type PublicationsQueryFailedReason = 'publication-threw';
+type PublicationsQueryFailedReason = 'publication-query-failed';
+type PublicationsInvalidParamsReason = 'invalid-params';
 
 export type ReactiveStoreReasons =
   /** Document with the given ID is unknown to the store.
@@ -111,4 +112,6 @@ export type PublicationsReasons =
    *  not failed. */
   | PublicationsDuplicateSubIdReason
   /** Publication query function threw while building the subscription. */
-  | PublicationsQueryFailedReason;
+  | PublicationsQueryFailedReason
+  /** Subscribe params were rejected by the engine (e.g. contained mongo operators). */
+  | PublicationsInvalidParamsReason;
