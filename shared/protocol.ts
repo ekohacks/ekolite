@@ -91,7 +91,7 @@ type ReactiveStoreFailReason = 'unsupported-message-type';
 type PublicationsSkipReason = 'unknown-sub-id';
 type PublicationsFailReason = 'unknown-publication';
 type PublicationsDuplicateSubIdReason = 'duplicate-sub-id';
-type PublicationsInvalidParamsValueReason = 'invalid-params-value';
+type PublicationsQueryFailedReason = 'publication-threw';
 
 export type ReactiveStoreReasons =
   /** Document with the given ID is unknown to the store.
@@ -110,5 +110,5 @@ export type PublicationsReasons =
    *  client. Old watcher torn down, new one installed. Applied,
    *  not failed. */
   | PublicationsDuplicateSubIdReason
-  /** Subscribe arrived with a params with invalid structure */
-  | PublicationsInvalidParamsValueReason;
+  /** Publication query function threw while building the subscription. */
+  | PublicationsQueryFailedReason;
