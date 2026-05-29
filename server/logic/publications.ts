@@ -1,4 +1,5 @@
 import { ClientMessage, PublicationsObserver, PublicationsReasons } from '../../shared/protocol.ts';
+import { hasMongoOperator } from '../../shared/helperFunctions.ts';
 import { MongoWrapper } from '../infrastructure/mongo.ts';
 import { WebSocketWrapper } from '../infrastructure/websocket.ts';
 import { ChangeEvent } from '../../shared/types.ts';
@@ -67,6 +68,20 @@ export class Publications {
     }
   }
 
+  private sendPublicationError(
+    clientId: string,
+    message: ClientMessage,
+    reason: PublicationsReasons,
+    messageText: string,
+  ): void {
+    this.ws.send(clientId, {
+      type: 'error',
+      id: message.id,
+      error: { code: 400, message: messageText },
+    });
+    this.notifyObserver(message, 'failed', reason);
+  }
+
   private tearDownClient(clientId: string): void {
     const clientSubs = this.subscriptions.get(clientId);
     if (!clientSubs) return;
@@ -96,30 +111,14 @@ export class Publications {
         return Promise.resolve();
       }
 
-      const hasMongoOperator = (obj: unknown): boolean => {
-        if (obj === null || obj === undefined) return false;
-        if (Array.isArray(obj)) return obj.some((item) => hasMongoOperator(item));
-        if (typeof obj === 'object') {
-          for (const [key, val] of Object.entries(obj as Record<string, unknown>)) {
-            if (key.startsWith('$')) return true;
-            if (hasMongoOperator(val)) return true;
-          }
-        }
-        return false;
-      };
-
       if (message.params && hasMongoOperator(message.params)) {
-        this.ws.send(clientId, {
-          type: 'error',
-          id: message.id,
-          error: {
-            code: 400,
-            message: `Invalid subscription params: mongo operators are not allowed`,
-          },
-        });
-
-        this.notifyObserver(message, 'failed', 'invalid-params');
-        return Promise.resolve();
+        this.sendPublicationError(
+          clientId,
+          message,
+          'invalid-params',
+          'Invalid subscription params: mongo operators are not allowed',
+        );
+        return;
       }
 
       let collection: string;
@@ -133,14 +132,8 @@ export class Publications {
             ? `Publication query failed: ${err.message}`
             : 'Publication query failed';
 
-        this.ws.send(clientId, {
-          type: 'error',
-          id: message.id,
-          error: { code: 400, message: messageText },
-        });
-
-        this.notifyObserver(message, 'failed', 'publication-query-failed');
-        return Promise.resolve();
+        this.sendPublicationError(clientId, message, 'publication-query-failed', messageText);
+        return;
       }
 
       let docs;
@@ -152,14 +145,8 @@ export class Publications {
             ? `Publication query failed: ${err.message}`
             : 'Publication query failed';
 
-        this.ws.send(clientId, {
-          type: 'error',
-          id: message.id,
-          error: { code: 400, message: messageText },
-        });
-
-        this.notifyObserver(message, 'failed', 'publication-query-failed');
-        return Promise.resolve();
+        this.sendPublicationError(clientId, message, 'publication-query-failed', messageText);
+        return;
       }
 
       const documentIds = new Set<string>();
