@@ -100,15 +100,56 @@ export class Publications {
         this.ws.send(clientId, {
           type: 'error',
           id: message.id,
-          error: { code: 404, message: `Wrong message params: ${message.name}` },
+          error: {
+            code: 400,
+            message: `Publication query failed: folderId is required and must be a string`,
+          },
         });
 
-        this.notifyObserver(message, 'failed', 'invalid-params-value');
+        this.notifyObserver(message, 'failed', 'publication-threw');
         return Promise.resolve();
       }
 
-      const { collection, query } = queryFn(message.params ?? {});
-      const docs = await this.mongo.find<{ _id: string }>(collection, query);
+      let collection: string;
+      let query: object;
+
+      try {
+        ({ collection, query } = queryFn(message.params ?? {}));
+      } catch (err) {
+        const messageText =
+          err instanceof Error
+            ? `Publication query failed: ${err.message}`
+            : 'Publication query failed';
+
+        this.ws.send(clientId, {
+          type: 'error',
+          id: message.id,
+          error: { code: 400, message: messageText },
+        });
+
+        this.notifyObserver(message, 'failed', 'publication-threw');
+        return Promise.resolve();
+      }
+
+      let docs;
+      try {
+        docs = await this.mongo.find<{ _id: string }>(collection, query);
+      } catch (err) {
+        const messageText =
+          err instanceof Error
+            ? `Publication query failed: ${err.message}`
+            : 'Publication query failed';
+
+        this.ws.send(clientId, {
+          type: 'error',
+          id: message.id,
+          error: { code: 400, message: messageText },
+        });
+
+        this.notifyObserver(message, 'failed', 'publication-threw');
+        return Promise.resolve();
+      }
+
       const documentIds = new Set<string>();
       const collectionName = collection;
 
