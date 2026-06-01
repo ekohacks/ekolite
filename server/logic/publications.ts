@@ -73,11 +73,12 @@ export class Publications {
     message: ClientMessage,
     reason: PublicationsReasons,
     messageText: string,
+    code: number,
   ): void {
     this.ws.send(clientId, {
       type: 'error',
       id: message.id,
-      error: { code: 400, message: messageText },
+      error: { code: code, message: messageText },
     });
     this.notifyObserver(message, 'failed', reason);
   }
@@ -102,12 +103,13 @@ export class Publications {
       const queryFn = this.publications.get(message.name);
 
       if (!queryFn) {
-        this.ws.send(clientId, {
-          type: 'error',
-          id: message.id,
-          error: { code: 404, message: `Unknown publication: ${message.name}` },
-        });
-        this.notifyObserver(message, 'failed', 'unknown-publication');
+        this.sendPublicationError(
+          clientId,
+          message,
+          'unknown-publication',
+          `Unknown publication: ${message.name}`,
+          404,
+        );
         return Promise.resolve();
       }
 
@@ -117,6 +119,7 @@ export class Publications {
           message,
           'invalid-params',
           'Invalid subscription params: mongo operators are not allowed',
+          400,
         );
         return;
       }
@@ -132,7 +135,7 @@ export class Publications {
             ? `Publication query failed: ${err.message}`
             : 'Publication query failed';
 
-        this.sendPublicationError(clientId, message, 'publication-query-failed', messageText);
+        this.sendPublicationError(clientId, message, 'publication-query-failed', messageText, 400);
         return;
       }
 
@@ -142,10 +145,16 @@ export class Publications {
       } catch (err) {
         const messageText =
           err instanceof Error
-            ? `Publication query failed: ${err.message}`
-            : 'Publication query failed';
+            ? `Publications Mongo find failed: ${err.message}`
+            : 'Publications Mongo find failed';
 
-        this.sendPublicationError(clientId, message, 'publication-query-failed', messageText);
+        this.sendPublicationError(
+          clientId,
+          message,
+          'publications-mongo-find-failed',
+          messageText,
+          400,
+        );
         return;
       }
 
