@@ -91,6 +91,9 @@ type ReactiveStoreFailReason = 'unsupported-message-type';
 type PublicationsSkipReason = 'unknown-sub-id';
 type PublicationsFailReason = 'unknown-publication';
 type PublicationsDuplicateSubIdReason = 'duplicate-sub-id';
+type PublicationsQueryFailedReason = 'publication-query-failed';
+type PublicationsInvalidParamsReason = 'invalid-params';
+type PublicationsMongoFailedReason = 'publications-mongo-find-failed';
 
 export type ReactiveStoreReasons =
   /** Document with the given ID is unknown to the store.
@@ -108,4 +111,10 @@ export type PublicationsReasons =
   /** Subscribe arrived with an id that already has a watcher on this
    *  client. Old watcher torn down, new one installed. Applied,
    *  not failed. */
-  | PublicationsDuplicateSubIdReason;
+  | PublicationsDuplicateSubIdReason
+  /** Publication query function threw while building the subscription. */
+  | PublicationsQueryFailedReason
+  /** Subscribe params were rejected by the engine (e.g. contained mongo operators). */
+  | PublicationsInvalidParamsReason
+  /**Publication threw when trying to find in Mongo */
+  | PublicationsMongoFailedReason;

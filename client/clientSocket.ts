@@ -1,15 +1,67 @@
 import { EventEmitter, OutputTracker } from '../server/infrastructure/outputTracker.ts';
 import { ClientMessage, ServerMessage } from '../shared/protocol.ts';
 
+function listenForServerMessage(
+  emitter: EventEmitter,
+  listener: (message: ServerMessage) => void,
+): () => void {
+  const handler = (data: unknown) => {
+    if (isServerMessage(data)) {
+      listener(data);
+    }
+  };
+  emitter.on(EVENT_INBOUND, handler);
+  return () => {
+    emitter.off(EVENT_INBOUND, handler);
+  };
+}
+
+// The switch is mostly permissive and validates only fields we read.
+// Some cases intentionally reject contradictory payload shapes.
+export function isServerMessage(data: unknown): data is ServerMessage {
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+    return false;
+  }
+
+  const msg = data as Record<string, unknown>;
+  const type = msg.type;
+
+  switch (type) {
+    case 'ready':
+      return typeof msg.id === 'string';
+    case 'result':
+      return typeof msg.id === 'string';
+    case 'added':
+    case 'changed':
+      return typeof msg.collection === 'string' && typeof msg.id === 'string';
+    case 'removed':
+      return typeof msg.collection === 'string' && typeof msg.id === 'string' && !('fields' in msg);
+    case 'error':
+      return (
+        typeof msg.id === 'string' &&
+        typeof msg.error === 'object' &&
+        msg.error !== null &&
+        typeof (msg.error as Record<string, unknown>).code === 'number' &&
+        typeof (msg.error as Record<string, unknown>).message === 'string'
+      );
+    default:
+      return false;
+  }
+}
+
 interface ClientSocketInterface {
   connect(): Promise<void>;
   close(): Promise<void>;
   send(message: unknown): Promise<void>;
   get isConnected(): boolean;
   trackMessages(): OutputTracker;
+  onMessage(listener: (message: ServerMessage) => void): () => void;
+  onClose(listener: () => void): () => void;
 }
 
-const EVENT_MESSAGES = 'message';
+const EVENT_OUTBOUND = 'outbound';
+const EVENT_INBOUND = 'inbound';
+const CLIENT_DISCONNECTION_EVENT = 'disconnection';
 
 export class ClientSocketWrapper {
   private readonly client: ClientSocketInterface;
@@ -46,12 +98,18 @@ export class ClientSocketWrapper {
   async send(message: ClientMessage): Promise<void> {
     await this.client.send(message);
   }
+  onMessage(listener: (message: ServerMessage) => void): () => void {
+    return this.client.onMessage(listener);
+  }
   simulateServer(): StubbedServer {
     const stub = this.client as StubbedClientSocket;
     return stub.simulateServer();
   }
   trackMessages(): OutputTracker {
     return this.client.trackMessages();
+  }
+  onClose(listener: () => void): () => void {
+    return this.client.onClose(listener);
   }
 }
 
@@ -84,19 +142,38 @@ class RealClientSocket implements ClientSocketInterface {
           reject(new Error('WebSocket connection failed'));
         }
       };
+      this.socket.onmessage = (event) => {
+        try {
+          const raw: unknown = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+
+          if (!isServerMessage(raw)) {
+            console.error('Invalid server message shape', raw);
+            return;
+          }
+
+          this.emitter.emit(EVENT_INBOUND, raw);
+        } catch (error) {
+          console.error('Failed to parse server message', error);
+        }
+      };
+      this.socket.onclose = () => {
+        this.emitter.emit(CLIENT_DISCONNECTION_EVENT);
+      };
     });
   }
 
   close(): Promise<void> {
     return new Promise((resolve) => {
-      if (!this.socket) {
+      const socket = this.socket;
+      if (!socket || socket.readyState === WebSocket.CLOSED) {
         resolve();
         return;
       }
-      this.socket.onclose = () => {
+      const teardown = this.onClose(() => {
+        teardown();
         resolve();
-      };
-      this.socket.close();
+      });
+      socket.close();
     });
   }
 
@@ -105,24 +182,40 @@ class RealClientSocket implements ClientSocketInterface {
       return Promise.reject(new Error('Socket is not connected'));
     }
     this.socket.send(JSON.stringify(message));
+    this.emitter.emit(EVENT_OUTBOUND, message);
     return Promise.resolve();
   }
 
   trackMessages(): OutputTracker {
-    return new OutputTracker(this.emitter, EVENT_MESSAGES);
+    return new OutputTracker(this.emitter, EVENT_OUTBOUND);
+  }
+
+  onMessage(listener: (message: ServerMessage) => void): () => void {
+    return listenForServerMessage(this.emitter, listener);
+  }
+
+  onClose(listener: () => void): () => void {
+    this.emitter.on(CLIENT_DISCONNECTION_EVENT, listener);
+
+    return () => {
+      this.emitter.off(CLIENT_DISCONNECTION_EVENT, listener);
+    };
   }
 }
 
 export class StubbedServer {
   private _client: StubbedClientSocket;
-  readonly messages = [] as ServerMessage[];
 
   constructor(client: StubbedClientSocket) {
     this._client = client;
   }
 
   send(message: ServerMessage): void {
-    this._client.onMessage(message);
+    this._client.receiveMessage(message);
+  }
+
+  simulateClose(): Promise<void> {
+    return this._client.close();
   }
 }
 
@@ -140,12 +233,13 @@ class StubbedClientSocket implements ClientSocketInterface {
 
   close(): Promise<void> {
     this._isConnected = false;
+    this.emitter.emit(CLIENT_DISCONNECTION_EVENT);
     return Promise.resolve();
   }
 
   send(message: ClientMessage): Promise<void> {
     // Implementation for sending message
-    this.emitter.emit(EVENT_MESSAGES, message);
+    this.emitter.emit(EVENT_OUTBOUND, message);
 
     return Promise.resolve();
   }
@@ -154,11 +248,23 @@ class StubbedClientSocket implements ClientSocketInterface {
     return new StubbedServer(this);
   }
 
-  onMessage(message: ServerMessage): void {
-    this.emitter.emit('message', message);
+  receiveMessage(message: ServerMessage): void {
+    this.emitter.emit(EVENT_INBOUND, message);
   }
 
   trackMessages(): OutputTracker {
-    return new OutputTracker(this.emitter, EVENT_MESSAGES);
+    return new OutputTracker(this.emitter, EVENT_OUTBOUND);
+  }
+
+  onMessage(listener: (message: ServerMessage) => void): () => void {
+    return listenForServerMessage(this.emitter, listener);
+  }
+
+  onClose(listener: () => void): () => void {
+    this.emitter.on(CLIENT_DISCONNECTION_EVENT, listener);
+
+    return () => {
+      this.emitter.off(CLIENT_DISCONNECTION_EVENT, listener);
+    };
   }
 }
