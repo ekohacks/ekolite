@@ -209,9 +209,13 @@ describe('MongoWrapper (null)', () => {
 
   it('counts active watchers from watchChanges', () => {
     const mongo = MongoWrapper.createNull();
-    const stop1 = mongo.watchChanges('files', () => {});
+    const stop1 = mongo.watchChanges('files', () => {
+      /* empty */
+    });
     expect(mongo.watcherCount('files')).toBe(1);
-    const stop2 = mongo.watchChanges('files', () => {});
+    const stop2 = mongo.watchChanges('files', () => {
+      /* empty */
+    });
     expect(mongo.watcherCount('files')).toBe(2);
     stop1();
     expect(mongo.watcherCount('files')).toBe(1);
@@ -221,9 +225,15 @@ describe('MongoWrapper (null)', () => {
 
   it('counts watchers per collection', () => {
     const mongo = MongoWrapper.createNull();
-    mongo.watchChanges('files', () => {});
-    mongo.watchChanges('scripts', () => {});
-    mongo.watchChanges('scripts', () => {});
+    mongo.watchChanges('files', () => {
+      /* empty */
+    });
+    mongo.watchChanges('scripts', () => {
+      /* empty */
+    });
+    mongo.watchChanges('scripts', () => {
+      /* empty */
+    });
     expect(mongo.watcherCount('files')).toBe(1);
     expect(mongo.watcherCount('scripts')).toBe(2);
     expect(mongo.watcherCount('other')).toBe(0);

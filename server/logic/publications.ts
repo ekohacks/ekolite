@@ -8,7 +8,7 @@ import { ChangeEvent } from '../../shared/types.ts';
 // client input is unknown
 type PublicationDef = (params?: Record<string, unknown>) => { collection: string; query: object };
 
-type SubscriptionRecord = {
+interface SubscriptionRecord {
   cleanup: () => void;
   // Document ids this subscription has sent `added` for and not yet sent
   // `removed` for. Mirrors the client's view of what's been delivered, not
@@ -16,7 +16,7 @@ type SubscriptionRecord = {
   // this is the field they update.
   documentIds: Set<string>;
   collection: string;
-};
+}
 
 const addedMessage = (collection: string, doc: Record<string, unknown>) => ({
   type: 'added',
@@ -46,7 +46,11 @@ export class Publications {
   constructor(
     mongo: MongoWrapper,
     ws: WebSocketWrapper,
-    observer: PublicationsObserver = { onMessage: () => {} },
+    observer: PublicationsObserver = {
+      onMessage: () => {
+        /* empty */
+      },
+    },
   ) {
     this.mongo = mongo;
     this.ws = ws;
@@ -85,7 +89,9 @@ export class Publications {
 
   private tearDownClient(clientId: string): void {
     const clientSubs = this.subscriptions.get(clientId);
-    if (!clientSubs) return;
+    if (!clientSubs) {
+      return;
+    }
 
     for (const { cleanup } of clientSubs.values()) {
       cleanup();

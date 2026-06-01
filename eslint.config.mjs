@@ -1,10 +1,12 @@
 import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import eslintConfigPrettier from 'eslint-config-prettier';
+import { defineConfig, globalIgnores } from 'eslint/config';
 
-export default tseslint.config(
+export default defineConfig(
   eslint.configs.recommended,
   ...tseslint.configs.strictTypeChecked,
+  tseslint.configs.stylistic,
   eslintConfigPrettier,
   {
     languageOptions: {
@@ -23,10 +25,9 @@ export default tseslint.config(
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
+      curly: ['error', 'all'],
       'no-console': ['warn', { allow: ['warn', 'error'] }],
     },
   },
-  {
-    ignores: ['dist/', 'node_modules/', 'scripts/', '*.mjs'],
-  },
+  globalIgnores(['dist/', 'node_modules/', 'scripts/', 'coverage/', '*.mjs']),
 );

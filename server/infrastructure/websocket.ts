@@ -69,7 +69,12 @@ export class WebSocketWrapper {
   }
 
   onDisconnect(cb: (clientId: string) => void): () => void {
-    return this.server.onDisconnect?.(cb) || (() => {});
+    return (
+      this.server.onDisconnect?.(cb) ??
+      (() => {
+        /* empty */
+      })
+    );
   }
 
   trackConnections(): OutputTracker {
@@ -87,7 +92,7 @@ export class WebSocketWrapper {
 
 class RealWebSocket implements WebSocketInterface {
   private wss: WebSocketServer | null = null;
-  private port: number;
+  private readonly port: number;
   private clients = new Map<string, WebSocket>();
   private nextId = 0;
   private emitter = new EventEmitter();
