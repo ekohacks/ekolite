@@ -1,9 +1,12 @@
 import { ClientMessage, PublicationsObserver, PublicationsReasons } from '../../shared/protocol.ts';
+import { hasMongoOperator } from '../../shared/helperFunctions.ts';
 import { MongoWrapper } from '../infrastructure/mongo.ts';
 import { WebSocketWrapper } from '../infrastructure/websocket.ts';
 import { ChangeEvent } from '../../shared/types.ts';
 
-type PublicationDef = () => { collection: string; query: object };
+// Publication params stay loosely typed at the protocol boundary because
+// client input is unknown
+type PublicationDef = (params?: Record<string, unknown>) => { collection: string; query: object };
 
 type SubscriptionRecord = {
   cleanup: () => void;
@@ -65,6 +68,21 @@ export class Publications {
     }
   }
 
+  private sendPublicationError(
+    clientId: string,
+    message: ClientMessage,
+    reason: PublicationsReasons,
+    messageText: string,
+    code: number,
+  ): void {
+    this.ws.send(clientId, {
+      type: 'error',
+      id: message.id,
+      error: { code: code, message: messageText },
+    });
+    this.notifyObserver(message, 'failed', reason);
+  }
+
   private tearDownClient(clientId: string): void {
     const clientSubs = this.subscriptions.get(clientId);
     if (!clientSubs) return;
@@ -85,17 +103,61 @@ export class Publications {
       const queryFn = this.publications.get(message.name);
 
       if (!queryFn) {
-        this.ws.send(clientId, {
-          type: 'error',
-          id: message.id,
-          error: { code: 404, message: `Unknown publication: ${message.name}` },
-        });
-        this.notifyObserver(message, 'failed', 'unknown-publication');
+        this.sendPublicationError(
+          clientId,
+          message,
+          'unknown-publication',
+          `Unknown publication: ${message.name}`,
+          404,
+        );
         return Promise.resolve();
       }
 
-      const { collection, query } = queryFn();
-      const docs = await this.mongo.find<{ _id: string }>(collection, query);
+      if (message.params && hasMongoOperator(message.params)) {
+        this.sendPublicationError(
+          clientId,
+          message,
+          'invalid-params',
+          'Invalid subscription params: mongo operators are not allowed',
+          400,
+        );
+        return;
+      }
+
+      let collection: string;
+      let query: object;
+
+      try {
+        ({ collection, query } = queryFn(message.params ?? {}));
+      } catch (err) {
+        const messageText =
+          err instanceof Error
+            ? `Publication query failed: ${err.message}`
+            : 'Publication query failed';
+
+        this.sendPublicationError(clientId, message, 'publication-query-failed', messageText, 400);
+        return;
+      }
+
+      let docs;
+      try {
+        docs = await this.mongo.find<{ _id: string }>(collection, query);
+      } catch (err) {
+        const messageText =
+          err instanceof Error
+            ? `Publications Mongo find failed: ${err.message}`
+            : 'Publications Mongo find failed';
+
+        this.sendPublicationError(
+          clientId,
+          message,
+          'publications-mongo-find-failed',
+          messageText,
+          400,
+        );
+        return;
+      }
+
       const documentIds = new Set<string>();
       const collectionName = collection;
 

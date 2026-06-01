@@ -2,7 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { Publications } from '../../server/logic/publications.ts';
 import { MongoWrapper } from '../../server/infrastructure/mongo.ts';
 import { WebSocketWrapper } from '../../server/infrastructure/websocket.ts';
-import { ObserverOutcome, PublicationsObserver } from '../../shared/protocol.ts';
+import {
+  ObserverOutcome,
+  PublicationsObserver,
+  PublicationsReasons,
+} from '../../shared/protocol.ts';
 
 describe('Publications', () => {
   it('sends error when subscribing to unknown publication', async () => {
@@ -453,5 +457,95 @@ describe('Publications', () => {
       collection: 'files',
       id: '1',
     });
+  });
+
+  it('passes subscribe params to the publication query', async () => {
+    const mongo = MongoWrapper.createNull({
+      find: [[{ _id: '1', name: 'in-folder.bam', folderId: 'folder-a' }]],
+    });
+    const ws = WebSocketWrapper.createNull();
+    const client = ws.simulateConnection();
+    const pubs = new Publications(mongo, ws);
+
+    let receivedParams: unknown;
+    pubs.define('files.byFolder', (params) => {
+      receivedParams = params;
+      return {
+        collection: 'files',
+        query: { folderId: (params as { folderId: string }).folderId },
+      };
+    });
+
+    await pubs.handleMessage(client.id, {
+      type: 'subscribe',
+      id: 'sub1',
+      name: 'files.byFolder',
+      params: { folderId: 'folder-a' },
+    });
+
+    expect(receivedParams).toEqual({ folderId: 'folder-a' });
+  });
+
+  it('rejects subscribe params that smuggle mongo operators', async () => {
+    const mongo = MongoWrapper.createNull({ find: [[]] });
+    const ws = WebSocketWrapper.createNull();
+    const client = ws.simulateConnection();
+    const pubs = new Publications(mongo, ws);
+
+    let queryFnCalled = false;
+    pubs.define('files.byFolder', (params) => {
+      queryFnCalled = true;
+      const folderId = (params as { folderId: string }).folderId;
+      return { collection: 'files', query: { folderId } };
+    });
+
+    await pubs.handleMessage(client.id, {
+      type: 'subscribe',
+      id: 'sub1',
+      name: 'files.byFolder',
+      params: { folderId: { $ne: null } },
+    });
+
+    expect(queryFnCalled).toBe(false);
+    expect(client.messages).toContainEqual(expect.objectContaining({ type: 'error', id: 'sub1' }));
+  });
+
+  it('sends an error to the client when the publication query throws', async () => {
+    const mongo = MongoWrapper.createNull({ find: [[]] });
+    const ws = WebSocketWrapper.createNull();
+    const client = ws.simulateConnection();
+    const notifications: { outcome: ObserverOutcome; reason?: PublicationsReasons | undefined }[] =
+      [];
+    const observer: PublicationsObserver = {
+      onMessage(_msg, outcome, reason) {
+        notifications.push({ outcome, reason });
+      },
+    };
+    const pubs = new Publications(mongo, ws, observer);
+
+    pubs.define('files.byFolder', (params) => {
+      if (typeof (params as { folderId?: unknown }).folderId !== 'string') {
+        throw new Error('folderId is required and must be a string');
+      }
+      return { collection: 'files', query: {} };
+    });
+
+    await pubs.handleMessage(client.id, {
+      type: 'subscribe',
+      id: 'sub1',
+      name: 'files.byFolder',
+      params: {},
+    });
+
+    expect(client.messages).toContainEqual({
+      type: 'error',
+      id: 'sub1',
+      error: {
+        code: 400,
+        message: 'Publication query failed: folderId is required and must be a string',
+      },
+    });
+
+    expect(notifications).toContainEqual(expect.objectContaining({ outcome: 'failed' }));
   });
 });
