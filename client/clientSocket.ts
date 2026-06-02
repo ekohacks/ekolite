@@ -5,6 +5,8 @@ const EVENT_OUTBOUND = 'outbound';
 const EVENT_INBOUND = 'inbound';
 const CLIENT_DISCONNECTION_EVENT = 'disconnection';
 
+// The switch is mostly permissive and validates only fields we read.
+// Some cases intentionally reject contradictory payload shapes.
 export function isServerMessage(data: unknown): data is ServerMessage {
   if (typeof data !== 'object' || data === null || Array.isArray(data)) {
     return false;
@@ -15,13 +17,13 @@ export function isServerMessage(data: unknown): data is ServerMessage {
 
   switch (type) {
     case 'ready':
+      return typeof msg.id === 'string';
     case 'result':
       return typeof msg.id === 'string';
     case 'added':
     case 'changed':
       return typeof msg.collection === 'string' && typeof msg.id === 'string';
     case 'removed':
-      // A removed message carries no fields; reject contradictory payload shapes.
       return typeof msg.collection === 'string' && typeof msg.id === 'string' && !('fields' in msg);
     case 'error':
       return (
