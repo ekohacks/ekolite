@@ -193,7 +193,7 @@ describe('ConnectionManager', () => {
     expect(store.getById('1')).toBeUndefined();
   });
 
-  it.fails('does not route a late changed message into the store after stop()', async () => {
+  it('does not route a late changed message into the store after stop()', async () => {
     const socket = ClientSocketWrapper.createNull();
     const server = socket.simulateServer();
     const manager = new ConnectionManager(socket);
