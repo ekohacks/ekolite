@@ -193,6 +193,38 @@ describe('ConnectionManager', () => {
     expect(store.getById('1')).toBeUndefined();
   });
 
+  it('does not route a late changed message into the store after stop()', async () => {
+    const socket = ClientSocketWrapper.createNull();
+    const server = socket.simulateServer();
+    const manager = new ConnectionManager(socket);
+    const messages = socket.trackMessages();
+    const store = manager.store('files');
+
+    const handle = manager.subscribe('files.all');
+    const subId = (messages.data[0] as SubscribeMsg).id;
+
+    server.send({
+      type: 'added',
+      collection: 'files',
+      id: '1',
+      fields: { name: 'existing.bam' },
+    });
+    server.send({ type: 'ready', id: subId });
+    await handle.ready;
+
+    handle.stop();
+
+    // A message that arrives after the unsubscribe must not leak into the store.
+    server.send({
+      type: 'changed',
+      collection: 'files',
+      id: '1',
+      fields: { name: 'late.bam' },
+    });
+
+    expect(store.getById('1')).toEqual({ _id: '1', name: 'existing.bam' });
+  });
+
   it('handle.ready settles when stop() is called before the server responds', async () => {
     const socket = ClientSocketWrapper.createNull();
     const manager = new ConnectionManager(socket);
