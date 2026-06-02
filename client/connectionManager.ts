@@ -59,6 +59,7 @@ export class ConnectionManager {
 
   subscribe(name: string, params?: Record<string, unknown>): SubscriptionHandle {
     this.assertNotDisposed();
+
     const id = generateSubscriptionId();
     let resolveReady!: () => void;
     let rejectReady!: (error: unknown) => void;

@@ -559,4 +559,38 @@ describe('Publications', () => {
 
     expect(notifications).toContainEqual(expect.objectContaining({ outcome: 'failed' }));
   });
+
+  it('server sends removed messages for the documents it sent on clients unsubscribe', async () => {
+    const mongo = MongoWrapper.createNull({
+      find: [[{ _id: '1', name: 'existing.bam' }]],
+    });
+    const ws = WebSocketWrapper.createNull();
+    const client = ws.simulateConnection();
+    const pubs = new Publications(mongo, ws);
+
+    pubs.define('files.all', () => ({ collection: 'files', query: {} }));
+
+    await pubs.handleMessage(client.id, {
+      type: 'subscribe',
+      id: 'sub1',
+      name: 'files.all',
+    });
+
+    const countAfterSubscribe = client.messages.length;
+
+    expect(countAfterSubscribe).toBe(2);
+
+    await pubs.handleMessage(client.id, {
+      type: 'unsubscribe',
+      id: 'sub1',
+    });
+
+    const newMessages = client.messages.slice(countAfterSubscribe);
+    expect(newMessages).toHaveLength(1);
+    expect(newMessages[0]).toEqual({
+      type: 'removed',
+      collection: 'files',
+      id: '1',
+    });
+  });
 });

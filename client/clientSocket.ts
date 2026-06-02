@@ -1,20 +1,9 @@
 import { EventEmitter, OutputTracker } from '../server/infrastructure/outputTracker.ts';
 import { ClientMessage, ServerMessage } from '../shared/protocol.ts';
 
-function listenForServerMessage(
-  emitter: EventEmitter,
-  listener: (message: ServerMessage) => void,
-): () => void {
-  const handler = (data: unknown) => {
-    if (isServerMessage(data)) {
-      listener(data);
-    }
-  };
-  emitter.on(EVENT_INBOUND, handler);
-  return () => {
-    emitter.off(EVENT_INBOUND, handler);
-  };
-}
+const EVENT_OUTBOUND = 'outbound';
+const EVENT_INBOUND = 'inbound';
+const CLIENT_DISCONNECTION_EVENT = 'disconnection';
 
 // The switch is mostly permissive and validates only fields we read.
 // Some cases intentionally reject contradictory payload shapes.
@@ -49,25 +38,118 @@ export function isServerMessage(data: unknown): data is ServerMessage {
   }
 }
 
-interface ClientSocketInterface {
-  connect(): Promise<void>;
-  close(): Promise<void>;
-  send(message: unknown): Promise<void>;
-  get isConnected(): boolean;
-  trackMessages(): OutputTracker;
-  onMessage(listener: (message: ServerMessage) => void): () => void;
-  onClose(listener: () => void): () => void;
+export interface WebSocketLike {
+  send(data: string): void;
+  close(): void;
+  onopen: ((ev: unknown) => void) | null;
+  onmessage: ((ev: { data: unknown }) => void) | null;
+  onerror: ((ev: unknown) => void) | null;
+  onclose: ((ev: unknown) => void) | null;
+  readyState: number;
 }
 
-const EVENT_OUTBOUND = 'outbound';
-const EVENT_INBOUND = 'inbound';
-const CLIENT_DISCONNECTION_EVENT = 'disconnection';
+type WebSocketFactory = (url: string) => WebSocketLike;
+
+class RealWebSocket implements WebSocketLike {
+  private socket: WebSocket;
+  onopen: WebSocketLike['onopen'] = null;
+  onmessage: WebSocketLike['onmessage'] = null;
+  onerror: WebSocketLike['onerror'] = null;
+  onclose: WebSocketLike['onclose'] = null;
+
+  constructor(url: string) {
+    this.socket = new WebSocket(url);
+    this.socket.onopen = (ev) => this.onopen?.(ev);
+    this.socket.onmessage = (ev) => this.onmessage?.({ data: ev.data });
+    this.socket.onerror = (ev) => this.onerror?.(ev);
+    this.socket.onclose = (ev) => this.onclose?.(ev);
+  }
+
+  send(data: string): void {
+    this.socket.send(data);
+  }
+
+  close(): void {
+    this.socket.close();
+  }
+
+  get readyState(): number {
+    return this.socket.readyState;
+  }
+}
+
+class NullWebSocket implements WebSocketLike {
+  static readonly CONNECTING = 0;
+  static readonly OPEN = 1;
+  static readonly CLOSED = 3;
+
+  onopen: WebSocketLike['onopen'] = null;
+  onmessage: WebSocketLike['onmessage'] = null;
+  onerror: WebSocketLike['onerror'] = null;
+  onclose: WebSocketLike['onclose'] = null;
+  readyState = NullWebSocket.CONNECTING;
+
+  constructor(_url: string) {
+    queueMicrotask(() => {
+      if (this.readyState === NullWebSocket.CONNECTING) {
+        this.readyState = NullWebSocket.OPEN;
+        this.onopen?.({});
+      }
+    });
+  }
+
+  send(_data: string): void {
+    // No network. The wrapper has already emitted EVENT_OUTBOUND for tracking.
+  }
+
+  close(): void {
+    this.readyState = NullWebSocket.CLOSED;
+    this.onclose?.({});
+  }
+
+  // Test seam reached from StubbedServer. Not part of WebSocketLike.
+  deliver(data: unknown): void {
+    this.onmessage?.({ data });
+  }
+}
+
+export class StubbedServer {
+  constructor(private readonly socket: NullWebSocket) {}
+
+  send(message: ServerMessage): void {
+    this.socket.deliver(JSON.stringify(message));
+  }
+
+  sendRaw(payload: unknown): void {
+    this.socket.deliver(payload);
+  }
+
+  simulateClose(): void {
+    this.socket.close();
+  }
+}
 
 export class ClientSocketWrapper {
-  private readonly client: ClientSocketInterface;
+  private readonly socket: WebSocketLike;
+  private readonly emitter = new EventEmitter();
 
-  private constructor(client: ClientSocketInterface) {
-    this.client = client;
+  private constructor(url: string, create: WebSocketFactory) {
+    this.socket = create(url);
+    this.socket.onmessage = (event) => {
+      try {
+        const raw: unknown = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+        if (!isServerMessage(raw)) {
+          console.error('Invalid server message shape', raw);
+          return;
+        }
+        this.emitter.emit(EVENT_INBOUND, raw);
+      } catch (error) {
+        console.error('Failed to parse server message', error);
+      }
+    };
+    this.socket.onclose = () => {
+      this.emitter.emit(CLIENT_DISCONNECTION_EVENT);
+    };
   }
 
   static create(url: string, options?: { token?: string }): ClientSocketWrapper {
@@ -78,58 +160,28 @@ export class ClientSocketWrapper {
     if (options?.token) {
       parsed.searchParams.set('token', options.token);
     }
-
-    return new ClientSocketWrapper(new RealClientSocket(parsed.toString()));
+    return new ClientSocketWrapper(parsed.toString(), (u) => new RealWebSocket(u));
   }
 
   static createNull(): ClientSocketWrapper {
-    return new ClientSocketWrapper(new StubbedClientSocket());
+    return new ClientSocketWrapper('wss://null', (u) => new NullWebSocket(u));
   }
 
   get isConnected(): boolean {
-    return this.client.isConnected;
-  }
-  async connect(): Promise<void> {
-    await this.client.connect();
-  }
-  async close(): Promise<void> {
-    await this.client.close();
-  }
-  async send(message: ClientMessage): Promise<void> {
-    await this.client.send(message);
-  }
-  onMessage(listener: (message: ServerMessage) => void): () => void {
-    return this.client.onMessage(listener);
-  }
-  simulateServer(): StubbedServer {
-    const stub = this.client as StubbedClientSocket;
-    return stub.simulateServer();
-  }
-  trackMessages(): OutputTracker {
-    return this.client.trackMessages();
-  }
-  onClose(listener: () => void): () => void {
-    return this.client.onClose(listener);
-  }
-}
-
-class RealClientSocket implements ClientSocketInterface {
-  private socket: WebSocket | null = null;
-  private readonly url: string;
-  private emitter = new EventEmitter();
-
-  constructor(url: string) {
-    this.url = url;
-  }
-
-  get isConnected(): boolean {
-    return this.socket !== null && this.socket.readyState === WebSocket.OPEN;
+    return this.socket.readyState === WebSocket.OPEN;
   }
 
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
+      if (this.socket.readyState === WebSocket.OPEN) {
+        resolve();
+        return;
+      }
+      if (this.socket.readyState === WebSocket.CLOSED) {
+        reject(new Error('Socket already closed'));
+        return;
+      }
       let settled = false;
-      this.socket = new WebSocket(this.url);
       this.socket.onopen = () => {
         if (!settled) {
           settled = true;
@@ -142,30 +194,12 @@ class RealClientSocket implements ClientSocketInterface {
           reject(new Error('WebSocket connection failed'));
         }
       };
-      this.socket.onmessage = (event) => {
-        try {
-          const raw: unknown = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-
-          if (!isServerMessage(raw)) {
-            console.error('Invalid server message shape', raw);
-            return;
-          }
-
-          this.emitter.emit(EVENT_INBOUND, raw);
-        } catch (error) {
-          console.error('Failed to parse server message', error);
-        }
-      };
-      this.socket.onclose = () => {
-        this.emitter.emit(CLIENT_DISCONNECTION_EVENT);
-      };
     });
   }
 
   close(): Promise<void> {
     return new Promise((resolve) => {
-      const socket = this.socket;
-      if (!socket || socket.readyState === WebSocket.CLOSED) {
+      if (this.socket.readyState === WebSocket.CLOSED) {
         resolve();
         return;
       }
@@ -173,98 +207,41 @@ class RealClientSocket implements ClientSocketInterface {
         teardown();
         resolve();
       });
-      socket.close();
+      this.socket.close();
     });
   }
 
-  send(message: unknown): Promise<void> {
-    if (!this.socket) {
-      return Promise.reject(new Error('Socket is not connected'));
-    }
+  send(message: ClientMessage): Promise<void> {
     this.socket.send(JSON.stringify(message));
     this.emitter.emit(EVENT_OUTBOUND, message);
     return Promise.resolve();
   }
 
-  trackMessages(): OutputTracker {
-    return new OutputTracker(this.emitter, EVENT_OUTBOUND);
-  }
-
   onMessage(listener: (message: ServerMessage) => void): () => void {
-    return listenForServerMessage(this.emitter, listener);
+    const handler = (data: unknown) => {
+      listener(data as ServerMessage);
+    };
+    this.emitter.on(EVENT_INBOUND, handler);
+    return () => {
+      this.emitter.off(EVENT_INBOUND, handler);
+    };
   }
 
   onClose(listener: () => void): () => void {
     this.emitter.on(CLIENT_DISCONNECTION_EVENT, listener);
-
     return () => {
       this.emitter.off(CLIENT_DISCONNECTION_EVENT, listener);
     };
   }
-}
 
-export class StubbedServer {
-  private _client: StubbedClientSocket;
-
-  constructor(client: StubbedClientSocket) {
-    this._client = client;
-  }
-
-  send(message: ServerMessage): void {
-    this._client.receiveMessage(message);
-  }
-
-  simulateClose(): Promise<void> {
-    return this._client.close();
-  }
-}
-
-class StubbedClientSocket implements ClientSocketInterface {
-  private _isConnected = false;
-  private emitter = new EventEmitter();
-
-  get isConnected(): boolean {
-    return this._isConnected;
-  }
-  connect(): Promise<void> {
-    this._isConnected = true;
-    return Promise.resolve();
-  }
-
-  close(): Promise<void> {
-    this._isConnected = false;
-    this.emitter.emit(CLIENT_DISCONNECTION_EVENT);
-    return Promise.resolve();
-  }
-
-  send(message: ClientMessage): Promise<void> {
-    // Implementation for sending message
-    this.emitter.emit(EVENT_OUTBOUND, message);
-
-    return Promise.resolve();
+  trackMessages(): OutputTracker {
+    return new OutputTracker(this.emitter, EVENT_OUTBOUND);
   }
 
   simulateServer(): StubbedServer {
-    return new StubbedServer(this);
-  }
-
-  receiveMessage(message: ServerMessage): void {
-    this.emitter.emit(EVENT_INBOUND, message);
-  }
-
-  trackMessages(): OutputTracker {
-    return new OutputTracker(this.emitter, EVENT_OUTBOUND);
-  }
-
-  onMessage(listener: (message: ServerMessage) => void): () => void {
-    return listenForServerMessage(this.emitter, listener);
-  }
-
-  onClose(listener: () => void): () => void {
-    this.emitter.on(CLIENT_DISCONNECTION_EVENT, listener);
-
-    return () => {
-      this.emitter.off(CLIENT_DISCONNECTION_EVENT, listener);
-    };
+    if (!(this.socket instanceof NullWebSocket)) {
+      throw new Error('simulateServer() is only available on null sockets');
+    }
+    return new StubbedServer(this.socket);
   }
 }
