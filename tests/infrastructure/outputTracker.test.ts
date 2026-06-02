@@ -9,15 +9,21 @@ describe('EventEmitter.listenerCount', () => {
 
   it('increments when a handler is registered', () => {
     const emitter = new EventEmitter();
-    emitter.on('files', () => {});
+    emitter.on('files', () => {
+      /* empty */
+    });
     expect(emitter.listenerCount('files')).toBe(1);
-    emitter.on('files', () => {});
+    emitter.on('files', () => {
+      /* empty */
+    });
     expect(emitter.listenerCount('files')).toBe(2);
   });
 
   it('does not register the same handler twice', () => {
     const emitter = new EventEmitter();
-    const handler = (): void => {};
+    const handler = (): void => {
+      /* empty */
+    };
     emitter.on('files', handler);
     emitter.on('files', handler);
     expect(emitter.listenerCount('files')).toBe(1);
@@ -25,7 +31,9 @@ describe('EventEmitter.listenerCount', () => {
 
   it('does not crash when removing the same handler twice', () => {
     const emitter = new EventEmitter();
-    const handler = (): void => {};
+    const handler = (): void => {
+      /* empty */
+    };
     emitter.on('files', handler);
 
     emitter.off('files', handler);
@@ -37,18 +45,28 @@ describe('EventEmitter.listenerCount', () => {
 
   it('decrements when a handler is removed', () => {
     const emitter = new EventEmitter();
-    const handler = (): void => {};
+    const handler = (): void => {
+      /* empty */
+    };
     emitter.on('files', handler);
-    emitter.on('files', () => {});
+    emitter.on('files', () => {
+      /* empty */
+    });
     emitter.off('files', handler);
     expect(emitter.listenerCount('files')).toBe(1);
   });
 
   it('counts each event type independently', () => {
     const emitter = new EventEmitter();
-    emitter.on('files', () => {});
-    emitter.on('scripts', () => {});
-    emitter.on('scripts', () => {});
+    emitter.on('files', () => {
+      /* empty */
+    });
+    emitter.on('scripts', () => {
+      /* empty */
+    });
+    emitter.on('scripts', () => {
+      /* empty */
+    });
     expect(emitter.listenerCount('files')).toBe(1);
     expect(emitter.listenerCount('scripts')).toBe(2);
     expect(emitter.listenerCount('unknown')).toBe(0);

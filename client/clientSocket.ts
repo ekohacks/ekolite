@@ -3,6 +3,7 @@ import { ClientMessage, ServerMessage } from '../shared/protocol.ts';
 
 const EVENT_OUTBOUND = 'outbound';
 const EVENT_INBOUND = 'inbound';
+const CLIENT_DISCONNECTION_EVENT = 'disconnection';
 
 export function isServerMessage(data: unknown): data is ServerMessage {
   if (typeof data !== 'object' || data === null || Array.isArray(data)) {
@@ -18,8 +19,10 @@ export function isServerMessage(data: unknown): data is ServerMessage {
       return typeof msg.id === 'string';
     case 'added':
     case 'changed':
-    case 'removed':
       return typeof msg.collection === 'string' && typeof msg.id === 'string';
+    case 'removed':
+      // A removed message carries no fields; reject contradictory payload shapes.
+      return typeof msg.collection === 'string' && typeof msg.id === 'string' && !('fields' in msg);
     case 'error':
       return (
         typeof msg.id === 'string' &&
@@ -33,7 +36,7 @@ export function isServerMessage(data: unknown): data is ServerMessage {
   }
 }
 
-interface WebSocketLike {
+export interface WebSocketLike {
   send(data: string): void;
   close(): void;
   onopen: ((ev: unknown) => void) | null;
@@ -118,6 +121,10 @@ export class StubbedServer {
   sendRaw(payload: unknown): void {
     this.socket.deliver(payload);
   }
+
+  simulateClose(): void {
+    this.socket.close();
+  }
 }
 
 export class ClientSocketWrapper {
@@ -128,8 +135,7 @@ export class ClientSocketWrapper {
     this.socket = create(url);
     this.socket.onmessage = (event) => {
       try {
-        const raw: unknown =
-          typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+        const raw: unknown = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
         if (!isServerMessage(raw)) {
           console.error('Invalid server message shape', raw);
           return;
@@ -139,14 +145,15 @@ export class ClientSocketWrapper {
         console.error('Failed to parse server message', error);
       }
     };
+    this.socket.onclose = () => {
+      this.emitter.emit(CLIENT_DISCONNECTION_EVENT);
+    };
   }
 
   static create(url: string, options?: { token?: string }): ClientSocketWrapper {
     const parsed = new URL(url);
     if (parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') {
-      throw new Error(
-        `Invalid WebSocket URL: expected ws:// or wss://, got ${parsed.protocol}`,
-      );
+      throw new Error(`Invalid WebSocket URL: expected ws:// or wss://, got ${parsed.protocol}`);
     }
     if (options?.token) {
       parsed.searchParams.set('token', options.token);
@@ -190,7 +197,14 @@ export class ClientSocketWrapper {
 
   close(): Promise<void> {
     return new Promise((resolve) => {
-      this.socket.onclose = () => resolve();
+      if (this.socket.readyState === WebSocket.CLOSED) {
+        resolve();
+        return;
+      }
+      const teardown = this.onClose(() => {
+        teardown();
+        resolve();
+      });
       this.socket.close();
     });
   }
@@ -202,9 +216,20 @@ export class ClientSocketWrapper {
   }
 
   onMessage(listener: (message: ServerMessage) => void): () => void {
-    const handler = (data: unknown) => listener(data as ServerMessage);
+    const handler = (data: unknown) => {
+      listener(data as ServerMessage);
+    };
     this.emitter.on(EVENT_INBOUND, handler);
-    return () => this.emitter.off(EVENT_INBOUND, handler);
+    return () => {
+      this.emitter.off(EVENT_INBOUND, handler);
+    };
+  }
+
+  onClose(listener: () => void): () => void {
+    this.emitter.on(CLIENT_DISCONNECTION_EVENT, listener);
+    return () => {
+      this.emitter.off(CLIENT_DISCONNECTION_EVENT, listener);
+    };
   }
 
   trackMessages(): OutputTracker {

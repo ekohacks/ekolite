@@ -1,7 +1,7 @@
 import { ClientSocketWrapper } from './clientSocket.ts';
 import { ReactiveStore } from './reactiveStore.ts';
 import { ServerMessage, SubscribeMsg, UnsubscribeMsg } from '../shared/protocol.ts';
-import { assertNever } from '../tests/shared/helperFunctions.ts';
+import { assertNever } from '../shared/helperFunctions.ts';
 
 interface SubscriptionHandle {
   stop(): void;
@@ -38,18 +38,28 @@ export class ConnectionManager {
   private readonly stores = new Map<string, ReactiveStore>();
   private readonly subscriptions = new Map<string, SubscriptionState>();
   private readonly teardownMessageListener: () => void;
+  private readonly teardownCloseListener: () => void;
   private disposed = false;
 
   constructor(socket: ClientSocketWrapper) {
     this.socket = socket;
+    // The disposed flag is consulted in three places to enforce the lifecycle contract:
+    // (1) in the message listener to ignore incoming messages after disposal,
+    // (2) in store() to prevent resurrecting stores, and
+    // (3) in subscribe() to prevent creating new subscriptions.
     this.teardownMessageListener = this.socket.onMessage((message) => {
       if (!this.disposed) {
         this.handleServerMessage(message);
       }
     });
+    this.teardownCloseListener = this.socket.onClose(() => {
+      this.dispose();
+    });
   }
 
-  subscribe(name: string): SubscriptionHandle {
+  subscribe(name: string, params?: Record<string, unknown>): SubscriptionHandle {
+    this.assertNotDisposed();
+
     const id = generateSubscriptionId();
     let resolveReady!: () => void;
     let rejectReady!: (error: unknown) => void;
@@ -68,6 +78,7 @@ export class ConnectionManager {
       type: 'subscribe',
       id,
       name,
+      ...(params ? { params } : {}),
     };
 
     this.socket.send(subscribeMessage).catch((error: unknown) => {
@@ -81,6 +92,12 @@ export class ConnectionManager {
   stopSubscription(id: string): void {
     const unsubscribeMessage: UnsubscribeMsg = { type: 'unsubscribe', id };
 
+    const subscription = this.subscriptions.get(id);
+
+    if (subscription) {
+      subscription.readyRejector(new Error('subscription stopped before ready'));
+    }
+
     this.subscriptions.delete(id);
 
     this.socket.send(unsubscribeMessage).catch((error: unknown) => {
@@ -89,6 +106,7 @@ export class ConnectionManager {
   }
 
   store(collection: string): ReactiveStore {
+    this.assertNotDisposed();
     let store = this.stores.get(collection);
     if (!store) {
       store = new ReactiveStore();
@@ -105,6 +123,7 @@ export class ConnectionManager {
 
     this.disposed = true;
     this.teardownMessageListener();
+    this.teardownCloseListener();
 
     for (const id of Array.from(this.subscriptions.keys())) {
       this.stopSubscription(id);
@@ -114,8 +133,15 @@ export class ConnectionManager {
     this.stores.clear();
   }
 
+  // Test seam: exposes internal state so tests can assert teardown happened.
   activeSubscriptionCount(): number {
     return this.subscriptions.size;
+  }
+
+  private assertNotDisposed(): void {
+    if (this.disposed) {
+      throw new Error('ConnectionManager is disposed');
+    }
   }
 
   private handleServerMessage(message: ServerMessage): void {

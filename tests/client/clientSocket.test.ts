@@ -235,4 +235,19 @@ describe('isServerMessage type guard', () => {
   it('rejects objects without type', () => {
     expect(isServerMessage({ id: '1' })).toBe(false);
   });
+
+  it('rejects undefined', () => {
+    expect(isServerMessage(undefined)).toBe(false);
+  });
+
+  it('rejects an array shaped like a message', () => {
+    const arrayShapedAsMessage: unknown = Object.assign([], { type: 'ready', id: '1' });
+    expect(isServerMessage(arrayShapedAsMessage)).toBe(false);
+  });
+
+  it('rejects a removed message carrying unexpected extras', () => {
+    expect(isServerMessage({ type: 'removed', collection: 'files', id: '1', fields: {} })).toBe(
+      false,
+    );
+  });
 });
