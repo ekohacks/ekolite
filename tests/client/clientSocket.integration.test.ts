@@ -31,7 +31,7 @@ describe('ClientSocketWrapper connect settles once', () => {
     await webSocketServer.close();
   });
 
-  it('ignores onerror after onopen has already resolved', async () => {
+  it('closes a live connection cleanly', async () => {
     webSocketServer = WebSocketWrapper.createRawWs({ port: PORT });
     await webSocketServer.start();
     const client = ClientSocketWrapper.create(`ws://localhost:${String(PORT)}`);
@@ -40,6 +40,7 @@ describe('ClientSocketWrapper connect settles once', () => {
     expect(client.isConnected).toBe(true);
 
     await client.close();
+    expect(client.isConnected).toBe(false);
   });
 
   it('rejects once when server is not running', async () => {

@@ -18,6 +18,21 @@ describe('ClientSocketWrapper URL validation', () => {
   it('accepts wss:// URLs', () => {
     expect(() => ClientSocketWrapper.create('wss://localhost:8080')).not.toThrow();
   });
+
+  it('appends the auth token as a query parameter', () => {
+    expect(() =>
+      ClientSocketWrapper.create('ws://localhost:8080', { token: 'a-token' }),
+    ).not.toThrow();
+  });
+});
+
+describe('ClientSocketWrapper simulateServer guard', () => {
+  it('throws when simulateServer is called on a real socket', () => {
+    const socket = ClientSocketWrapper.create('ws://localhost:8080');
+    expect(() => socket.simulateServer()).toThrow(
+      'simulateServer() is only available on null sockets',
+    );
+  });
 });
 
 describe('ClientSocketWrapper parsing contract', () => {
@@ -30,6 +45,20 @@ describe('ClientSocketWrapper parsing contract', () => {
     socket.onMessage((m) => received.push(m));
 
     server.sendRaw('not-json-at-all');
+    server.send({ type: 'ready', id: '1' });
+
+    expect(received).toEqual([{ type: 'ready', id: '1' }]);
+  });
+
+  it('drops a well-formed JSON payload that is not a server message', async () => {
+    const socket = ClientSocketWrapper.createNull();
+    const server = socket.simulateServer();
+    await socket.connect();
+
+    const received: ServerMessage[] = [];
+    socket.onMessage((m) => received.push(m));
+
+    server.sendRaw(JSON.stringify({ type: 'not-a-real-type' }));
     server.send({ type: 'ready', id: '1' });
 
     expect(received).toEqual([{ type: 'ready', id: '1' }]);
@@ -55,6 +84,30 @@ describe('ClientSocketWrapper (null)', () => {
     await socket.close();
 
     expect(socket.isConnected).toBe(false);
+  });
+  it('connect resolves immediately when already open', async () => {
+    const socket = ClientSocketWrapper.createNull();
+
+    await socket.connect();
+    await expect(socket.connect()).resolves.toBeUndefined();
+
+    expect(socket.isConnected).toBe(true);
+  });
+  it('connect rejects once the socket has been closed', async () => {
+    const socket = ClientSocketWrapper.createNull();
+
+    await socket.connect();
+    await socket.close();
+
+    await expect(socket.connect()).rejects.toThrow('Socket already closed');
+  });
+  it('close is idempotent once the socket is already closed', async () => {
+    const socket = ClientSocketWrapper.createNull();
+
+    await socket.connect();
+    await socket.close();
+
+    await expect(socket.close()).resolves.toBeUndefined();
   });
   it('can receive a message from the server', async () => {
     const received: ServerMessage[] = [];
