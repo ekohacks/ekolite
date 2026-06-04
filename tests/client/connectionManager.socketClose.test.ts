@@ -11,7 +11,7 @@ describe('ConnectionManager - after socket dies', () => {
     const messages = socket.trackMessages();
 
     const handle = manager.subscribe('files.all');
-    server.send({ type: 'ready', id: (messages.data[0] as SubscribeMsg).id });
+    server.send({ type: 'ready', id: (messages.data[0] as SubscribeMsg).id, collection: 'files' });
     await handle.ready;
 
     server.simulateClose();

@@ -213,14 +213,10 @@ export class ConnectionManager {
       case 'ready': {
         const subscription = this.subscriptions.get(message.id);
         if (subscription) {
-          // The server names the collection on ready. Fall back to the
-          // collection of the initial data buffered for this sub when an older
-          // server omits it.
-          const collection = message.collection ?? this.pendingData.at(0)?.collection;
-          if (collection !== undefined) {
-            subscription.collection = collection;
-            this.flushPending(collection);
-          }
+          // The server names the collection on ready, so bind the subscription
+          // to it and flush any initial data buffered before it arrived.
+          subscription.collection = message.collection;
+          this.flushPending(message.collection);
           subscription.readyResolver();
         }
         break;

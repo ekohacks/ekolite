@@ -29,7 +29,7 @@ describe('ConnectionManager collection gate', () => {
       id: '1',
       fields: { name: 'existing.bam' },
     });
-    server.send({ type: 'ready', id: subId });
+    server.send({ type: 'ready', id: subId, collection: 'files' });
 
     // ready resolves, so the app believes the subscription is healthy. That is
     // what makes the data loss silent.
@@ -56,24 +56,18 @@ describe('ConnectionManager collection gate', () => {
       id: '1',
       fields: { name: 'old.bam' },
     });
-    server.send({ type: 'ready', id: subId });
+    server.send({ type: 'ready', id: subId, collection: 'archive' });
     await handle.ready;
 
     expect(store.getById('1')).toEqual({ _id: '1', name: 'old.bam' });
   });
 
   // The single-sub tests above prove the name guess loses data. This one pins
-  // the contract the gate needs once more than one subscription is in flight at
-  // the same time: with two pending subs over two different collections, the
-  // manager can only learn which sub owns which collection from the server, and
-  // the only signal that ties a run of `added`s back to a sub is that sub's
-  // `ready`. So the server flushes a sub's documents and then its `ready`; every
-  // `added` seen since the previous `ready` belongs to the sub now becoming
-  // ready. Once both collections are learned, stopping one sub must close the
-  // gate for its collection alone and leave the other sub's collection live.
-  // RED on the branch: the name guess (name.split('.')[0]) maps neither sub onto
-  // its real collection, so both collections read as not-live and the first
-  // `added` is dropped before we ever reach the stop.
+  // the contract once more than one subscription is in flight: two subs over
+  // two different collections, each learning its own collection from its own
+  // `ready`. Stopping one sub must close the gate for its collection alone and
+  // leave the other sub's collection live, so late data for the stopped
+  // collection is dropped while the live one keeps flowing.
   it('stopping one of two live subscriptions gates only that collection, not the other', async () => {
     const socket = ClientSocketWrapper.createNull();
     const server = socket.simulateServer();
@@ -89,12 +83,12 @@ describe('ConnectionManager collection gate', () => {
     const filesSubId = (messages.data[0] as SubscribeMsg).id;
     const archiveSubId = (messages.data[1] as SubscribeMsg).id;
 
-    // ready is the delimiter: the 'files' added belongs to the sub readied
-    // right after it, the 'archive' added to the next one.
+    // Each ready names the collection its sub owns, so the two stay distinct
+    // regardless of how their data interleaves on the wire.
     server.send({ type: 'added', collection: 'files', id: 'f1', fields: { name: 'a.bam' } });
-    server.send({ type: 'ready', id: filesSubId });
+    server.send({ type: 'ready', id: filesSubId, collection: 'files' });
     server.send({ type: 'added', collection: 'archive', id: 'a1', fields: { name: 'b.bam' } });
-    server.send({ type: 'ready', id: archiveSubId });
+    server.send({ type: 'ready', id: archiveSubId, collection: 'archive' });
 
     await filesHandle.ready;
     await archiveHandle.ready;
@@ -129,7 +123,6 @@ describe('ConnectionManager collection gate', () => {
 // place the collection can come from is `ready.collection`. That also rules out
 // a purely client-side buffer that learns from the first `added`: no `added`
 // arrives before `ready`, so such a client could never bind the collection.
-// RED until the client reads `ready.collection`.
 describe('ConnectionManager learns its collection from ready', () => {
   it('routes live data using the collection named in ready, with no initial data', async () => {
     const socket = ClientSocketWrapper.createNull();
@@ -141,12 +134,9 @@ describe('ConnectionManager learns its collection from ready', () => {
     const handle = manager.subscribe('recentFiles');
     const subId = (messages.data[0] as SubscribeMsg).id;
 
-    // ready names the collection. The extra `collection` field is the protocol
-    // change this test drives; sent through a variable so it type checks against
-    // today's ReadyMsg, and it collapses to a plain literal once ReadyMsg carries
-    // `collection`.
-    const ready = { type: 'ready' as const, id: subId, collection: 'files' };
-    server.send(ready);
+    // ready names the collection the sub owns. With no initial `added`, this is
+    // the only place the collection can come from.
+    server.send({ type: 'ready', id: subId, collection: 'files' });
     await handle.ready;
 
     // A document enters the result set live, after ready. It can only route if

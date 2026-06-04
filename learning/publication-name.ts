@@ -21,7 +21,7 @@ async function main(): Promise<void> {
   // The server does its job: it sends a real document, stamped with the
   // collection that document actually lives in.
   server.send({ type: 'added', collection: 'files', id: 'f1', fields: { name: 'report.bam' } });
-  server.send({ type: 'ready', id: subId });
+  server.send({ type: 'ready', id: subId, collection: 'files' });
 
   await handle.ready;
 

@@ -45,9 +45,9 @@ describe('ClientSocketWrapper parsing contract', () => {
     socket.onMessage((m) => received.push(m));
 
     server.sendRaw('not-json-at-all');
-    server.send({ type: 'ready', id: '1' });
+    server.send({ type: 'ready', id: '1', collection: 'files' });
 
-    expect(received).toEqual([{ type: 'ready', id: '1' }]);
+    expect(received).toEqual([{ type: 'ready', id: '1', collection: 'files' }]);
   });
 
   it('drops a well-formed JSON payload that is not a server message', async () => {
@@ -59,9 +59,9 @@ describe('ClientSocketWrapper parsing contract', () => {
     socket.onMessage((m) => received.push(m));
 
     server.sendRaw(JSON.stringify({ type: 'not-a-real-type' }));
-    server.send({ type: 'ready', id: '1' });
+    server.send({ type: 'ready', id: '1', collection: 'files' });
 
-    expect(received).toEqual([{ type: 'ready', id: '1' }]);
+    expect(received).toEqual([{ type: 'ready', id: '1', collection: 'files' }]);
   });
 });
 
@@ -111,7 +111,7 @@ describe('ClientSocketWrapper (null)', () => {
   });
   it('can receive a message from the server', async () => {
     const received: ServerMessage[] = [];
-    const message: ReadyMsg = { type: 'ready', id: '1' };
+    const message: ReadyMsg = { type: 'ready', id: '1', collection: 'files' };
     const socket = ClientSocketWrapper.createNull();
     const unsubscribe = socket.onMessage((msg) => received.push(msg));
 
@@ -120,7 +120,7 @@ describe('ClientSocketWrapper (null)', () => {
     server.send(message);
 
     expect(received).toHaveLength(1);
-    expect(received).toEqual([{ type: 'ready', id: '1' }]);
+    expect(received).toEqual([{ type: 'ready', id: '1', collection: 'files' }]);
 
     unsubscribe();
   });
@@ -143,7 +143,7 @@ describe('ClientSocketWrapper (null)', () => {
 
     await socket.send({ type: 'unsubscribe', id: '1' });
 
-    server.send({ type: 'ready', id: '1' });
+    server.send({ type: 'ready', id: '1', collection: 'files' });
 
     expect(tracker.data).toHaveLength(1);
     expect(tracker.data[0]).toEqual({ type: 'unsubscribe', id: '1' });
@@ -156,11 +156,15 @@ describe('isServerMessage type guard', () => {
   });
 
   it('accepts ready messages with required fields', () => {
-    expect(isServerMessage({ type: 'ready', id: '1' })).toBe(true);
+    expect(isServerMessage({ type: 'ready', id: '1', collection: 'files' })).toBe(true);
   });
 
   it('rejects ready messages without id', () => {
-    expect(isServerMessage({ type: 'ready' })).toBe(false);
+    expect(isServerMessage({ type: 'ready', collection: 'files' })).toBe(false);
+  });
+
+  it('rejects ready messages without a collection', () => {
+    expect(isServerMessage({ type: 'ready', id: '1' })).toBe(false);
   });
 
   it('accepts added messages with required fields', () => {
