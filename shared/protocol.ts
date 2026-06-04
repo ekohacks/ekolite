@@ -33,6 +33,10 @@ export type ClientMessage = SubscribeMsg | UnsubscribeMsg | MethodMsg;
 export interface ReadyMsg {
   type: 'ready';
   id: string;
+  // The collection this subscription owns, decided by the server. Optional so
+  // readys that predate this field still type check; when present it is the
+  // authoritative source the client binds the subscription to.
+  collection?: string;
 }
 
 export type DataMsg =

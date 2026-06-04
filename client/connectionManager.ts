@@ -1,6 +1,6 @@
 import { ClientSocketWrapper } from './clientSocket.ts';
 import { ReactiveStore } from './reactiveStore.ts';
-import { ServerMessage, SubscribeMsg, UnsubscribeMsg } from '../shared/protocol.ts';
+import { DataMsg, ServerMessage, SubscribeMsg, UnsubscribeMsg } from '../shared/protocol.ts';
 import { assertNever } from '../shared/helperFunctions.ts';
 
 interface SubscriptionHandle {
@@ -11,7 +11,9 @@ interface SubscriptionHandle {
 interface SubscriptionState {
   readyResolver: () => void;
   readyRejector: (error: unknown) => void;
-  collection: string;
+  // Learned from the server: ready.collection when present, otherwise inferred
+  // from the initial data buffered before ready. Undefined until then.
+  collection?: string;
 }
 
 class SubscriptionHandleImpl implements SubscriptionHandle {
@@ -41,6 +43,10 @@ export class ConnectionManager {
   private readonly teardownMessageListener: () => void;
   private readonly teardownCloseListener: () => void;
   private disposed = false;
+  // Initial `added` documents that arrive before their subscription has learned
+  // its collection. Held here until the matching `ready` binds the collection,
+  // then flushed into the store. See handleServerMessage.
+  private pendingData: DataMsg[] = [];
 
   constructor(socket: ClientSocketWrapper) {
     this.socket = socket;
@@ -70,11 +76,9 @@ export class ConnectionManager {
       rejectReady = reject;
     });
 
-    const collection = this.getCollectionFromPublicationName(name);
     this.subscriptions.set(id, {
       readyResolver: resolveReady,
       readyRejector: rejectReady,
-      collection,
     });
 
     const subscribeMessage: SubscribeMsg = {
@@ -134,6 +138,7 @@ export class ConnectionManager {
 
     this.subscriptions.clear();
     this.stores.clear();
+    this.pendingData = [];
   }
 
   // Test seam: exposes internal state so tests can assert teardown happened.
@@ -156,15 +161,50 @@ export class ConnectionManager {
     return false;
   }
 
-  private getCollectionFromPublicationName(name: string): string {
-    return name.split('.')[0];
+  // True while at least one subscription is still waiting to learn its
+  // collection from a ready. Only then do we hold onto data we cannot place
+  // yet; once every sub is bound, unplaceable data is a late message to drop,
+  // not initial data to buffer.
+  private hasUnboundSubscription(): boolean {
+    for (const sub of this.subscriptions.values()) {
+      if (sub.collection === undefined) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Route any buffered initial documents for a now-known collection into its
+  // store, keeping the rest waiting for their own ready.
+  private flushPending(collection: string): void {
+    const remaining: DataMsg[] = [];
+    for (const message of this.pendingData) {
+      if (message.collection === collection) {
+        this.store(collection).handleMessage(message);
+      } else {
+        remaining.push(message);
+      }
+    }
+    this.pendingData = remaining;
   }
 
   private handleServerMessage(message: ServerMessage): void {
     switch (message.type) {
-      case 'added':
+      case 'added': {
+        if (this.isCollectionLive(message.collection)) {
+          this.store(message.collection).handleMessage(message);
+        } else if (this.hasUnboundSubscription()) {
+          // Initial data for a subscription that has not learned its collection
+          // yet. Hold it until the matching ready binds the collection.
+          this.pendingData.push(message);
+        }
+        break;
+      }
       case 'changed':
       case 'removed': {
+        // No buffering: changed/removed only ever apply to data already added,
+        // so anything for a collection that is not live is a late message the
+        // stop() gate drops.
         if (this.isCollectionLive(message.collection)) {
           this.store(message.collection).handleMessage(message);
         }
@@ -173,6 +213,14 @@ export class ConnectionManager {
       case 'ready': {
         const subscription = this.subscriptions.get(message.id);
         if (subscription) {
+          // The server names the collection on ready. Fall back to the
+          // collection of the initial data buffered for this sub when an older
+          // server omits it.
+          const collection = message.collection ?? this.pendingData.at(0)?.collection;
+          if (collection !== undefined) {
+            subscription.collection = collection;
+            this.flushPending(collection);
+          }
           subscription.readyResolver();
         }
         break;

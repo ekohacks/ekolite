@@ -188,6 +188,7 @@ describe('Publications', () => {
     expect(client.messages).toContainEqual({
       type: 'ready',
       id: 'sub1',
+      collection: 'files',
     });
   });
 
@@ -218,6 +219,7 @@ describe('Publications', () => {
       {
         type: 'ready',
         id: 'sub1',
+        collection: 'files',
       },
     ]);
   });
@@ -239,7 +241,7 @@ describe('Publications', () => {
     });
 
     expect(client.messages).toHaveLength(1);
-    expect(client.messages[0]).toEqual({ type: 'ready', id: 'sub1' });
+    expect(client.messages[0]).toEqual({ type: 'ready', id: 'sub1', collection: 'files' });
   });
 
   it('pushes live changes to subscribed clients', async () => {

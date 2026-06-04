@@ -25,9 +25,10 @@ const addedMessage = (collection: string, doc: Record<string, unknown>) => ({
   fields: Object.fromEntries(Object.entries(doc).filter(([key]) => key !== '_id')),
 });
 
-const readyMessage = (subId: string) => ({
+const readyMessage = (subId: string, collection: string) => ({
   type: 'ready',
   id: subId,
+  collection,
 });
 
 const removedMessage = (collection: string, docId: string) => ({
@@ -171,7 +172,7 @@ export class Publications {
         documentIds.add(doc._id);
         this.ws.send(clientId, addedMessage(collection, doc));
       }
-      this.ws.send(clientId, readyMessage(message.id));
+      this.ws.send(clientId, readyMessage(message.id, collection));
 
       const cleanup = this.mongo.watchChanges(collection, (change: ChangeEvent) => {
         if (change.type === 'insert') {
