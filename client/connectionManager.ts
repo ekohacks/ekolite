@@ -37,6 +37,8 @@ export class ConnectionManager {
   private readonly socket: ClientSocketWrapper;
   private readonly stores = new Map<string, ReactiveStore>();
   private readonly subscriptions = new Map<string, SubscriptionState>();
+  private readonly subscriptionCollections = new Map<string, string>();
+  private readonly collectionSubscriptions = new Map<string, number>();
   private readonly teardownMessageListener: () => void;
   private readonly teardownCloseListener: () => void;
   private disposed = false;
@@ -73,6 +75,7 @@ export class ConnectionManager {
       readyResolver: resolveReady,
       readyRejector: rejectReady,
     });
+    this.registerLiveSubscription(id, name);
 
     const subscribeMessage: SubscribeMsg = {
       type: 'subscribe',
@@ -82,7 +85,7 @@ export class ConnectionManager {
     };
 
     this.socket.send(subscribeMessage).catch((error: unknown) => {
-      this.subscriptions.delete(id);
+      this.unregisterLiveSubscription(id);
       rejectReady(error);
     });
 
@@ -98,7 +101,7 @@ export class ConnectionManager {
       subscription.readyRejector(new Error('subscription stopped before ready'));
     }
 
-    this.subscriptions.delete(id);
+    this.unregisterLiveSubscription(id);
 
     this.socket.send(unsubscribeMessage).catch((error: unknown) => {
       console.error('Failed to send unsubscribe message:', error);
@@ -144,12 +147,51 @@ export class ConnectionManager {
     }
   }
 
+  private registerLiveSubscription(id: string, name: string): void {
+    const collection = this.getCollectionFromPublicationName(name);
+    this.subscriptionCollections.set(id, collection);
+    this.collectionSubscriptions.set(
+      collection,
+      (this.collectionSubscriptions.get(collection) ?? 0) + 1,
+    );
+  }
+
+  private unregisterLiveSubscription(id: string): void {
+    const collection = this.subscriptionCollections.get(id);
+    if (!collection) {
+      this.subscriptions.delete(id);
+      return;
+    }
+
+    const count = this.collectionSubscriptions.get(collection);
+    if (count === undefined) {
+      this.subscriptionCollections.delete(id);
+      this.subscriptions.delete(id);
+      return;
+    }
+
+    if (count <= 1) {
+      this.collectionSubscriptions.delete(collection);
+    } else {
+      this.collectionSubscriptions.set(collection, count - 1);
+    }
+
+    this.subscriptionCollections.delete(id);
+    this.subscriptions.delete(id);
+  }
+
+  private getCollectionFromPublicationName(name: string): string {
+    return name.split('.')[0];
+  }
+
   private handleServerMessage(message: ServerMessage): void {
     switch (message.type) {
       case 'added':
       case 'changed':
       case 'removed': {
-        this.store(message.collection).handleMessage(message);
+        if (this.collectionSubscriptions.has(message.collection)) {
+          this.store(message.collection).handleMessage(message);
+        }
         break;
       }
       case 'ready': {
@@ -165,7 +207,7 @@ export class ConnectionManager {
         const subscription = this.subscriptions.get(message.id);
         if (subscription) {
           subscription.readyRejector(message.error);
-          this.subscriptions.delete(message.id);
+          this.unregisterLiveSubscription(message.id);
         }
         break;
       }

@@ -190,7 +190,7 @@ describe('ConnectionManager', () => {
       id: '1',
     });
 
-    expect(store.getById('1')).toBeUndefined();
+    expect(store.getById('1')).toEqual({ _id: '1', name: 'existing.bam' });
   });
 
   it('does not route a late changed message into the store after stop()', async () => {
