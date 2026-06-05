@@ -21,6 +21,14 @@
     "noFallthroughCasesInSwitch": true,
     "exactOptionalPropertyTypes": true
   },
-  "include": ["server", "client", "shared", "tests", "*.config.ts", "*.config.mts"],
+  "include": [
+    "server",
+    "client",
+    "shared",
+    "tests",
+    "*.config.ts",
+    "*.config.mts",
+    "learning/**/*.ts"
+  ],
   "exclude": ["node_modules", "dist"]
 }
