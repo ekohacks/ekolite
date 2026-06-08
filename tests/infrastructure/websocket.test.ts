@@ -29,6 +29,20 @@ describe('WebSocketWrapper (null)', () => {
     expect(ws.clientCount).toBe(0);
   });
 
+  it('removes a client and notifies onDisconnect exactly once when it disconnects', () => {
+    const ws = WebSocketWrapper.createNull();
+    const disconnected: string[] = [];
+    ws.onDisconnect((id) => disconnected.push(id));
+
+    const client = ws.simulateConnection();
+    expect(ws.clientCount).toBe(1);
+
+    client.close();
+
+    expect(ws.clientCount).toBe(0);
+    expect(disconnected).toEqual([client.id]);
+  });
+
   it('tracks messages from clients', () => {
     const ws = WebSocketWrapper.createNull();
     const tracker = ws.trackMessages();
