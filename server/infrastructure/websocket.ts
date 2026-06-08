@@ -36,86 +36,26 @@ interface WebSocketInterface {
 }
 
 export class WebSocketWrapper implements WebSocketInterface {
-  private impl: UnifiedWebSocket;
-
-  private constructor(impl: UnifiedWebSocket) {
-    this.impl = impl;
-  }
-
-  static create(): WebSocketWrapper {
-    return new WebSocketWrapper(new UnifiedWebSocket(() => new FastifyConnectionSource()));
-  }
-
-  static createRawWs(options: { port: number }): WebSocketWrapper {
-    return new WebSocketWrapper(new UnifiedWebSocket(() => new WsConnectionSource(options.port)));
-  }
-
-  static createNull(): WebSocketWrapper {
-    return new WebSocketWrapper(new UnifiedWebSocket(() => new NullConnectionSource()));
-  }
-
-  async start(): Promise<void> {
-    await this.impl.start();
-  }
-
-  async attach(fastify: FastifyInstance): Promise<void> {
-    await this.impl.attach(fastify);
-  }
-
-  async close(): Promise<void> {
-    await this.impl.close();
-  }
-
-  get clientCount(): number {
-    return this.impl.clientCount;
-  }
-
-  simulateConnection(): StubbedClient {
-    return this.impl.simulateConnection();
-  }
-
-  send(clientId: string, message: unknown): void {
-    this.impl.send(clientId, message);
-  }
-
-  broadcast(message: unknown): void {
-    this.impl.broadcast(message);
-  }
-
-  onDisconnect(cb: (clientId: string) => void): () => void {
-    return this.impl.onDisconnect(cb);
-  }
-
-  trackConnections(): OutputTracker {
-    return this.impl.trackConnections();
-  }
-
-  trackDisconnections(): OutputTracker {
-    return this.impl.trackDisconnections();
-  }
-
-  trackMessages(): OutputTracker {
-    return this.impl.trackMessages();
-  }
-}
-
-function isClientIdPayload(data: unknown): data is { clientId: string } {
-  if (data === null || typeof data !== 'object') {
-    return false;
-  }
-
-  return typeof (data as Record<string, unknown>).clientId === 'string';
-}
-
-class UnifiedWebSocket implements WebSocketInterface {
   private source: ConnectionSource;
   private clients = new Map<string, { socket: ServerSocketLike; stub?: StubbedClient }>();
   private nextId = 0;
   private emitter = new EventEmitter();
 
-  constructor(factory: ConnectionSourceFactory) {
+  private constructor(factory: ConnectionSourceFactory) {
     this.source = factory();
     this.source.onConnection((socket) => this.handleConnection(socket));
+  }
+
+  static create(): WebSocketWrapper {
+    return new WebSocketWrapper(() => new FastifyConnectionSource());
+  }
+
+  static createRawWs(options: { port: number }): WebSocketWrapper {
+    return new WebSocketWrapper(() => new WsConnectionSource(options.port));
+  }
+
+  static createNull(): WebSocketWrapper {
+    return new WebSocketWrapper(() => new NullConnectionSource());
   }
 
   async start(): Promise<void> {
@@ -139,11 +79,15 @@ class UnifiedWebSocket implements WebSocketInterface {
   }
 
   simulateConnection(): StubbedClient {
-    const src = this.source as unknown as NullConnectionSource;
-    if (typeof src.simulateConnection !== 'function') {
+    const sourceWithSimulate = this.source as {
+      simulateConnection?: () => StubbedClient;
+    };
+
+    if (typeof sourceWithSimulate.simulateConnection !== 'function') {
       throw new Error('simulateConnection only available on null instance');
     }
-    return src.simulateConnection();
+
+    return sourceWithSimulate.simulateConnection();
   }
 
   send(clientId: string, message: unknown): void {
@@ -246,6 +190,14 @@ class UnifiedWebSocket implements WebSocketInterface {
 
     return undefined;
   }
+}
+
+function isClientIdPayload(data: unknown): data is { clientId: string } {
+  if (data === null || typeof data !== 'object') {
+    return false;
+  }
+
+  return typeof (data as Record<string, unknown>).clientId === 'string';
 }
 
 class WsConnectionSource implements ConnectionSource {
