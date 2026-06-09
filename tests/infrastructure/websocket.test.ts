@@ -43,7 +43,7 @@ describe('WebSocketWrapper (null)', () => {
     expect(disconnected).toEqual([client.id]);
   });
 
-  it.fails('tracks messages from clients', () => {
+  it('tracks messages from clients', () => {
     const ws = WebSocketWrapper.createNull();
     const tracker = ws.trackMessages();
     const client = ws.simulateConnection();

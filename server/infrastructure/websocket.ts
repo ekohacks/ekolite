@@ -142,11 +142,9 @@ export class WebSocketWrapper implements WebSocketInterface {
     const id = String(this.nextId++);
     this.clients.set(id, { socket });
     socket.setClientId?.(id); // For NullConnectionSource: set the stub's ID
-
-    socket.setReceiveMessageHandler?.((message: unknown) => {
+    socket.onMessage?.((message: unknown) => {
       this.receiveMessage(id, message);
     });
-
     this.emitter.emit(CONNECTION_EVENT, { clientId: id });
 
     socket.onClose(() => {
@@ -285,11 +283,11 @@ export class StubbedClient {
 }
 
 class NullConnectionSource implements ConnectionSource {
-  private listeners: ((s: ServerSocketLike) => unknown)[] = [];
+  private listenersList: ((s: ServerSocketLike) => unknown)[] = [];
   lastCreatedStub: StubbedClient | undefined;
 
   onConnection(cb: (socket: ServerSocketLike) => unknown): void {
-    this.listeners.push(cb);
+    this.listenersList.push(cb);
   }
 
   async close(): Promise<void> {
@@ -316,6 +314,11 @@ class NullConnectionSource implements ConnectionSource {
       setClientId: (id: string) => {
         this.lastCreatedStub?.setId(id);
       },
+
+      onMessage: (cb: (message: unknown) => void) => {
+        // For NullConnectionSource, treat onMessage as receiveMessageHandler
+        this.lastCreatedStub?.setReceiveMessageHandler(cb);
+      },
     };
 
     // Create stub with shared messages reference
@@ -325,8 +328,8 @@ class NullConnectionSource implements ConnectionSource {
     this.lastCreatedStub = stub;
 
     // Call listeners to register this socket (e.g., handleConnection)
-    for (const l of this.listeners) {
-      l(socket);
+    for (const listener of this.listenersList) {
+      listener(socket);
     }
 
     return stub;
