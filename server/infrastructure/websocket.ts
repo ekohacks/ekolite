@@ -37,13 +37,15 @@ interface WebSocketInterface {
 
 export class WebSocketWrapper implements WebSocketInterface {
   private source: ConnectionSource;
-  private clients = new Map<string, { socket: ServerSocketLike; stub?: StubbedClient }>();
+  private clients = new Map<string, { socket: ServerSocketLike }>();
   private nextId = 0;
   private emitter = new EventEmitter();
 
   private constructor(factory: ConnectionSourceFactory) {
     this.source = factory();
-    this.source.onConnection((socket) => this.handleConnection(socket));
+    this.source.onConnection((socket) => {
+      this.handleConnection(socket);
+    });
   }
 
   static create(): WebSocketWrapper {
@@ -95,21 +97,13 @@ export class WebSocketWrapper implements WebSocketInterface {
     if (!entry) {
       return;
     }
-    if (entry.stub) {
-      entry.stub.messages.push(message);
-    } else {
-      entry.socket.send(JSON.stringify(message));
-    }
+    entry.socket.send(JSON.stringify(message));
   }
 
   broadcast(message: unknown): void {
     const data = JSON.stringify(message);
     for (const entry of this.clients.values()) {
-      if (entry.stub) {
-        entry.stub.messages.push(message);
-      } else {
-        entry.socket.send(data);
-      }
+      entry.socket.send(data);
     }
   }
 
@@ -141,14 +135,7 @@ export class WebSocketWrapper implements WebSocketInterface {
     this.emitter.emit(MESSAGE_EVENT, { clientId, message });
   }
 
-  private disconnect(clientId: string): void {
-    if (this.clients.has(clientId)) {
-      this.clients.delete(clientId);
-      this.emitter.emit(DISCONNECTION_EVENT, { clientId });
-    }
-  }
-
-  private handleConnection(socket: ServerSocketLike): unknown {
+  private handleConnection(socket: ServerSocketLike): void {
     const id = String(this.nextId++);
     this.clients.set(id, { socket });
     this.emitter.emit(CONNECTION_EVENT, { clientId: id });
@@ -160,35 +147,17 @@ export class WebSocketWrapper implements WebSocketInterface {
       }
     });
 
-    const maybeCreateStub = (
-      socket as ServerSocketLike & {
-        __createStubClient?: (
-          id: string,
-          serverApi: {
-            receiveMessage: (cid: string, m: unknown) => void;
-            disconnect: (cid: string) => void;
-          },
-        ) => StubbedClient;
-      }
-    ).__createStubClient;
-
-    if (typeof maybeCreateStub === 'function') {
-      const stub = maybeCreateStub(id, {
-        receiveMessage: (cid, m) => {
-          this.receiveMessage(cid, m);
-        },
-        disconnect: (cid) => {
-          this.disconnect(cid);
-        },
+    // For NullConnectionSource: set the stub's ID and receiveMessageHandler
+    const nullSource = this.source as {
+      lastCreatedStub?: StubbedClient | undefined;
+    };
+    if (nullSource.lastCreatedStub?.id === '') {
+      nullSource.lastCreatedStub.setId(id);
+      nullSource.lastCreatedStub.setReceiveMessageHandler((message: unknown) => {
+        this.receiveMessage(id, message);
       });
-      const entry = this.clients.get(id);
-      if (entry) {
-        entry.stub = stub;
-      }
-      return stub;
+      nullSource.lastCreatedStub = undefined;
     }
-
-    return undefined;
   }
 }
 
@@ -281,35 +250,44 @@ class FastifyConnectionSource implements ConnectionSource {
 }
 
 export class StubbedClient {
-  readonly id: string;
-  readonly messages: unknown[] = [];
-  private serverApi: {
-    receiveMessage: (cid: string, m: unknown) => void;
-    disconnect: (cid: string) => void;
-  };
+  readonly messages: unknown[];
+  id: string; // Mutable for testing, set by handleConnection
+  private closeHandler: (() => void) | undefined;
+  private receiveMessageHandler: ((message: unknown) => void) | undefined;
 
   constructor(
-    id: string,
-    serverApi: {
-      receiveMessage: (cid: string, m: unknown) => void;
-      disconnect: (cid: string) => void;
-    },
+    messages: unknown[],
+    closeHandler?: () => void,
+    receiveMessageHandler?: (message: unknown) => void,
   ) {
+    // Temporary ID, will be set by handleConnection via setId()
+    this.id = '';
+    this.messages = messages;
+    this.closeHandler = closeHandler;
+    this.receiveMessageHandler = receiveMessageHandler;
+  }
+
+  setId(id: string): void {
     this.id = id;
-    this.serverApi = serverApi;
+  }
+
+  setReceiveMessageHandler(handler: (message: unknown) => void): void {
+    this.receiveMessageHandler = handler;
   }
 
   send(message: unknown): void {
-    this.serverApi.receiveMessage(this.id, message);
+    // Track inbound messages (from client to server)
+    this.receiveMessageHandler?.(message);
   }
 
   close(): void {
-    this.serverApi.disconnect(this.id);
+    this.closeHandler?.();
   }
 }
 
 class NullConnectionSource implements ConnectionSource {
   private listeners: ((s: ServerSocketLike) => unknown)[] = [];
+  lastCreatedStub: StubbedClient | undefined;
 
   onConnection(cb: (socket: ServerSocketLike) => unknown): void {
     this.listeners.push(cb);
@@ -320,42 +298,34 @@ class NullConnectionSource implements ConnectionSource {
   }
 
   simulateConnection(): StubbedClient {
-    let created: StubbedClient | undefined;
-    const socket: ServerSocketLike & {
-      __createStubClient?: (
-        id: string,
-        api: {
-          receiveMessage: (cid: string, m: unknown) => void;
-          disconnect: (cid: string) => void;
-        },
-      ) => StubbedClient;
-    } = {
-      send: (_data: string) => {
-        /* no-op; server receives via StubbedClient */
+    const messages: unknown[] = [];
+    let onCloseCallback: (() => void) | undefined;
+
+    const socket: ServerSocketLike = {
+      send: (data: string) => {
+        // Null socket: record in-memory instead of sending over network
+        messages.push(JSON.parse(data));
       },
       close: () => {
-        /* no-op; client.close triggers serverApi.disconnect */
+        // UNIFIED: call onClose callback like real socket does
+        onCloseCallback?.();
       },
-      onClose: (_cb: () => void) => {
-        /* no-op for null */
-      },
-      __createStubClient: (id: string, api) => {
-        const stub = new StubbedClient(id, api);
-        created = stub;
-        return stub;
+      onClose: (cb: () => void) => {
+        onCloseCallback = cb;
       },
     };
 
+    // Create stub with shared messages reference
+    // ID and receiveMessageHandler will be set by handleConnection
+    const stub = new StubbedClient(messages, () => onCloseCallback?.());
+
+    this.lastCreatedStub = stub;
+
+    // Call listeners to register this socket (e.g., handleConnection)
     for (const l of this.listeners) {
-      const result = l(socket);
-      if (result instanceof StubbedClient) {
-        return result;
-      }
+      l(socket);
     }
 
-    if (created) {
-      return created;
-    }
-    throw new Error('NullConnectionSource simulateConnection failed to create stub client');
+    return stub;
   }
 }
