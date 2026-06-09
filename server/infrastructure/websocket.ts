@@ -11,6 +11,9 @@ interface ServerSocketLike {
   send(data: string): void;
   close(): void;
   onClose(cb: () => void): void;
+  onMessage?(cb: (message: unknown) => void): void;
+  setClientId?(id: string): void; // For NullConnectionSource to set the stub's ID
+  setReceiveMessageHandler?(handler: (message: unknown) => void): void; // For NullConnectionSource to handle incoming messages
 }
 
 interface ConnectionSource {
@@ -138,6 +141,12 @@ export class WebSocketWrapper implements WebSocketInterface {
   private handleConnection(socket: ServerSocketLike): void {
     const id = String(this.nextId++);
     this.clients.set(id, { socket });
+    socket.setClientId?.(id); // For NullConnectionSource: set the stub's ID
+
+    socket.setReceiveMessageHandler?.((message: unknown) => {
+      this.receiveMessage(id, message);
+    });
+
     this.emitter.emit(CONNECTION_EVENT, { clientId: id });
 
     socket.onClose(() => {
@@ -148,16 +157,6 @@ export class WebSocketWrapper implements WebSocketInterface {
     });
 
     // For NullConnectionSource: set the stub's ID and receiveMessageHandler
-    const nullSource = this.source as {
-      lastCreatedStub?: StubbedClient | undefined;
-    };
-    if (nullSource.lastCreatedStub?.id === '') {
-      nullSource.lastCreatedStub.setId(id);
-      nullSource.lastCreatedStub.setReceiveMessageHandler((message: unknown) => {
-        this.receiveMessage(id, message);
-      });
-      nullSource.lastCreatedStub = undefined;
-    }
   }
 }
 
@@ -312,6 +311,10 @@ class NullConnectionSource implements ConnectionSource {
       },
       onClose: (cb: () => void) => {
         onCloseCallback = cb;
+      },
+
+      setClientId: (id: string) => {
+        this.lastCreatedStub?.setId(id);
       },
     };
 
