@@ -12,12 +12,10 @@ interface ServerSocketLike {
   close(): void;
   onClose(cb: () => void): void;
   onMessage?(cb: (message: unknown) => void): void;
-  setClientId?(id: string): void; // For NullConnectionSource to set the stub's ID
-  setReceiveMessageHandler?(handler: (message: unknown) => void): void; // For NullConnectionSource to handle incoming messages
 }
 
 interface ConnectionSource {
-  onConnection(cb: (socket: ServerSocketLike) => unknown): void;
+  onConnection(cb: (socket: ServerSocketLike) => string): void;
   close(): Promise<void>;
   start?(): Promise<void>;
   attach?(fastify: FastifyInstance): Promise<void>;
@@ -46,9 +44,7 @@ export class WebSocketWrapper implements WebSocketInterface {
 
   private constructor(factory: ConnectionSourceFactory) {
     this.source = factory();
-    this.source.onConnection((socket) => {
-      this.handleConnection(socket);
-    });
+    this.source.onConnection((socket) => this.handleConnection(socket));
   }
 
   static create(): WebSocketWrapper {
@@ -96,14 +92,14 @@ export class WebSocketWrapper implements WebSocketInterface {
   }
 
   send(clientId: string, message: unknown): void {
-    const entry = this.clients.get(clientId);
-    if (!entry) {
-      return;
-    }
     if (message === undefined) {
       throw new Error('Cannot send undefined message to client');
     }
 
+    const entry = this.clients.get(clientId);
+    if (!entry) {
+      return;
+    }
     entry.socket.send(JSON.stringify(message));
   }
 
@@ -146,10 +142,9 @@ export class WebSocketWrapper implements WebSocketInterface {
     this.emitter.emit(MESSAGE_EVENT, { clientId, message });
   }
 
-  private handleConnection(socket: ServerSocketLike): void {
+  private handleConnection(socket: ServerSocketLike): string {
     const id = String(this.nextId++);
     this.clients.set(id, { socket });
-    socket.setClientId?.(id); // For NullConnectionSource: set the stub's ID
     socket.onMessage?.((message: unknown) => {
       this.receiveMessage(id, message);
     });
@@ -162,7 +157,7 @@ export class WebSocketWrapper implements WebSocketInterface {
       }
     });
 
-    // For NullConnectionSource: set the stub's ID and receiveMessageHandler
+    return id;
   }
 }
 
@@ -176,14 +171,14 @@ function isClientIdPayload(data: unknown): data is { clientId: string } {
 
 class WsConnectionSource implements ConnectionSource {
   private wss: WebSocketServer | null = null;
-  private listeners: ((s: ServerSocketLike) => unknown)[] = [];
+  private listeners: ((socket: ServerSocketLike) => string)[] = [];
   private port: number;
 
   constructor(port: number) {
     this.port = port;
   }
 
-  onConnection(cb: (socket: ServerSocketLike) => unknown): void {
+  onConnection(cb: (socket: ServerSocketLike) => string): void {
     this.listeners.push(cb);
   }
 
@@ -224,9 +219,9 @@ class WsConnectionSource implements ConnectionSource {
 
 class FastifyConnectionSource implements ConnectionSource {
   private fastify: FastifyInstance | null = null;
-  private listeners: ((s: ServerSocketLike) => unknown)[] = [];
+  private listeners: ((s: ServerSocketLike) => string)[] = [];
 
-  onConnection(cb: (socket: ServerSocketLike) => unknown): void {
+  onConnection(cb: (socket: ServerSocketLike) => string): void {
     this.listeners.push(cb);
   }
 
@@ -255,91 +250,63 @@ class FastifyConnectionSource implements ConnectionSource {
 }
 
 export class StubbedClient {
-  readonly messages: unknown[];
-  id: string; // Mutable for testing, set by handleConnection
-  private closeHandler: (() => void) | undefined;
-  private receiveMessageHandler: ((message: unknown) => void) | undefined;
-
   constructor(
-    messages: unknown[],
-    closeHandler?: () => void,
-    receiveMessageHandler?: (message: unknown) => void,
-  ) {
-    // Temporary ID, will be set by handleConnection via setId()
-    this.id = '';
-    this.messages = messages;
-    this.closeHandler = closeHandler;
-    this.receiveMessageHandler = receiveMessageHandler;
-  }
+    readonly id: string,
+    private readonly socket: NullServerSocket,
+  ) {}
 
-  setId(id: string): void {
-    this.id = id;
-  }
-
-  setReceiveMessageHandler(handler: (message: unknown) => void): void {
-    this.receiveMessageHandler = handler;
+  get messages(): unknown[] {
+    return this.socket.messages;
   }
 
   send(message: unknown): void {
-    // Track inbound messages (from client to server)
-    this.receiveMessageHandler?.(message);
+    this.socket.receiveMessage(message);
   }
 
   close(): void {
+    this.socket.close();
+  }
+}
+
+class NullServerSocket implements ServerSocketLike {
+  readonly messages: unknown[] = [];
+  private closeHandler: (() => void) | undefined;
+  private messageHandler: ((message: unknown) => void) | undefined;
+
+  onClose(cb: () => void): void {
+    this.closeHandler = cb;
+  }
+  send(data: string): void {
+    this.messages.push(JSON.parse(data));
+  }
+  close(): void {
     this.closeHandler?.();
+  }
+  onMessage(cb: (message: unknown) => void): void {
+    this.messageHandler = cb;
+  }
+  receiveMessage(message: unknown): void {
+    this.messageHandler?.(message);
   }
 }
 
 class NullConnectionSource implements ConnectionSource {
-  private listenersList: ((s: ServerSocketLike) => unknown)[] = [];
-  lastCreatedStub: StubbedClient | undefined;
+  private listenersList: ((socket: ServerSocketLike) => string)[] = [];
 
-  onConnection(cb: (socket: ServerSocketLike) => unknown): void {
+  onConnection(cb: (socket: ServerSocketLike) => string): void {
     this.listenersList.push(cb);
   }
 
   async close(): Promise<void> {
     return Promise.resolve();
   }
-
   simulateConnection(): StubbedClient {
-    const messages: unknown[] = [];
-    let onCloseCallback: (() => void) | undefined;
+    const socket = new NullServerSocket();
+    let id = '';
 
-    const socket: ServerSocketLike = {
-      send: (data: string) => {
-        // Null socket: record in-memory instead of sending over network
-        messages.push(JSON.parse(data));
-      },
-      close: () => {
-        // UNIFIED: call onClose callback like real socket does
-        onCloseCallback?.();
-      },
-      onClose: (cb: () => void) => {
-        onCloseCallback = cb;
-      },
-
-      setClientId: (id: string) => {
-        this.lastCreatedStub?.setId(id);
-      },
-
-      onMessage: (cb: (message: unknown) => void) => {
-        // For NullConnectionSource, treat onMessage as receiveMessageHandler
-        this.lastCreatedStub?.setReceiveMessageHandler(cb);
-      },
-    };
-
-    // Create stub with shared messages reference
-    // ID and receiveMessageHandler will be set by handleConnection
-    const stub = new StubbedClient(messages, () => onCloseCallback?.());
-
-    this.lastCreatedStub = stub;
-
-    // Call listeners to register this socket (e.g., handleConnection)
     for (const listener of this.listenersList) {
-      listener(socket);
+      id = listener(socket);
     }
-
-    return stub;
+    return new StubbedClient(id, socket);
   }
 }
