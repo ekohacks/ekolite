@@ -91,7 +91,7 @@ describe('WebSocketWrapper (null)', () => {
 
     expect(() => {
       ws.send(client.id, undefined);
-    }).toThrowError('Cannot send undefined message to client');
+    }).toThrow('Cannot send undefined message to client');
   });
 
   it('it throws an error with a clear message if undefined is broadcasted to clients', () => {
@@ -100,6 +100,6 @@ describe('WebSocketWrapper (null)', () => {
 
     expect(() => {
       ws.broadcast(undefined);
-    }).toThrowError('Cannot broadcast undefined message to clients');
+    }).toThrow('Cannot broadcast undefined message to clients');
   });
 });
