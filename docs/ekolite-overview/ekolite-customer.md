@@ -39,7 +39,7 @@ All four of these things will keep working exactly the same way.
 
 ## User Stories (= Smoke Tests)
 
-These are the stories we'll be delivering, in priority order. In the engineering backlog (`ekolite-backlog.md`), these map directly to **Smoke Tests 1–7** under Epic 4. Behind the scenes, engineers also build infrastructure wrappers (Smoke Test 0) before starting these — that work is invisible to you as the customer but is a prerequisite.
+These are the stories we'll be delivering, in priority order. In the engineering backlog (tracked in Linear), these map directly to **Smoke Tests 1–7** under Epic 4. Behind the scenes, engineers also build infrastructure wrappers (Smoke Test 0) before starting these — that work is invisible to you as the customer but is a prerequisite.
 
 ### Iteration 1 — Foundation
 
