@@ -100,10 +100,18 @@ export class WebSocketWrapper implements WebSocketInterface {
     if (!entry) {
       return;
     }
+    if (message === undefined) {
+      throw new Error('Cannot send undefined message to client');
+    }
+
     entry.socket.send(JSON.stringify(message));
   }
 
   broadcast(message: unknown): void {
+    if (message === undefined) {
+      throw new Error('Cannot broadcast undefined message to clients');
+    }
+
     const data = JSON.stringify(message);
     for (const entry of this.clients.values()) {
       entry.socket.send(data);
