@@ -84,4 +84,22 @@ describe('WebSocketWrapper (null)', () => {
 
     expect(ws.clientCount).toBe(0);
   });
+
+  it('it throws an error with a clear message if undefined is sent to clients', () => {
+    const ws = WebSocketWrapper.createNull();
+    const client = ws.simulateConnection();
+
+    expect(() => {
+      ws.send(client.id, undefined);
+    }).toThrowError('Cannot send undefined message to client');
+  });
+
+  it('it throws an error with a clear message if undefined is broadcasted to clients', () => {
+    const ws = WebSocketWrapper.createNull();
+    ws.simulateConnection();
+
+    expect(() => {
+      ws.broadcast(undefined);
+    }).toThrowError('Cannot broadcast undefined message to clients');
+  });
 });
