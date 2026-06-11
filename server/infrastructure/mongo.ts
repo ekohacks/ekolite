@@ -55,12 +55,17 @@ export class MongoWrapper {
     return this.collectionFactory(collection).deleteMany(query);
   }
 
-  watchChanges(collection: string, cb: (data: unknown) => void): () => void {
-    this.emitter.on(collection, cb);
+  watchChanges(collection: string, cb: (data: ChangeEvent) => void): () => void {
+    const wrappedCb = (data: unknown) => {
+      if (isChangeEvent(data)) {
+        cb(data);
+      }
+    };
+    this.emitter.on(collection, wrappedCb);
     this.openWatchIfNeeded(collection);
 
     return () => {
-      this.emitter.off(collection, cb);
+      this.emitter.off(collection, wrappedCb);
       this.closeWatchIfUnused(collection);
     };
   }
