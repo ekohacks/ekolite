@@ -72,7 +72,7 @@ describe('WebSocketWrapper (null)', () => {
     expect(client1.messages).toEqual([{ type: 'update', payload: 'refresh' }]);
     expect(client2.messages).toEqual([{ type: 'update', payload: 'refresh' }]);
   });
-  it('it tracks connection with nullable websocket', async () => {
+  it('tracks connection with nullable websocket', async () => {
     const ws = WebSocketWrapper.createNull();
     await createServer({ ws });
 
@@ -85,7 +85,7 @@ describe('WebSocketWrapper (null)', () => {
     expect(ws.clientCount).toBe(0);
   });
 
-  it('it throws an error with a clear message if undefined is sent to clients', () => {
+  it('throws an error with a clear message if undefined is sent to clients', () => {
     const ws = WebSocketWrapper.createNull();
     const client = ws.simulateConnection();
 
@@ -94,7 +94,7 @@ describe('WebSocketWrapper (null)', () => {
     }).toThrow('Cannot send undefined message to client');
   });
 
-  it('it throws an error with a clear message if undefined is broadcasted to clients', () => {
+  it('throws an error with a clear message if undefined is broadcasted to clients', () => {
     const ws = WebSocketWrapper.createNull();
     ws.simulateConnection();
 
