@@ -3,7 +3,7 @@ import { ChangeEvent, isChangeEvent } from '../../shared/types.ts';
 import { ConfigurableResponse, EventEmitter, OutputTracker } from './outputTracker.ts';
 
 interface CollectionLike {
-  find(query: object): Promise<unknown[]>;
+  find<T>(query: object): Promise<T[]>;
   insertOne(doc: object): Promise<void>;
   updateMany(query: object, changes: object): Promise<void>;
   deleteMany(query: object): Promise<void>;
@@ -40,7 +40,7 @@ export class MongoWrapper {
   }
 
   async find<T>(collection: string, query: object): Promise<T[]> {
-    return this.collectionFactory(collection).find(query) as Promise<T[]>;
+    return this.collectionFactory(collection).find(query);
   }
 
   async insert(collection: string, doc: object): Promise<void> {
@@ -113,8 +113,8 @@ export class MongoWrapper {
 class RealCollection implements CollectionLike {
   constructor(private readonly collection: Collection) {}
 
-  find(query: object): Promise<unknown[]> {
-    return this.collection.find(query).toArray();
+  find<T>(query: object): Promise<T[]> {
+    return this.collection.find(query).toArray() as Promise<T[]>;
   }
 
   insertOne(doc: object): Promise<void> {
@@ -191,7 +191,7 @@ class StubbedCollection implements CollectionLike {
     private readonly removeResponses?: ConfigurableResponse,
   ) {}
 
-  find(query: object): Promise<unknown[]> {
+  find<T>(query: object): Promise<T[]> {
     this.emitter.emit(this.collectionName, {
       type: 'find',
       collection: this.collectionName,
@@ -199,7 +199,7 @@ class StubbedCollection implements CollectionLike {
     });
 
     if (this.findResponses) {
-      return Promise.resolve(this.findResponses.next() as unknown[]);
+      return Promise.resolve(this.findResponses.next() as T[]);
     }
 
     return Promise.resolve([]);
