@@ -21,7 +21,7 @@ interface SubscriptionRecord {
 const addedMessage = (collection: string, doc: Record<string, unknown>) => ({
   type: 'added',
   collection,
-  id: doc._id as string,
+  id: doc._id,
   fields: Object.fromEntries(Object.entries(doc).filter(([key]) => key !== '_id')),
 });
 
@@ -176,8 +176,8 @@ export class Publications {
 
       const cleanup = this.mongo.watchChanges(collection, (change: ChangeEvent) => {
         if (change.type === 'insert') {
-          documentIds.add(change.fields._id as string);
-          this.ws.send(clientId, addedMessage(collection, change.fields));
+          documentIds.add(change.id);
+          this.ws.send(clientId, addedMessage(collection, { _id: change.id, ...change.fields }));
         }
       });
 

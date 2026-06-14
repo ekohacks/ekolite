@@ -132,8 +132,9 @@ class RealCollection implements CollectionLike {
   watch(onChange: (raw: unknown) => void): () => void {
     const changeStream = this.collection.watch([], { fullDocument: 'updateLookup' });
     changeStream.on('change', onChange);
-    changeStream.on('error', () => {
+    changeStream.on('error', (err) => {
       // Ignore stream errors here. The caller can still report errors through regular driver behavior.
+      console.error(`Mongo change stream error on ${this.collection.collectionName}`, err);
     });
     return () => {
       void changeStream.close();
@@ -277,7 +278,7 @@ function mapRawChangeToChangeEvent(raw: unknown): ChangeEvent | null {
 
   if (operationType === 'insert') {
     const fullDocument = (raw as { fullDocument?: unknown }).fullDocument;
-    const id = getId(documentKey?._id ?? (fullDocument as { _id?: unknown })?._id);
+    const id = getId(documentKey?._id ?? (fullDocument as { _id?: unknown })._id);
     return {
       type: 'insert',
       collection: typeof collection === 'string' ? collection : '',
@@ -291,12 +292,12 @@ function mapRawChangeToChangeEvent(raw: unknown): ChangeEvent | null {
     const updateDescription = (raw as { updateDescription?: unknown }).updateDescription as
       | { updatedFields?: Record<string, unknown> }
       | undefined;
-    const id = getId(documentKey?._id ?? (fullDocument as { _id?: unknown })?._id);
+    const id = getId(documentKey?._id ?? (fullDocument as { _id?: unknown })._id);
     return {
       type: 'update',
       collection: typeof collection === 'string' ? collection : '',
       id,
-      fields: extractFields(fullDocument) || updateDescription?.updatedFields || {},
+      fields: fullDocument ? extractFields(fullDocument) : (updateDescription?.updatedFields ?? {}),
     };
   }
 
