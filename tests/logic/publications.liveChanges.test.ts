@@ -3,10 +3,9 @@ import { MongoWrapper } from '../../server/infrastructure/mongo.ts';
 import { WebSocketWrapper } from '../../server/infrastructure/websocket.ts';
 import { Publications } from '../../server/logic/publications.ts';
 
-// RED: the live watcher in publications.ts only forwards 'insert' changes today
-// (see the change.type === 'insert' branch). 'update' and 'remove' changes are
-// dropped, so a subscribed client never hears about edits or deletions. These
-// pin the wire messages the watcher should send for each change type.
+// Live change forwarding from the publications watcher to subscribers.
+// 3.C.5 added 'changed' and 'removed' alongside 'added'. 3.C.6 (further down)
+// gates 'removed' so a client is only told about deletes of docs it holds.
 
 const messagesOfType = (messages: unknown[], type: string) =>
   messages.filter(
@@ -23,7 +22,7 @@ const subscribeToFiles = async () => {
   pubs.define('files.all', () => ({ collection: 'files', query: {} }));
   await pubs.handleMessage(client.id, { type: 'subscribe', id: 'sub1', name: 'files.all' });
 
-  return { mongo, client };
+  return { mongo, client, pubs };
 };
 
 describe('Publications live updates and deletes', () => {
@@ -41,11 +40,12 @@ describe('Publications live updates and deletes', () => {
   it('forwards a watched delete to the client as a removed message', async () => {
     const { mongo, client } = await subscribeToFiles();
 
-    await mongo.remove('files', { name: 'gone' });
+    await mongo.insert('files', { _id: 'doc-1', name: 'gone' });
+    await mongo.remove('files', { _id: 'doc-1' });
 
     const [removed] = messagesOfType(client.messages, 'removed');
     expect(removed.collection).toBe('files');
-    expect(removed.id).toBeTruthy();
+    expect(removed.id).toBe('doc-1');
   });
 
   it('delivers a watched update as exactly one changed message, never as an added', async () => {
@@ -57,5 +57,32 @@ describe('Publications live updates and deletes', () => {
     const delivered = client.messages.slice(before);
     expect(delivered).toHaveLength(1);
     expect((delivered[0] as { type?: string }).type).toBe('changed');
+  });
+
+  // 3.C.6 part two: the watcher should forward a 'removed' only for a doc the
+  // client holds. Today every delete is forwarded, so a delete of a doc the
+  // client never received wrongly reaches it. This is the one genuine red.
+  it('does not send a removed for a delete of a doc the client never held', async () => {
+    const { mongo, client } = await subscribeToFiles();
+
+    await mongo.remove('files', { _id: 'never-held' });
+
+    expect(messagesOfType(client.messages, 'removed')).toHaveLength(0);
+  });
+
+  // Regression guard, green today: 3.C.5's documentIds.delete already prevents a
+  // double removed. This pins that the gate keeps it that way.
+  it('sends one removed for a held doc and none again on unsubscribe', async () => {
+    const { mongo, client, pubs } = await subscribeToFiles();
+
+    await mongo.insert('files', { _id: 'doc-1', name: 'live.bam' });
+    await mongo.remove('files', { _id: 'doc-1' });
+
+    expect(messagesOfType(client.messages, 'removed')).toHaveLength(1);
+
+    const before = client.messages.length;
+    await pubs.handleMessage(client.id, { type: 'unsubscribe', id: 'sub1' });
+
+    expect(messagesOfType(client.messages.slice(before), 'removed')).toHaveLength(0);
   });
 });
