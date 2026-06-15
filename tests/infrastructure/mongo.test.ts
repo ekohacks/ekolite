@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MongoWrapper } from '../../server/infrastructure/mongo.ts';
-import { ChangeEvent } from '../../shared/types.ts';
+import { ChangeEvent, isChangeEvent } from '../../shared/types.ts';
 
 describe('MongoWrapper (null)', () => {
   it('returns configured find responses in order', async () => {
@@ -201,6 +201,45 @@ describe('MongoWrapper (null)', () => {
       collection: 'testDocs',
     });
     expect(tracker.data[1]).toHaveProperty('id');
+  });
+
+  // 3.C.6 part one (Option 1, dumb stub): the stub echoes the _id it is handed, the
+  // doc's _id on insert and the query's _id on update and remove, so a test can make a
+  // change target a known doc. Today it mints a fresh ObjectId per call, so these fail.
+  it('emits an insert change carrying the _id from the document', async () => {
+    const mongo = MongoWrapper.createNull();
+    const tracker = mongo.trackChanges('testDocs');
+
+    await mongo.insert('testDocs', { _id: 'doc-1', name: 'old' });
+
+    const inserted = tracker.data.filter(isChangeEvent).find((event) => event.type === 'insert');
+    expect(inserted?.id).toBe('doc-1');
+  });
+
+  it('emits an update change carrying the _id from the query', async () => {
+    const mongo = MongoWrapper.createNull();
+    const tracker = mongo.trackChanges('testDocs');
+
+    await mongo.update('testDocs', { _id: 'doc-1' }, { $set: { name: 'new' } });
+
+    const updated = tracker.data.filter(isChangeEvent).find((event) => event.type === 'update');
+    expect(updated).toMatchObject({
+      type: 'update',
+      collection: 'testDocs',
+      fields: { name: 'new' },
+    });
+    expect(updated?.id).toBe('doc-1');
+  });
+
+  it('emits a remove change carrying the _id from the query', async () => {
+    const mongo = MongoWrapper.createNull();
+    const tracker = mongo.trackChanges('testDocs');
+
+    await mongo.remove('testDocs', { _id: 'doc-1' });
+
+    const removed = tracker.data.filter(isChangeEvent).find((event) => event.type === 'remove');
+    expect(removed).toMatchObject({ type: 'remove', collection: 'testDocs' });
+    expect(removed?.id).toBe('doc-1');
   });
 
   it('reports zero watchers for an unwatched collection', () => {
