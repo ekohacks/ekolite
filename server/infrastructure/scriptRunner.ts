@@ -100,7 +100,7 @@ class StubbedProcessRunner implements ProcessRunnerLike {
       result,
     });
 
-    return result;
+    return Promise.resolve(result);
   }
 
   watch(onChange: (raw: unknown) => void): () => void {
