@@ -196,8 +196,9 @@ export class Publications {
             break;
           }
           case 'remove': {
-            documentIds.delete(change.id);
-            this.ws.send(clientId, removedMessage(collection, change.id));
+            if (documentIds.delete(change.id)) {
+              this.ws.send(clientId, removedMessage(collection, change.id));
+            }
             break;
           }
           default: {
