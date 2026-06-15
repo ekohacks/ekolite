@@ -1,98 +1,144 @@
 import { access, mkdir, unlink, writeFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { dirname, resolve as pathResolve } from 'node:path';
 import { ConfigurableResponse, EventEmitter, OutputTracker } from './outputTracker.ts';
 
 const CHANGE_EVENT = 'change';
 
-interface FileStorageInterface {
-  save(name: string, data: Buffer): Promise<void>;
-  exists(name: string): Promise<boolean>;
-  remove(name: string): Promise<void>;
+interface FileSystemLike {
+  writeFile(path: string, data: Buffer): Promise<void>;
+  access(path: string): Promise<boolean>;
+  unlink(path: string): Promise<void>;
   resolve(name: string): string;
-  trackChanges(): OutputTracker;
+  watch(onChange: (raw: unknown) => void): () => void;
+}
+
+interface StubbedFileSystemOptions {
+  save?: unknown[];
+  exists?: unknown[];
+  remove?: unknown[];
 }
 
 export class FileStorageWrapper {
-  private fs: FileStorageInterface;
+  private readonly adapter: FileSystemLike;
+  private readonly emitter = new EventEmitter();
+  private stopWatch?: () => void;
 
-  private constructor(fs: FileStorageInterface) {
-    this.fs = fs;
+  private constructor(adapter: FileSystemLike) {
+    this.adapter = adapter;
   }
 
   static create(basePath: string): FileStorageWrapper {
-    return new FileStorageWrapper(new RealFileStorage(basePath));
+    return new FileStorageWrapper(new RealFileSystem(basePath));
   }
 
   static createNull(options: StubbedFileSystemOptions = {}): FileStorageWrapper {
-    return new FileStorageWrapper(new StubbedFileStorage(options));
+    const factory = new StubbedFileSystemFactory(options);
+    return new FileStorageWrapper(factory.instance());
   }
 
   async save(name: string, data: Buffer): Promise<void> {
     if (!name) {
       throw new Error('File name cannot be empty');
     }
-    return this.fs.save(name, data);
+    await this.adapter.writeFile(name, data);
+    this.openWatchIfNeeded();
+    return;
   }
 
   async exists(name: string): Promise<boolean> {
-    return this.fs.exists(name);
+    this.openWatchIfNeeded();
+    return this.adapter.access(name);
   }
 
   async remove(name: string): Promise<void> {
-    return this.fs.remove(name);
+    this.openWatchIfNeeded();
+    return this.adapter.unlink(name);
   }
 
   resolve(name: string): string {
-    return this.fs.resolve(name);
+    return this.adapter.resolve(name);
   }
 
   trackChanges(): OutputTracker {
-    return this.fs.trackChanges();
+    this.openWatchIfNeeded();
+    return new OutputTracker(this.emitter, CHANGE_EVENT);
+  }
+
+  private openWatchIfNeeded(): void {
+    if (this.stopWatch) {
+      return;
+    }
+    this.stopWatch = this.adapter.watch((raw) => {
+      this.emitter.emit(CHANGE_EVENT, raw);
+    });
   }
 }
 
-class RealFileStorage implements FileStorageInterface {
+class RealFileSystem implements FileSystemLike {
   private basePath: string;
+  private readonly emitter = new EventEmitter();
 
   constructor(basePath: string) {
     this.basePath = basePath;
   }
 
-  async save(name: string, data: Buffer): Promise<void> {
+  async writeFile(name: string, data: Buffer): Promise<void> {
     const fullPath = this.resolve(name);
     await mkdir(dirname(fullPath), { recursive: true });
     await writeFile(fullPath, data);
+    this.emitter.emit(CHANGE_EVENT, { type: 'save', name, data });
+    return;
   }
 
-  async exists(name: string): Promise<boolean> {
+  async access(name: string): Promise<boolean> {
     try {
       await access(this.resolve(name));
+      this.emitter.emit(CHANGE_EVENT, { type: 'exists', name, exists: true });
       return true;
     } catch {
+      this.emitter.emit(CHANGE_EVENT, { type: 'exists', name, exists: false });
       return false;
     }
   }
 
-  async remove(name: string): Promise<void> {
+  async unlink(name: string): Promise<void> {
     await unlink(this.resolve(name));
+    this.emitter.emit(CHANGE_EVENT, { type: 'remove', name });
   }
 
   resolve(name: string): string {
-    return resolve(this.basePath, name);
+    return pathResolve(this.basePath, name);
   }
 
-  trackChanges(): OutputTracker {
-    throw new Error('trackChanges is only available on null instances');
+  watch(onChange: (raw: unknown) => void): () => void {
+    const listener = (data: unknown) => {
+      onChange(data);
+    };
+    this.emitter.on(CHANGE_EVENT, listener);
+    return () => {
+      this.emitter.off(CHANGE_EVENT, listener);
+    };
   }
 }
 
-interface StubbedFileSystemOptions {
-  save?: unknown[];
-  exists?: Error[];
-  remove?: unknown[];
+class StubbedFileSystemFactory {
+  private readonly instanceCache?: StubbedFileStorage | undefined;
+  private readonly options: StubbedFileSystemOptions;
+
+  constructor(options: StubbedFileSystemOptions = {}) {
+    this.options = options;
+    this.instanceCache = undefined;
+  }
+
+  instance(): StubbedFileStorage {
+    if (this.instanceCache) {
+      return this.instanceCache;
+    }
+    return new StubbedFileStorage(this.options);
+  }
 }
 
-class StubbedFileStorage implements FileStorageInterface {
+class StubbedFileStorage implements FileSystemLike {
   private store = new Map<string, Buffer>();
   private emitter = new EventEmitter();
   private saveResponses?: ConfigurableResponse;
@@ -111,43 +157,38 @@ class StubbedFileStorage implements FileStorageInterface {
     }
   }
 
-  save(name: string, data: Buffer): Promise<void> {
+  async writeFile(name: string, data: Buffer): Promise<void> {
     this.saveResponses?.next();
     this.store.set(name, data);
-    this.emitter.emit(CHANGE_EVENT, {
-      type: 'save',
-      name,
-      data,
-    });
+    this.emitter.emit(CHANGE_EVENT, { type: 'save', name, data });
     return Promise.resolve();
   }
 
-  exists(name: string): Promise<boolean> {
+  async access(name: string): Promise<boolean> {
     this.existsResponses?.next();
     const exists = this.store.has(name);
-    this.emitter.emit(CHANGE_EVENT, {
-      type: 'exists',
-      name,
-      exists,
-    });
+    this.emitter.emit(CHANGE_EVENT, { type: 'exists', name, exists });
     return Promise.resolve(exists);
   }
 
-  remove(name: string): Promise<void> {
+  async unlink(name: string): Promise<void> {
     this.removeResponses?.next();
     this.store.delete(name);
-    this.emitter.emit(CHANGE_EVENT, {
-      type: 'remove',
-      name,
-    });
+    this.emitter.emit(CHANGE_EVENT, { type: 'remove', name });
     return Promise.resolve();
   }
 
   resolve(name: string): string {
-    return resolve('/tmp/ekolite-null', name);
+    return pathResolve('/tmp/ekolite-null', name);
   }
 
-  trackChanges(): OutputTracker {
-    return new OutputTracker(this.emitter, CHANGE_EVENT);
+  watch(onChange: (raw: unknown) => void): () => void {
+    const listener = (data: unknown) => {
+      onChange(data);
+    };
+    this.emitter.on(CHANGE_EVENT, listener);
+    return () => {
+      this.emitter.off(CHANGE_EVENT, listener);
+    };
   }
 }
