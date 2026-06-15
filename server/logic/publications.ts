@@ -1,5 +1,5 @@
 import { ClientMessage, PublicationsObserver, PublicationsReasons } from '../../shared/protocol.ts';
-import { hasMongoOperator } from '../../shared/helperFunctions.ts';
+import { assertNever, hasMongoOperator } from '../../shared/helperFunctions.ts';
 import { MongoWrapper } from '../infrastructure/mongo.ts';
 import { WebSocketWrapper } from '../infrastructure/websocket.ts';
 import { ChangeEvent } from '../../shared/types.ts';
@@ -20,6 +20,13 @@ interface SubscriptionRecord {
 
 const addedMessage = (collection: string, doc: Record<string, unknown>) => ({
   type: 'added',
+  collection,
+  id: doc._id,
+  fields: Object.fromEntries(Object.entries(doc).filter(([key]) => key !== '_id')),
+});
+
+const changedMessage = (collection: string, doc: Record<string, unknown>) => ({
+  type: 'changed',
   collection,
   id: doc._id,
   fields: Object.fromEntries(Object.entries(doc).filter(([key]) => key !== '_id')),
@@ -175,9 +182,27 @@ export class Publications {
       this.ws.send(clientId, readyMessage(message.id, collection));
 
       const cleanup = this.mongo.watchChanges(collection, (change: ChangeEvent) => {
-        if (change.type === 'insert') {
-          documentIds.add(change.id);
-          this.ws.send(clientId, addedMessage(collection, { _id: change.id, ...change.fields }));
+        switch (change.type) {
+          case 'insert': {
+            documentIds.add(change.id);
+            this.ws.send(clientId, addedMessage(collection, { _id: change.id, ...change.fields }));
+            break;
+          }
+          case 'update': {
+            this.ws.send(
+              clientId,
+              changedMessage(collection, { _id: change.id, ...change.fields }),
+            );
+            break;
+          }
+          case 'remove': {
+            documentIds.delete(change.id);
+            this.ws.send(clientId, removedMessage(collection, change.id));
+            break;
+          }
+          default: {
+            assertNever(change);
+          }
         }
       });
 

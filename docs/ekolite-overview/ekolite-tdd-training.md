@@ -363,7 +363,7 @@ Tests still pass. Clean.
 
 ## 6. How to Read a Developer Story's Sub-stories
 
-Every developer story in the backlog (`ekolite-backlog.md`) has sub-stories labeled **a**, **b**, **c**:
+Every developer story in the backlog (tracked in Linear; the original written backlog is archived at `../archive/ekolite-backlog.md`) has sub-stories labeled **a**, **b**, **c**:
 
 | Sub-story | Phase    | What you do                                                  |
 | --------- | -------- | ------------------------------------------------------------ |
