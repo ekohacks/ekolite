@@ -105,4 +105,14 @@ describe('FileStorageWrapper (null)', () => {
       'File name cannot be empty',
     );
   });
+
+  it('tracks a save and then reports the file exists', async () => {
+    const storage = FileStorageWrapper.createNull();
+    const changes = storage.trackChanges();
+
+    await storage.save('a.txt', Buffer.from('hi'));
+
+    expect(await storage.exists('a.txt')).toBe(true);
+    expect(changes.data).toContainEqual({ type: 'save', name: 'a.txt', data: Buffer.from('hi') });
+  });
 });
