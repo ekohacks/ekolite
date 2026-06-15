@@ -152,7 +152,7 @@ Phase 1: Build the framework + smoke tests (this epic)
                                                Framework proven. Go/no-go.
 
 Phase 2: Migrate the UI onto ekolite (touches Epics 1, 2, 3)
-  (See ekolite-backlog.md "What Happens After Smoke Test 7" for exact file replacements)
+  (See the archived backlog, `../archive/ekolite-backlog.md`, "What Happens After Smoke Test 7" for exact file replacements)
   → Replace Meteor.subscribe with MeteorLight.subscribe in Home.jsx
   → Replace Meteor.callAsync with MeteorLight.call in GoSubmitButton.jsx
   → Replace BamCollection.insert with MeteorLight.upload in BamUploader.jsx
