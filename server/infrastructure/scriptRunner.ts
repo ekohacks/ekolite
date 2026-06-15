@@ -7,20 +7,22 @@ const EXECUTION_EVENT = 'execution';
 type ScriptRunnerResponse = ScriptResult | string | Error;
 type ScriptRunnerResponses = Record<string, ScriptRunnerResponse | ScriptRunnerResponse[]>;
 
-interface ScriptRunnerInterface {
+interface ProcessRunnerLike {
   exec(command: string, args: string[]): Promise<ScriptResult>;
-  trackChanges(): OutputTracker;
+  watch(onChange: (raw: unknown) => void): () => void;
 }
 
 export class ScriptRunnerWrapper {
-  private runner: ScriptRunnerInterface;
+  private readonly runner: ProcessRunnerLike;
+  private readonly emitter = new EventEmitter();
+  private stopWatch?: () => void;
 
-  private constructor(runner: ScriptRunnerInterface) {
+  private constructor(runner: ProcessRunnerLike) {
     this.runner = runner;
   }
 
   static create(): ScriptRunnerWrapper {
-    return new ScriptRunnerWrapper(new RealScriptRunner());
+    return new ScriptRunnerWrapper(new RealProcessRunner());
   }
 
   static createNull(responses: ScriptRunnerResponses = {}): ScriptRunnerWrapper {
@@ -28,33 +30,55 @@ export class ScriptRunnerWrapper {
   }
 
   async exec(command: string, args: string[]): Promise<ScriptResult> {
-    return this.runner.exec(command, args);
+    const result = await this.runner.exec(command, args);
+    this.openWatchIfNeeded();
+    return result;
   }
 
   trackChanges(): OutputTracker {
-    return this.runner.trackChanges();
+    this.openWatchIfNeeded();
+    return new OutputTracker(this.emitter, EXECUTION_EVENT);
+  }
+
+  private openWatchIfNeeded(): void {
+    if (this.stopWatch) {
+      return;
+    }
+    this.stopWatch = this.runner.watch((raw) => {
+      this.emitter.emit(EXECUTION_EVENT, raw);
+    });
   }
 }
 
-class RealScriptRunner implements ScriptRunnerInterface {
+class RealProcessRunner implements ProcessRunnerLike {
+  private readonly emitter = new EventEmitter();
+
   exec(command: string, args: string[]): Promise<ScriptResult> {
     return new Promise((resolve) => {
       execFile(command, args, (error, stdout, stderr) => {
-        resolve({
+        const result: ScriptResult = {
           stdout,
           stderr,
           exitCode: error?.code ? (typeof error.code === 'number' ? error.code : 1) : 0,
-        });
+        };
+        this.emitter.emit(EXECUTION_EVENT, { command, args: [...args], result });
+        resolve(result);
       });
     });
   }
 
-  trackChanges(): OutputTracker {
-    throw new Error('trackExecutions is only available on null instances');
+  watch(onChange: (raw: unknown) => void): () => void {
+    const listener = (data: unknown) => {
+      onChange(data);
+    };
+    this.emitter.on(EXECUTION_EVENT, listener);
+    return () => {
+      this.emitter.off(EXECUTION_EVENT, listener);
+    };
   }
 }
 
-class StubbedProcessRunner implements ScriptRunnerInterface {
+class StubbedProcessRunner implements ProcessRunnerLike {
   private responses = new Map<string, ConfigurableResponse>();
   private emitter = new EventEmitter();
 
@@ -76,11 +100,17 @@ class StubbedProcessRunner implements ScriptRunnerInterface {
       result,
     });
 
-    return Promise.resolve(result);
+    return result;
   }
 
-  trackChanges(): OutputTracker {
-    return new OutputTracker(this.emitter, EXECUTION_EVENT);
+  watch(onChange: (raw: unknown) => void): () => void {
+    const listener = (data: unknown) => {
+      onChange(data);
+    };
+    this.emitter.on(EXECUTION_EVENT, listener);
+    return () => {
+      this.emitter.off(EXECUTION_EVENT, listener);
+    };
   }
 }
 
