@@ -33,9 +33,9 @@ describe('Publications live updates and deletes', () => {
     await mongo.update('files', { name: 'old' }, { $set: { name: 'new' } });
 
     const [changed] = messagesOfType(client.messages, 'changed');
-    expect(changed?.collection).toBe('files');
-    expect(changed?.id).toBeTruthy();
-    expect(changed?.fields).toEqual({ name: 'new' });
+    expect(changed.collection).toBe('files');
+    expect(changed.id).toBeTruthy();
+    expect(changed.fields).toEqual({ name: 'new' });
   });
 
   it('forwards a watched delete to the client as a removed message', async () => {
@@ -44,8 +44,8 @@ describe('Publications live updates and deletes', () => {
     await mongo.remove('files', { name: 'gone' });
 
     const [removed] = messagesOfType(client.messages, 'removed');
-    expect(removed?.collection).toBe('files');
-    expect(removed?.id).toBeTruthy();
+    expect(removed.collection).toBe('files');
+    expect(removed.id).toBeTruthy();
   });
 
   it('delivers a watched update as exactly one changed message, never as an added', async () => {
