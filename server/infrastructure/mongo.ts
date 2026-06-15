@@ -279,7 +279,7 @@ function mapRawChangeToChangeEvent(raw: unknown): ChangeEvent | null {
 
   if (operationType === 'insert') {
     const fullDocument = (raw as { fullDocument?: unknown }).fullDocument;
-    const id = getId(documentKey?._id ?? (fullDocument as { _id?: unknown })._id);
+    const id = getId(documentKey?._id);
     return {
       type: 'insert',
       collection: typeof collection === 'string' ? collection : '',
@@ -293,7 +293,7 @@ function mapRawChangeToChangeEvent(raw: unknown): ChangeEvent | null {
     const updateDescription = (raw as { updateDescription?: unknown }).updateDescription as
       | { updatedFields?: Record<string, unknown> }
       | undefined;
-    const id = getId(documentKey?._id ?? (fullDocument as { _id?: unknown })._id);
+    const id = getId(documentKey?._id);
     return {
       type: 'update',
       collection: typeof collection === 'string' ? collection : '',
