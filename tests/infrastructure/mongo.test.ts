@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MongoWrapper } from '../../server/infrastructure/mongo.ts';
+import { ChangeEvent } from '../../shared/types.ts';
 
 describe('MongoWrapper (null)', () => {
   it('returns configured find responses in order', async () => {
@@ -237,5 +238,17 @@ describe('MongoWrapper (null)', () => {
     expect(mongo.watcherCount('files')).toBe(1);
     expect(mongo.watcherCount('scripts')).toBe(2);
     expect(mongo.watcherCount('other')).toBe(0);
+  });
+
+  it('emits an insert change to a watcher when a document is inserted', async () => {
+    const mongo = MongoWrapper.createNull();
+    const changes: ChangeEvent[] = [];
+
+    mongo.watchChanges('todos', (c) => changes.push(c));
+
+    await mongo.insert('todos', { text: 'hello' });
+
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toMatchObject({ type: 'insert', collection: 'todos' });
   });
 });

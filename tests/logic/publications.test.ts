@@ -595,4 +595,29 @@ describe('Publications', () => {
       id: '1',
     });
   });
+  it('sends removed on unsubscribe for documents added through the live watch', async () => {
+    const mongo = MongoWrapper.createNull({ find: [[]] });
+    const ws = WebSocketWrapper.createNull();
+    const client = ws.simulateConnection();
+    const pubs = new Publications(mongo, ws);
+
+    pubs.define('files.all', () => ({ collection: 'files', query: {} }));
+
+    await pubs.handleMessage(client.id, { type: 'subscribe', id: 'sub1', name: 'files.all' });
+
+    await mongo.insert('files', { name: 'live.bam' });
+
+    const added = client.messages.find(
+      (m): m is { type: string; id: string } =>
+        typeof m === 'object' && m !== null && (m as { type?: unknown }).type === 'added',
+    );
+    expect(added?.id).toBeTruthy();
+
+    const countBeforeUnsub = client.messages.length;
+    await pubs.handleMessage(client.id, { type: 'unsubscribe', id: 'sub1' });
+
+    expect(client.messages.slice(countBeforeUnsub)).toEqual([
+      { type: 'removed', collection: 'files', id: added?.id },
+    ]);
+  });
 });
