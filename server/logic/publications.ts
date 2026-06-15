@@ -25,6 +25,13 @@ const addedMessage = (collection: string, doc: Record<string, unknown>) => ({
   fields: Object.fromEntries(Object.entries(doc).filter(([key]) => key !== '_id')),
 });
 
+const changedMessage = (collection: string, doc: Record<string, unknown>) => ({
+  type: 'changed',
+  collection,
+  id: doc._id,
+  fields: Object.fromEntries(Object.entries(doc).filter(([key]) => key !== '_id')),
+});
+
 const readyMessage = (subId: string, collection: string) => ({
   type: 'ready',
   id: subId,
@@ -178,6 +185,11 @@ export class Publications {
         if (change.type === 'insert') {
           documentIds.add(change.id);
           this.ws.send(clientId, addedMessage(collection, { _id: change.id, ...change.fields }));
+        } else if (change.type === 'update') {
+          this.ws.send(clientId, changedMessage(collection, { _id: change.id, ...change.fields }));
+        } else if (change.type === 'remove') {
+          documentIds.delete(change.id);
+          this.ws.send(clientId, removedMessage(collection, change.id));
         }
       });
 
