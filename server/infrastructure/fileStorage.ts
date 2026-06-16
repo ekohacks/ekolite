@@ -13,9 +13,9 @@ interface FileSystemLike {
 }
 
 interface StubbedFileSystemOptions {
-  save?: unknown[];
-  exists?: unknown[];
-  remove?: unknown[];
+  save?: Error[];
+  exists?: Error[];
+  remove?: Error[];
 }
 
 export class FileStorageWrapper {
@@ -137,8 +137,8 @@ class RealFileSystem implements FileSystemLike {
 }
 
 class StubbedFileStorage implements FileSystemLike {
-  private store = new Map<string, Buffer>();
-  private emitter = new EventEmitter();
+  private readonly store = new Map<string, Buffer>();
+  private readonly emitter = new EventEmitter();
   private saveResponses?: ConfigurableResponse;
   private existsResponses?: ConfigurableResponse;
   private removeResponses?: ConfigurableResponse;
