@@ -61,6 +61,7 @@ export class FileStorageWrapper {
   }
 
   watch(onChange: (raw: unknown) => void): () => void {
+    this.openWatchIfNeeded();
     const listener = (data: unknown) => {
       onChange(data);
     };
@@ -76,12 +77,21 @@ export class FileStorageWrapper {
     }
     this.stopWatch = this.adapter.watch((raw) => {
       this.emitter.emit(CHANGE_EVENT, raw);
+      this.closeWatchIfUnused();
     });
+  }
+
+  private closeWatchIfUnused(): void {
+    if (this.emitter.listenerCount(CHANGE_EVENT) > 0) {
+      return;
+    }
+    this.stopWatch?.();
+    this.stopWatch = undefined;
   }
 }
 
 class RealFileSystem implements FileSystemLike {
-  private basePath: string;
+  private readonly basePath: string;
   private readonly emitter = new EventEmitter();
 
   constructor(basePath: string) {
