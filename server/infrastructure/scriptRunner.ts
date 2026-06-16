@@ -31,7 +31,6 @@ export class ScriptRunnerWrapper {
 
   async exec(command: string, args: string[]): Promise<ScriptResult> {
     const result = await this.runner.exec(command, args);
-    this.openWatchIfNeeded();
     return result;
   }
 

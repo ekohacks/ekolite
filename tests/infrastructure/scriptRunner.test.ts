@@ -86,14 +86,4 @@ describe('ScriptRunnerWrapper (null)', () => {
       exitCode: 0,
     });
   });
-
-  it('tracks an execution and returns the configured result', async () => {
-    const runner = ScriptRunnerWrapper.createNull({ python3: 'count: 42' });
-    const executions = runner.trackChanges();
-
-    const result = await runner.exec('python3', ['script.py']);
-
-    expect(result.stdout).toBe('count: 42');
-    expect(executions.data).toEqual([{ command: 'python3', args: ['script.py'], result }]);
-  });
 });

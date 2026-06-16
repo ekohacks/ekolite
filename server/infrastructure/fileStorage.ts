@@ -21,7 +21,7 @@ interface StubbedFileSystemOptions {
 export class FileStorageWrapper {
   private readonly adapter: FileSystemLike;
   private readonly emitter = new EventEmitter();
-  private stopWatch?: () => void;
+  private stopWatch?: (() => void) | undefined;
 
   private constructor(adapter: FileSystemLike) {
     this.adapter = adapter;
@@ -32,8 +32,8 @@ export class FileStorageWrapper {
   }
 
   static createNull(options: StubbedFileSystemOptions = {}): FileStorageWrapper {
-    const factory = new StubbedFileSystemFactory(options);
-    return new FileStorageWrapper(factory.instance());
+    const stubbedFileSystem = new StubbedFileStorage(options);
+    return new FileStorageWrapper(stubbedFileSystem);
   }
 
   async save(name: string, data: Buffer): Promise<void> {
@@ -41,17 +41,13 @@ export class FileStorageWrapper {
       throw new Error('File name cannot be empty');
     }
     await this.adapter.writeFile(name, data);
-    this.openWatchIfNeeded();
-    return;
   }
 
   async exists(name: string): Promise<boolean> {
-    this.openWatchIfNeeded();
     return this.adapter.access(name);
   }
 
   async remove(name: string): Promise<void> {
-    this.openWatchIfNeeded();
     return this.adapter.unlink(name);
   }
 
@@ -62,6 +58,16 @@ export class FileStorageWrapper {
   trackChanges(): OutputTracker {
     this.openWatchIfNeeded();
     return new OutputTracker(this.emitter, CHANGE_EVENT);
+  }
+
+  watch(onChange: (raw: unknown) => void): () => void {
+    const listener = (data: unknown) => {
+      onChange(data);
+    };
+    this.emitter.on(CHANGE_EVENT, listener);
+    return () => {
+      this.emitter.off(CHANGE_EVENT, listener);
+    };
   }
 
   private openWatchIfNeeded(): void {
@@ -87,7 +93,6 @@ class RealFileSystem implements FileSystemLike {
     await mkdir(dirname(fullPath), { recursive: true });
     await writeFile(fullPath, data);
     this.emitter.emit(CHANGE_EVENT, { type: 'save', name, data });
-    return;
   }
 
   async access(name: string): Promise<boolean> {
@@ -118,23 +123,6 @@ class RealFileSystem implements FileSystemLike {
     return () => {
       this.emitter.off(CHANGE_EVENT, listener);
     };
-  }
-}
-
-class StubbedFileSystemFactory {
-  private readonly instanceCache?: StubbedFileStorage | undefined;
-  private readonly options: StubbedFileSystemOptions;
-
-  constructor(options: StubbedFileSystemOptions = {}) {
-    this.options = options;
-    this.instanceCache = undefined;
-  }
-
-  instance(): StubbedFileStorage {
-    if (this.instanceCache) {
-      return this.instanceCache;
-    }
-    return new StubbedFileStorage(this.options);
   }
 }
 
