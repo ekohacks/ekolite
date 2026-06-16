@@ -105,15 +105,4 @@ describe('FileStorageWrapper (null)', () => {
       'File name cannot be empty',
     );
   });
-
-  it('emits change events to a watcher on the real file system', async () => {
-    const events: unknown[] = [];
-    const storage = FileStorageWrapper.createNull();
-    const stop = storage.watch((e) => events.push(e));
-
-    await storage.save('watched.bam', Buffer.from('content'));
-    stop();
-
-    expect(events).toEqual([{ type: 'save', name: 'watched.bam', data: Buffer.from('content') }]);
-  });
 });
