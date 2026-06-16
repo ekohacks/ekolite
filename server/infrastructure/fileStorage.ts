@@ -155,23 +155,27 @@ class StubbedFileStorage implements FileSystemLike {
     }
   }
 
-  async writeFile(name: string, data: Buffer): Promise<void> {
+  // Key the store by the resolved path, exactly as the real adapter keys the real
+  // file system, so names that resolve to the same path ('a.bam' and './a.bam')
+  // are one file in the null and in reality. The event carries the raw name, which
+  // is what the real adapter emits.
+  writeFile(name: string, data: Buffer): Promise<void> {
     this.saveResponses?.next();
-    this.store.set(name, data);
+    this.store.set(this.resolve(name), data);
     this.emitter.emit(CHANGE_EVENT, { type: 'save', name, data });
     return Promise.resolve();
   }
 
-  async access(name: string): Promise<boolean> {
+  access(name: string): Promise<boolean> {
     this.existsResponses?.next();
-    const exists = this.store.has(name);
+    const exists = this.store.has(this.resolve(name));
     this.emitter.emit(CHANGE_EVENT, { type: 'exists', name, exists });
     return Promise.resolve(exists);
   }
 
-  async unlink(name: string): Promise<void> {
+  unlink(name: string): Promise<void> {
     this.removeResponses?.next();
-    this.store.delete(name);
+    this.store.delete(this.resolve(name));
     this.emitter.emit(CHANGE_EVENT, { type: 'remove', name });
     return Promise.resolve();
   }

@@ -15,7 +15,7 @@ interface ProcessRunnerLike {
 export class ScriptRunnerWrapper {
   private readonly runner: ProcessRunnerLike;
   private readonly emitter = new EventEmitter();
-  private stopWatch?: () => void;
+  private stopWatch?: (() => void) | undefined;
 
   private constructor(runner: ProcessRunnerLike) {
     this.runner = runner;
@@ -30,8 +30,7 @@ export class ScriptRunnerWrapper {
   }
 
   async exec(command: string, args: string[]): Promise<ScriptResult> {
-    const result = await this.runner.exec(command, args);
-    return result;
+    return await this.runner.exec(command, args);
   }
 
   trackChanges(): OutputTracker {
