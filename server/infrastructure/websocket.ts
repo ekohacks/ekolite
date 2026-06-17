@@ -126,6 +126,18 @@ export class WebSocketWrapper implements WebSocketInterface {
     };
   }
 
+  onMessage(cb: (clientId: string, message: unknown) => void): () => void {
+    const listener = (data: unknown): void => {
+      if (isClientMessagePayload(data)) {
+        cb(data.clientId, data.message);
+      }
+    };
+    this.emitter.on(MESSAGE_EVENT, listener);
+    return () => {
+      this.emitter.off(MESSAGE_EVENT, listener);
+    };
+  }
+
   trackConnections(): OutputTracker {
     return new OutputTracker(this.emitter, CONNECTION_EVENT);
   }
@@ -169,6 +181,14 @@ function isClientIdPayload(data: unknown): data is { clientId: string } {
   return typeof (data as Record<string, unknown>).clientId === 'string';
 }
 
+function isClientMessagePayload(data: unknown): data is { clientId: string; message: unknown } {
+  if (data === null || typeof data !== 'object') {
+    return false;
+  }
+
+  return typeof (data as Record<string, unknown>).clientId === 'string' && 'message' in data;
+}
+
 class WsConnectionSource implements ConnectionSource {
   private wss: WebSocketServer | null = null;
   private listeners: ((socket: ServerSocketLike) => string)[] = [];
@@ -196,6 +216,11 @@ class WsConnectionSource implements ConnectionSource {
             socket.close();
           },
           onClose: (cb: () => void) => socket.on('close', cb),
+          onMessage(cb: (message: unknown) => void) {
+            socket.on('message', (data: Buffer) => {
+              cb(JSON.parse(data.toString()));
+            });
+          },
         };
         for (const l of this.listeners) {
           l(wrapped);
@@ -237,6 +262,11 @@ class FastifyConnectionSource implements ConnectionSource {
           connection.close();
         },
         onClose: (cb: () => void) => connection.on('close', cb),
+        onMessage(cb: (message: unknown) => void) {
+          connection.on('message', (data: Buffer) => {
+            cb(JSON.parse(data.toString()));
+          });
+        },
       };
       for (const l of this.listeners) {
         l(wrapped);
