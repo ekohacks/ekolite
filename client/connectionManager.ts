@@ -3,7 +3,7 @@ import { ReactiveStore } from './reactiveStore.ts';
 import { DataMsg, ServerMessage, SubscribeMsg, UnsubscribeMsg } from '../shared/protocol.ts';
 import { assertNever } from '../shared/helperFunctions.ts';
 
-interface SubscriptionHandle {
+export interface SubscriptionHandle {
   stop(): void;
   ready: Promise<void>;
 }
