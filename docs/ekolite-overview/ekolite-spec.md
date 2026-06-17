@@ -49,6 +49,11 @@ definePublication('UserFiles.all', (): FindCursor<UserFile> => {
 
 #### Client API:
 
+> Built reference: the client pub/sub surface that exists today is documented in
+> [`docs/api/`](../api/connection-manager.md) (`ConnectionManager`,
+> `SubscriptionHandle`). The snippet below is the spec's target shape, not the
+> current API.
+
 ```ts
 const sub = MeteorLight.subscribe('UserFiles.all');
 

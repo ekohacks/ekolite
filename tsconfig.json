@@ -28,7 +28,8 @@
     "tests",
     "*.config.ts",
     "*.config.mts",
-    "learning/**/*.ts"
+    "learning/**/*.ts",
+    "docs/api/__examples__/**/*.ts"
   ],
   "exclude": ["node_modules", "dist"]
 }
