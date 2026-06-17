@@ -212,7 +212,7 @@ class StubbedCollection implements CollectionLike {
       this.insertResponses.next();
     }
 
-    const id = new ObjectId().toString();
+    const id = idFrom(doc);
     this.emitter.emit(this.collectionName, {
       type: 'insert',
       collection: this.collectionName,
@@ -223,7 +223,7 @@ class StubbedCollection implements CollectionLike {
     return Promise.resolve();
   }
 
-  updateMany(_query: object, changes: object): Promise<void> {
+  updateMany(query: object, changes: object): Promise<void> {
     if (this.updateResponses) {
       this.updateResponses.next();
     }
@@ -232,14 +232,14 @@ class StubbedCollection implements CollectionLike {
     this.emitter.emit(this.collectionName, {
       type: 'update',
       collection: this.collectionName,
-      id: new ObjectId().toString(),
+      id: idFrom(query),
       fields: setFields,
     } satisfies ChangeEvent);
 
     return Promise.resolve();
   }
 
-  deleteMany(_query: object): Promise<void> {
+  deleteMany(query: object): Promise<void> {
     if (this.removeResponses) {
       this.removeResponses.next();
     }
@@ -247,7 +247,7 @@ class StubbedCollection implements CollectionLike {
     this.emitter.emit(this.collectionName, {
       type: 'remove',
       collection: this.collectionName,
-      id: new ObjectId().toString(),
+      id: idFrom(query),
     } satisfies ChangeEvent);
 
     return Promise.resolve();
@@ -262,6 +262,13 @@ class StubbedCollection implements CollectionLike {
       this.emitter.off(this.collectionName, listener);
     };
   }
+}
+
+function idFrom(source: object): string {
+  if ('_id' in source && typeof source._id === 'string') {
+    return source._id;
+  }
+  return new ObjectId().toString();
 }
 
 function mapRawChangeToChangeEvent(raw: unknown): ChangeEvent | null {
