@@ -27,3 +27,40 @@ describe('Files.upload', () => {
     expect((insert as { fields: { name?: unknown } }).fields.name).toBe('a.bam');
   });
 });
+
+// Read looks the document up by id, then hands back the stored bytes for it. The
+// document is the source of truth for the id to file name mapping.
+describe('Files.read', () => {
+  it('reads back the bytes and the document for a stored file', async () => {
+    const mongo = MongoWrapper.createNull({
+      find: [
+        [
+          {
+            _id: 'known',
+            name: 'a.txt',
+            path: '/x/a.txt',
+            size: 5,
+            extension: 'txt',
+            uploadedAt: new Date(),
+          },
+        ],
+      ],
+    });
+    const storage = FileStorageWrapper.createNull();
+    await storage.save('a.txt', Buffer.from('hello'));
+    const files = new Files(mongo, storage);
+
+    const result = await files.read('known');
+
+    expect(result?.file.name).toBe('a.txt');
+    expect(result?.data).toEqual(Buffer.from('hello'));
+  });
+
+  it('returns null when the file id is unknown', async () => {
+    const mongo = MongoWrapper.createNull();
+    const storage = FileStorageWrapper.createNull();
+    const files = new Files(mongo, storage);
+
+    expect(await files.read('nope')).toBeNull();
+  });
+});

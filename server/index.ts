@@ -46,6 +46,17 @@ export async function createServer(options: ServerOptions) {
       });
       return reply.status(201).send({ id: stored._id, name: stored.name });
     });
+
+    server.get('/api/files/:id', async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const result = await files.read(id);
+      if (!result) {
+        return reply.status(404).send({ error: 'file not found' });
+      }
+      reply.header('content-type', 'application/octet-stream');
+      reply.header('content-disposition', `attachment; filename="${result.file.name}"`);
+      return reply.send(result.data);
+    });
   }
 
   return server;

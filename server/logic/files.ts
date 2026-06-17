@@ -34,4 +34,14 @@ export class Files {
     await this.mongo.insert('files', stored);
     return stored;
   }
+
+  async read(id: string): Promise<{ file: StoredFile; data: Buffer } | null> {
+    const docs = await this.mongo.find<StoredFile>('files', { _id: id });
+    if (docs.length === 0) {
+      return null;
+    }
+    const file = docs[0];
+    const data = await this.storage.read(file.name);
+    return { file, data };
+  }
 }
