@@ -11,6 +11,12 @@ export function fileStorageContract(makeStorage: () => FileStorageWrapper): void
     expect(await storage.exists('report.bam')).toBe(true);
   });
 
+  it('reads back the bytes it saved', async () => {
+    const storage = makeStorage();
+    await storage.save('report.bam', Buffer.from('payload'));
+    expect(await storage.read('report.bam')).toEqual(Buffer.from('payload'));
+  });
+
   it('reports a file that was never saved as absent', async () => {
     const storage = makeStorage();
     expect(await storage.exists('missing.bam')).toBe(false);
