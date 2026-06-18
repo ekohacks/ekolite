@@ -1,4 +1,4 @@
-import { access, mkdir, unlink, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { dirname, resolve as pathResolve } from 'node:path';
 import { ConfigurableResponse, EventEmitter, OutputTracker } from './outputTracker.ts';
 
@@ -6,6 +6,7 @@ const CHANGE_EVENT = 'change';
 
 interface FileSystemLike {
   writeFile(path: string, data: Buffer): Promise<void>;
+  readFile(path: string): Promise<Buffer>;
   access(path: string): Promise<boolean>;
   unlink(path: string): Promise<void>;
   resolve(name: string): string;
@@ -49,6 +50,10 @@ export class FileStorageWrapper {
 
   async remove(name: string): Promise<void> {
     return this.adapter.unlink(name);
+  }
+
+  async read(name: string): Promise<Buffer> {
+    return this.adapter.readFile(name);
   }
 
   resolve(name: string): string {
@@ -103,6 +108,10 @@ class RealFileSystem implements FileSystemLike {
     await mkdir(dirname(fullPath), { recursive: true });
     await writeFile(fullPath, data);
     this.emitter.emit(CHANGE_EVENT, { type: 'save', name, data });
+  }
+
+  async readFile(name: string): Promise<Buffer> {
+    return readFile(this.resolve(name));
   }
 
   async access(name: string): Promise<boolean> {
@@ -164,6 +173,14 @@ class StubbedFileStorage implements FileSystemLike {
     this.store.set(this.resolve(name), data);
     this.emitter.emit(CHANGE_EVENT, { type: 'save', name, data });
     return Promise.resolve();
+  }
+
+  readFile(name: string): Promise<Buffer> {
+    const data = this.store.get(this.resolve(name));
+    if (!data) {
+      return Promise.reject(new Error(`No such file: ${name}`));
+    }
+    return Promise.resolve(data);
   }
 
   access(name: string): Promise<boolean> {

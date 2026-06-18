@@ -7,14 +7,16 @@ EkoLite is a public, work in progress rebuild of Meteor's core ideas with delibe
 ## What works today
 
 - **Nullable infrastructure wrappers**, each with `create()` and `createNull()` factories: MongoDB (`MongoWrapper`), WebSocket server (`WebSocketWrapper`), file storage (`FileStorageWrapper`) and script runner (`ScriptRunnerWrapper`)
-- **Pub/sub engine** (`Publications`): define a publication on the server, subscribe over the socket, receive `ready` and data messages, with reference counted teardown
+- **Pub/sub engine** (`Publications`): define a publication on the server, subscribe over a live socket, receive `ready` and data messages, with reference counted teardown. Wired end to end now: a real browser client subscribes over a real socket and its store fills from Mongo
+- **File storage over HTTP** (`Files`): `POST /api/files` saves the bytes and inserts a document that streams into the live list through pub/sub; `GET /api/files/:id` streams them back
 - **Client stack**: `ClientSocketWrapper` (nullable WebSocket client), `ConnectionManager` (subscription lifecycle) and `ReactiveStore` (client side collection state)
 - **Mini DDP protocol** ([`shared/protocol.ts`](shared/protocol.ts)): six message types, typed end to end
+- **Live boot** (`start.ts`): real Mongo, websocket, publications and file store, with a runnable browser demo at [`client/demo/live.html`](client/demo/live.html)
 
 ## What is planned, not yet built
 
 - A server side method registry (RPC). The `method`, `result` and `error` message types already exist in the protocol; the registry that handles them is the next epic.
-- File uploads and asset resolution as product features. The infrastructure wrappers exist; nothing user facing sits on them yet.
+- Reconnect and resubscribe after a dropped socket, and auth on the HTTP routes. Today a closed socket disposes and stays disposed, and the file routes are open.
 
 ## Quick start
 
@@ -35,8 +37,8 @@ npm test
 ```
 ekolite/
 ├── server/
-│   ├── index.ts                  # createServer: Fastify + static + websocket
-│   ├── start.ts                  # Entry point
+│   ├── index.ts                  # createServer: Fastify, static, websocket, pub/sub + file routes
+│   ├── start.ts                  # Entry point: real Mongo, ws, publications, file store
 │   ├── infrastructure/
 │   │   ├── mongo.ts              # MongoWrapper, create() / createNull()
 │   │   ├── websocket.ts          # WebSocketWrapper, create() / createNull()
@@ -44,7 +46,8 @@ ekolite/
 │   │   ├── scriptRunner.ts       # ScriptRunnerWrapper
 │   │   └── outputTracker.ts      # EventEmitter + OutputTracker
 │   └── logic/
-│       └── publications.ts       # Pub/sub engine
+│       ├── publications.ts       # Pub/sub engine
+│       └── files.ts              # Files: upload and read over storage + Mongo
 ├── client/
 │   ├── clientSocket.ts           # ClientSocketWrapper, nullable WebSocket client
 │   ├── connectionManager.ts      # Subscriptions and lifecycle
