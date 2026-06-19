@@ -231,6 +231,10 @@ export class ConnectionManager {
         }
         break;
       }
+      case 'pong': {
+        // Yet to be implemented: Server doesn't send pong currently
+        break;
+      }
       default:
         assertNever(message);
     }

@@ -33,6 +33,8 @@ export function isServerMessage(data: unknown): data is ServerMessage {
         typeof (msg.error as Record<string, unknown>).code === 'number' &&
         typeof (msg.error as Record<string, unknown>).message === 'string'
       );
+    case 'pong':
+      return true;
     default:
       return false;
   }
@@ -42,6 +44,9 @@ interface ClientSocketOptions {
   pingIntervalMs?: number;
   pongTimeoutMs?: number;
 }
+
+type HeartbeatSender = () => void;
+type HeartbeatCloser = () => void;
 
 export interface WebSocketLike {
   send(data: string): void;
@@ -54,6 +59,56 @@ export interface WebSocketLike {
 }
 
 type WebSocketFactory = (url: string) => WebSocketLike;
+
+interface Clock {
+  now: () => number;
+}
+
+export class Heartbeat {
+  private intervalId?: ReturnType<typeof setInterval> | undefined;
+  private timeoutId?: ReturnType<typeof setTimeout> | undefined;
+  private lastPongAt = 0;
+
+  constructor(
+    private readonly sendPing: HeartbeatSender,
+    private readonly close: HeartbeatCloser,
+    private readonly options: ClientSocketOptions,
+    private readonly clock: Clock = { now: () => Date.now() },
+  ) {}
+
+  start(now = this.clock.now()): void {
+    this.lastPongAt = now;
+
+    this.intervalId = setInterval(() => {
+      const now = this.clock.now();
+
+      this.sendPing();
+
+      const timedOut = now - this.lastPongAt > (this.options.pongTimeoutMs ?? 0);
+
+      if (timedOut) {
+        this.stop();
+        this.close();
+      }
+    }, this.options.pingIntervalMs);
+  }
+
+  onPong(): void {
+    this.lastPongAt = this.clock.now();
+  }
+
+  stop(): void {
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+    }
+    if (this.timeoutId) {
+      clearTimeout(this.timeoutId);
+    }
+
+    this.intervalId = undefined;
+    this.timeoutId = undefined;
+  }
+}
 
 class RealWebSocket implements WebSocketLike {
   private socket: WebSocket;
@@ -137,7 +192,7 @@ export class StubbedServer {
 export class ClientSocketWrapper {
   private readonly socket: WebSocketLike;
   private readonly emitter = new EventEmitter();
-  private pingInterval?: ReturnType<typeof setInterval> | undefined;
+  private heartbeat?: Heartbeat;
 
   private constructor(
     url: string,
@@ -152,12 +207,18 @@ export class ClientSocketWrapper {
           console.error('Invalid server message shape', raw);
           return;
         }
+
+        if (raw.type === 'pong') {
+          this.heartbeat?.onPong();
+        }
+
         this.emitter.emit(EVENT_INBOUND, raw);
       } catch (error) {
         console.error('Failed to parse server message', error);
       }
     };
     this.socket.onclose = () => {
+      this.heartbeat?.stop();
       this.emitter.emit(CLIENT_DISCONNECTION_EVENT);
     };
   }
@@ -181,28 +242,6 @@ export class ClientSocketWrapper {
     return new ClientSocketWrapper('wss://null', (u) => new NullWebSocket(u), clientOptions);
   }
 
-  private startHeartbeat(): void {
-    const interval = this.clientOptions.pingIntervalMs;
-
-    if (!interval) {
-      return;
-    }
-
-    this.pingInterval = setInterval(() => {
-      void this.send({
-        type: 'ping',
-        id: 'heartbeat',
-      });
-    }, interval);
-  }
-
-  private stopHeartbeat(): void {
-    if (this.pingInterval) {
-      clearInterval(this.pingInterval);
-      this.pingInterval = undefined;
-    }
-  }
-
   get isConnected(): boolean {
     return this.socket.readyState === WebSocket.OPEN;
   }
@@ -217,9 +256,23 @@ export class ClientSocketWrapper {
         reject(new Error('Socket already closed'));
         return;
       }
+
       let settled = false;
       this.socket.onopen = () => {
-        this.startHeartbeat();
+        this.heartbeat = new Heartbeat(
+          () => {
+            void this.send({ type: 'ping' });
+          },
+          () => {
+            this.socket.close();
+          },
+          {
+            pingIntervalMs: this.clientOptions.pingIntervalMs ?? 0,
+            pongTimeoutMs: this.clientOptions.pongTimeoutMs ?? 0,
+          },
+        );
+
+        this.heartbeat.start();
 
         if (!settled) {
           settled = true;
@@ -231,10 +284,6 @@ export class ClientSocketWrapper {
           settled = true;
           reject(new Error('WebSocket connection failed'));
         }
-      };
-      this.socket.onclose = () => {
-        this.stopHeartbeat();
-        this.emitter.emit(CLIENT_DISCONNECTION_EVENT);
       };
     });
   }

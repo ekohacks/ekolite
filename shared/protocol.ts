@@ -63,16 +63,6 @@ export type DataMsg =
       id: string;
     };
 
-export type ObserverOutcome = 'applied' | 'skipped' | 'failed';
-
-export interface ReactiveStoreObserver {
-  onMessage(msg: DataMsg, outcome: ObserverOutcome, reason?: ReactiveStoreReasons): void;
-}
-
-export interface PublicationsObserver {
-  onMessage(msg: ClientMessage, outcome: ObserverOutcome, reason?: PublicationsReasons): void;
-}
-
 export interface ResultMsg {
   type: 'result';
   id: string;
@@ -85,7 +75,22 @@ export interface ErrorMsg {
   error: EkoLiteError;
 }
 
-export type ServerMessage = ReadyMsg | DataMsg | ResultMsg | ErrorMsg;
+export interface PongMsg {
+  type: 'pong';
+  id?: string;
+}
+
+export type ServerMessage = ReadyMsg | DataMsg | ResultMsg | ErrorMsg | PongMsg;
+
+export type ObserverOutcome = 'applied' | 'skipped' | 'failed';
+
+export interface ReactiveStoreObserver {
+  onMessage(msg: DataMsg, outcome: ObserverOutcome, reason?: ReactiveStoreReasons): void;
+}
+
+export interface PublicationsObserver {
+  onMessage(msg: ClientMessage, outcome: ObserverOutcome, reason?: PublicationsReasons): void;
+}
 
 // ── Shared ──────────────────────────────────────────────────────────────────
 

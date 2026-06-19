@@ -156,6 +156,7 @@ describe('ClientSocketWrapper (null)', () => {
       pongTimeoutMs: 500,
     });
     await socket.connect();
+    vi.advanceTimersByTime(0);
     const tracker = socket.trackMessages();
 
     vi.advanceTimersByTime(1500);
@@ -170,6 +171,7 @@ describe('ClientSocketWrapper (null)', () => {
       pongTimeoutMs: 500,
     });
     await socket.connect();
+    vi.advanceTimersByTime(0);
 
     const closed = new Promise<void>((resolve) => socket.onClose(resolve));
 
