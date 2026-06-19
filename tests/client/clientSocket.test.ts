@@ -162,6 +162,22 @@ describe('ClientSocketWrapper (null)', () => {
 
     expect(tracker.data.some((m) => (m as { type: string }).type === 'ping')).toBe(true);
   });
+
+  it('closes the socket when no pong arrives within the configured window', async () => {
+    vi.useFakeTimers();
+    const socket = ClientSocketWrapper.createNull({
+      pingIntervalMs: 1000,
+      pongTimeoutMs: 500,
+    });
+    await socket.connect();
+
+    const closed = new Promise<void>((resolve) => socket.onClose(resolve));
+
+    vi.advanceTimersByTime(2000);
+
+    await closed;
+    expect(socket.isConnected).toBe(false);
+  });
 });
 
 describe('isServerMessage type guard', () => {
