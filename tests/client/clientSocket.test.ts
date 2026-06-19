@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ClientSocketWrapper, isServerMessage } from '../../client/clientSocket.ts';
 import { ReadyMsg, ServerMessage, UnsubscribeMsg } from '../../shared/protocol.ts';
 
@@ -147,6 +147,20 @@ describe('ClientSocketWrapper (null)', () => {
 
     expect(tracker.data).toHaveLength(1);
     expect(tracker.data[0]).toEqual({ type: 'unsubscribe', id: '1' });
+  });
+
+  it('sends a ping at the configured interval after connect', async () => {
+    vi.useFakeTimers();
+    const socket = ClientSocketWrapper.createNull({
+      pingIntervalMs: 1000,
+      pongTimeoutMs: 500,
+    });
+    await socket.connect();
+    const tracker = socket.trackMessages();
+
+    vi.advanceTimersByTime(1500);
+
+    expect(tracker.data.some((m) => (m as { type: string }).type === 'ping')).toBe(true);
   });
 });
 
