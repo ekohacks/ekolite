@@ -26,7 +26,12 @@ export interface MethodMsg {
   params: unknown[];
 }
 
-export type ClientMessage = SubscribeMsg | UnsubscribeMsg | MethodMsg;
+export interface PingMsg {
+  type: 'ping';
+  id?: string;
+}
+
+export type ClientMessage = SubscribeMsg | UnsubscribeMsg | MethodMsg | PingMsg;
 
 // ── Server → Client ─────────────────────────────────────────────────────────
 

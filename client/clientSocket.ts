@@ -38,6 +38,11 @@ export function isServerMessage(data: unknown): data is ServerMessage {
   }
 }
 
+interface ClientSocketOptions {
+  pingIntervalMs?: number;
+  pongTimeoutMs?: number;
+}
+
 export interface WebSocketLike {
   send(data: string): void;
   close(): void;
@@ -132,8 +137,13 @@ export class StubbedServer {
 export class ClientSocketWrapper {
   private readonly socket: WebSocketLike;
   private readonly emitter = new EventEmitter();
+  private pingInterval?: ReturnType<typeof setInterval> | undefined;
 
-  private constructor(url: string, create: WebSocketFactory) {
+  private constructor(
+    url: string,
+    create: WebSocketFactory,
+    private readonly clientOptions: ClientSocketOptions = {},
+  ) {
     this.socket = create(url);
     this.socket.onmessage = (event) => {
       try {
@@ -152,7 +162,11 @@ export class ClientSocketWrapper {
     };
   }
 
-  static create(url: string, options?: { token?: string }): ClientSocketWrapper {
+  static create(
+    url: string,
+    options?: { token?: string },
+    clientOptions?: ClientSocketOptions,
+  ): ClientSocketWrapper {
     const parsed = new URL(url);
     if (parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') {
       throw new Error(`Invalid WebSocket URL: expected ws:// or wss://, got ${parsed.protocol}`);
@@ -160,11 +174,33 @@ export class ClientSocketWrapper {
     if (options?.token) {
       parsed.searchParams.set('token', options.token);
     }
-    return new ClientSocketWrapper(parsed.toString(), (u) => new RealWebSocket(u));
+    return new ClientSocketWrapper(parsed.toString(), (u) => new RealWebSocket(u), clientOptions);
   }
 
-  static createNull(): ClientSocketWrapper {
-    return new ClientSocketWrapper('wss://null', (u) => new NullWebSocket(u));
+  static createNull(clientOptions?: ClientSocketOptions): ClientSocketWrapper {
+    return new ClientSocketWrapper('wss://null', (u) => new NullWebSocket(u), clientOptions);
+  }
+
+  private startHeartbeat(): void {
+    const interval = this.clientOptions.pingIntervalMs;
+
+    if (!interval) {
+      return;
+    }
+
+    this.pingInterval = setInterval(() => {
+      void this.send({
+        type: 'ping',
+        id: 'heartbeat',
+      });
+    }, interval);
+  }
+
+  private stopHeartbeat(): void {
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+      this.pingInterval = undefined;
+    }
   }
 
   get isConnected(): boolean {
@@ -183,6 +219,8 @@ export class ClientSocketWrapper {
       }
       let settled = false;
       this.socket.onopen = () => {
+        this.startHeartbeat();
+
         if (!settled) {
           settled = true;
           resolve();
@@ -193,6 +231,10 @@ export class ClientSocketWrapper {
           settled = true;
           reject(new Error('WebSocket connection failed'));
         }
+      };
+      this.socket.onclose = () => {
+        this.stopHeartbeat();
+        this.emitter.emit(CLIENT_DISCONNECTION_EVENT);
       };
     });
   }
