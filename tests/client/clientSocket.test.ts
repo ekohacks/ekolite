@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientSocketWrapper, isServerMessage } from '../../client/clientSocket.ts';
 import { ReadyMsg, ServerMessage, UnsubscribeMsg } from '../../shared/protocol.ts';
 
@@ -66,6 +66,9 @@ describe('ClientSocketWrapper parsing contract', () => {
 });
 
 describe('ClientSocketWrapper (null)', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
   it('is not connected before connect is called', () => {
     const socket = ClientSocketWrapper.createNull();
     expect(socket.isConnected).toBe(false);
@@ -147,6 +150,79 @@ describe('ClientSocketWrapper (null)', () => {
 
     expect(tracker.data).toHaveLength(1);
     expect(tracker.data[0]).toEqual({ type: 'unsubscribe', id: '1' });
+  });
+
+  it('sends a ping at the configured interval after connect', async () => {
+    vi.useFakeTimers();
+    const socket = ClientSocketWrapper.createNull({
+      pingIntervalMs: 1000,
+      pongTimeoutMs: 500,
+    });
+    await socket.connect();
+    vi.advanceTimersByTime(0);
+    const tracker = socket.trackMessages();
+
+    vi.advanceTimersByTime(1500);
+
+    expect(tracker.data.some((m) => (m as { type: string }).type === 'ping')).toBe(true);
+  });
+
+  it('closes the socket when no pong arrives within the configured window', async () => {
+    vi.useFakeTimers();
+    const socket = ClientSocketWrapper.createNull({
+      pingIntervalMs: 1000,
+      pongTimeoutMs: 500,
+    });
+    await socket.connect();
+    vi.advanceTimersByTime(0);
+
+    const closed = new Promise<void>((resolve) => socket.onClose(resolve));
+
+    vi.advanceTimersByTime(2000);
+
+    await closed;
+    expect(socket.isConnected).toBe(false);
+  });
+
+  it('does not close the connection when no heartbeat is configured', async () => {
+    const socket = ClientSocketWrapper.createNull();
+    await socket.connect();
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(socket.isConnected).toBe(true);
+  });
+
+  it('stays open while pongs arrive within the window', async () => {
+    vi.useFakeTimers();
+    const socket = ClientSocketWrapper.createNull({
+      pingIntervalMs: 1000,
+      pongTimeoutMs: 500,
+    });
+    const server = socket.simulateServer();
+    await socket.connect();
+    vi.advanceTimersByTime(0);
+
+    for (let i = 0; i < 5; i++) {
+      vi.advanceTimersByTime(1000);
+      server.send({ type: 'pong' });
+    }
+
+    expect(socket.isConnected).toBe(true);
+  });
+
+  it('closes when a ping gets no pong within the window', async () => {
+    vi.useFakeTimers();
+    const socket = ClientSocketWrapper.createNull({
+      pingIntervalMs: 1000,
+      pongTimeoutMs: 500,
+    });
+    await socket.connect();
+    vi.advanceTimersByTime(0);
+
+    vi.advanceTimersByTime(1500);
+
+    expect(socket.isConnected).toBe(false);
   });
 });
 
