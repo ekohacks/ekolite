@@ -11,7 +11,7 @@ describe('Files.upload', () => {
     const mongo = MongoWrapper.createNull();
     const storage = FileStorageWrapper.createNull();
     const files = new Files(mongo, storage);
-    const inserts = mongo.trackChanges('files');
+    const inserts = await mongo.trackChanges('files');
 
     const stored = await files.upload({
       name: 'a.bam',

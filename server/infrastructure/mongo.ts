@@ -7,7 +7,7 @@ interface CollectionLike {
   insertOne(doc: object): Promise<void>;
   updateMany(query: object, changes: object): Promise<void>;
   deleteMany(query: object): Promise<void>;
-  watch(onChange: (raw: unknown) => void): () => void;
+  watch(onChange: (raw: unknown) => void): Promise<() => void>;
 }
 
 type CollectionFactory = (name: string) => CollectionLike;
@@ -22,7 +22,7 @@ interface StubbedMongoOptions {
 export class MongoWrapper {
   private readonly collectionFactory: CollectionFactory;
   private readonly emitter = new EventEmitter();
-  private readonly activeWatches = new Map<string, () => void>();
+  private readonly activeWatches = new Map<string, Promise<() => void>>();
 
   private constructor(collectionFactory: CollectionFactory) {
     this.collectionFactory = collectionFactory;
@@ -55,18 +55,21 @@ export class MongoWrapper {
     return this.collectionFactory(collection).deleteMany(query);
   }
 
-  watchChanges(collection: string, cb: (data: ChangeEvent) => void): () => void {
+  async watchChanges(
+    collection: string,
+    cb: (data: ChangeEvent) => void,
+  ): Promise<() => void> {
     const wrappedCb = (data: unknown) => {
       if (isChangeEvent(data)) {
         cb(data);
       }
     };
     this.emitter.on(collection, wrappedCb);
-    this.openWatchIfNeeded(collection);
+    await this.openWatchIfNeeded(collection);
 
     return () => {
       this.emitter.off(collection, wrappedCb);
-      this.closeWatchIfUnused(collection);
+      void this.closeWatchIfUnused(collection);
     };
   }
 
@@ -74,38 +77,38 @@ export class MongoWrapper {
     return this.emitter.listenerCount(collection);
   }
 
-  trackChanges(collection: string): OutputTracker {
+  async trackChanges(collection: string): Promise<OutputTracker> {
     const tracker = new OutputTracker(this.emitter, collection);
-    this.openWatchIfNeeded(collection);
+    await this.openWatchIfNeeded(collection);
     return tracker;
   }
 
-  private openWatchIfNeeded(collection: string): void {
-    if (this.activeWatches.has(collection)) {
-      return;
+  private openWatchIfNeeded(collection: string): Promise<() => void> {
+    const existing = this.activeWatches.get(collection);
+    if (existing) {
+      return existing;
     }
 
-    const stopWatching = this.collectionFactory(collection).watch((raw) => {
+    // Store the promise synchronously, before any await, so two subscribers that
+    // arrive in the same tick share one change stream rather than opening two.
+    const watch = this.collectionFactory(collection).watch((raw) => {
       const changeEvent = mapRawChangeToChangeEvent(raw);
-      if (changeEvent) {
-        this.emitter.emit(collection, changeEvent);
-      } else {
-        this.emitter.emit(collection, raw);
-      }
+      this.emitter.emit(collection, changeEvent ?? raw);
     });
-
-    this.activeWatches.set(collection, stopWatching);
+    this.activeWatches.set(collection, watch);
+    return watch;
   }
 
-  private closeWatchIfUnused(collection: string): void {
+  private async closeWatchIfUnused(collection: string): Promise<void> {
     if (this.emitter.listenerCount(collection) > 0) {
       return;
     }
 
-    const stopWatching = this.activeWatches.get(collection);
-    if (stopWatching) {
-      stopWatching();
+    const watch = this.activeWatches.get(collection);
+    if (watch) {
       this.activeWatches.delete(collection);
+      const stopWatching = await watch;
+      stopWatching();
     }
   }
 }
@@ -129,13 +132,22 @@ class RealCollection implements CollectionLike {
     return this.collection.deleteMany(query).then(() => undefined);
   }
 
-  watch(onChange: (raw: unknown) => void): () => void {
+  async watch(onChange: (raw: unknown) => void): Promise<() => void> {
     const changeStream = this.collection.watch([], { fullDocument: 'updateLookup' });
     changeStream.on('change', onChange);
     changeStream.on('error', (err) => {
       // Log for visibility, but don't rethrow or tear down the stream. The
       // caller still surfaces errors through regular driver behaviour.
       console.error(`Mongo change stream error on ${this.collection.collectionName}`, err);
+    });
+    // Resolve only once the server side cursor is established. collection.watch()
+    // returns before the cursor exists, so a write on the next line would be
+    // dropped; resumeTokenChanged fires once the cursor is live.
+    await new Promise<void>((resolve, reject) => {
+      changeStream.once('resumeTokenChanged', () => {
+        resolve();
+      });
+      changeStream.once('error', reject);
     });
     return () => {
       void changeStream.close();
@@ -253,14 +265,14 @@ class StubbedCollection implements CollectionLike {
     return Promise.resolve();
   }
 
-  watch(onChange: (raw: unknown) => void): () => void {
+  watch(onChange: (raw: unknown) => void): Promise<() => void> {
     const listener = (data: unknown) => {
       onChange(data);
     };
     this.emitter.on(this.collectionName, listener);
-    return () => {
+    return Promise.resolve(() => {
       this.emitter.off(this.collectionName, listener);
-    };
+    });
   }
 }
 

@@ -76,7 +76,7 @@ describe('MongoWrapper (null)', () => {
     const mongo = MongoWrapper.createNull({
       insert: [undefined],
     });
-    const tracker = mongo.trackChanges('testDocs');
+    const tracker = await mongo.trackChanges('testDocs');
     await mongo.insert('testDocs', { name: 'test' });
     expect(tracker.data).toHaveLength(1);
     expect(tracker.data[0]).toMatchObject({
@@ -91,7 +91,7 @@ describe('MongoWrapper (null)', () => {
     const mongo = MongoWrapper.createNull({
       update: [undefined],
     });
-    const tracker = mongo.trackChanges('testDocs');
+    const tracker = await mongo.trackChanges('testDocs');
     await mongo.update('testDocs', { name: 'old' }, { $set: { name: 'new' } });
     expect(tracker.data).toHaveLength(1);
     expect(tracker.data[0]).toMatchObject({
@@ -106,7 +106,7 @@ describe('MongoWrapper (null)', () => {
     const mongo = MongoWrapper.createNull({
       remove: [undefined],
     });
-    const tracker = mongo.trackChanges('testDocs');
+    const tracker = await mongo.trackChanges('testDocs');
     await mongo.remove('testDocs', { name: 'gone' });
     expect(tracker.data).toHaveLength(1);
     expect(tracker.data[0]).toMatchObject({
@@ -118,7 +118,7 @@ describe('MongoWrapper (null)', () => {
 
   it('tracks insert change events', async () => {
     const mongo = MongoWrapper.createNull();
-    const tracker = mongo.trackChanges('testDocs');
+    const tracker = await mongo.trackChanges('testDocs');
     await mongo.insert('testDocs', { name: 'test' });
     expect(tracker.data).toHaveLength(1);
     expect(tracker.data[0]).toMatchObject({
@@ -131,7 +131,7 @@ describe('MongoWrapper (null)', () => {
 
   it('updates a document', async () => {
     const mongo = MongoWrapper.createNull({ find: [[{ name: 'new' }]] });
-    const tracker = mongo.trackChanges('testDocs');
+    const tracker = await mongo.trackChanges('testDocs');
     await mongo.insert('testDocs', { name: 'old' });
     await mongo.update('testDocs', { name: 'old' }, { $set: { name: 'new' } });
     const docs = await mongo.find<{ name: string }>('testDocs', {});
@@ -153,7 +153,7 @@ describe('MongoWrapper (null)', () => {
 
   it('removes matching documents', async () => {
     const mongo = MongoWrapper.createNull({ find: [[{ name: 'keep' }]] });
-    const tracker = mongo.trackChanges('testDocs');
+    const tracker = await mongo.trackChanges('testDocs');
     await mongo.insert('testDocs', { name: 'keep' });
     await mongo.insert('testDocs', { name: 'remove' });
     await mongo.remove('testDocs', { name: 'remove' });
@@ -178,7 +178,7 @@ describe('MongoWrapper (null)', () => {
 
   it('tracks update change events', async () => {
     const mongo = MongoWrapper.createNull();
-    const tracker = mongo.trackChanges('testDocs');
+    const tracker = await mongo.trackChanges('testDocs');
     await mongo.insert('testDocs', { name: 'old' });
     await mongo.update('testDocs', { name: 'old' }, { $set: { name: 'new' } });
     expect(tracker.data).toHaveLength(2);
@@ -192,7 +192,7 @@ describe('MongoWrapper (null)', () => {
 
   it('tracks remove change events', async () => {
     const mongo = MongoWrapper.createNull();
-    const tracker = mongo.trackChanges('testDocs');
+    const tracker = await mongo.trackChanges('testDocs');
     await mongo.insert('testDocs', { name: 'gone' });
     await mongo.remove('testDocs', { name: 'gone' });
     expect(tracker.data).toHaveLength(2);
@@ -208,7 +208,7 @@ describe('MongoWrapper (null)', () => {
   // change target a known doc. Today it mints a fresh ObjectId per call, so these fail.
   it('emits an insert change carrying the _id from the document', async () => {
     const mongo = MongoWrapper.createNull();
-    const tracker = mongo.trackChanges('testDocs');
+    const tracker = await mongo.trackChanges('testDocs');
 
     await mongo.insert('testDocs', { _id: 'doc-1', name: 'old' });
 
@@ -218,7 +218,7 @@ describe('MongoWrapper (null)', () => {
 
   it('emits an update change carrying the _id from the query', async () => {
     const mongo = MongoWrapper.createNull();
-    const tracker = mongo.trackChanges('testDocs');
+    const tracker = await mongo.trackChanges('testDocs');
 
     await mongo.update('testDocs', { _id: 'doc-1' }, { $set: { name: 'new' } });
 
@@ -233,7 +233,7 @@ describe('MongoWrapper (null)', () => {
 
   it('emits a remove change carrying the _id from the query', async () => {
     const mongo = MongoWrapper.createNull();
-    const tracker = mongo.trackChanges('testDocs');
+    const tracker = await mongo.trackChanges('testDocs');
 
     await mongo.remove('testDocs', { _id: 'doc-1' });
 
@@ -247,13 +247,13 @@ describe('MongoWrapper (null)', () => {
     expect(mongo.watcherCount('files')).toBe(0);
   });
 
-  it('counts active watchers from watchChanges', () => {
+  it('counts active watchers from watchChanges', async () => {
     const mongo = MongoWrapper.createNull();
-    const stop1 = mongo.watchChanges('files', () => {
+    const stop1 = await mongo.watchChanges('files', () => {
       /* empty */
     });
     expect(mongo.watcherCount('files')).toBe(1);
-    const stop2 = mongo.watchChanges('files', () => {
+    const stop2 = await mongo.watchChanges('files', () => {
       /* empty */
     });
     expect(mongo.watcherCount('files')).toBe(2);
@@ -263,15 +263,15 @@ describe('MongoWrapper (null)', () => {
     expect(mongo.watcherCount('files')).toBe(0);
   });
 
-  it('counts watchers per collection', () => {
+  it('counts watchers per collection', async () => {
     const mongo = MongoWrapper.createNull();
-    mongo.watchChanges('files', () => {
+    await mongo.watchChanges('files', () => {
       /* empty */
     });
-    mongo.watchChanges('scripts', () => {
+    await mongo.watchChanges('scripts', () => {
       /* empty */
     });
-    mongo.watchChanges('scripts', () => {
+    await mongo.watchChanges('scripts', () => {
       /* empty */
     });
     expect(mongo.watcherCount('files')).toBe(1);
@@ -283,7 +283,7 @@ describe('MongoWrapper (null)', () => {
     const mongo = MongoWrapper.createNull();
     const changes: ChangeEvent[] = [];
 
-    mongo.watchChanges('todos', (c) => changes.push(c));
+    await mongo.watchChanges('todos', (c) => changes.push(c));
 
     await mongo.insert('todos', { text: 'hello' });
 

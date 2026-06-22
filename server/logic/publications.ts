@@ -181,7 +181,7 @@ export class Publications {
       }
       this.ws.send(clientId, readyMessage(message.id, collection));
 
-      const cleanup = this.mongo.watchChanges(collection, (change: ChangeEvent) => {
+      const cleanup = await this.mongo.watchChanges(collection, (change: ChangeEvent) => {
         switch (change.type) {
           case 'insert': {
             documentIds.add(change.id);
