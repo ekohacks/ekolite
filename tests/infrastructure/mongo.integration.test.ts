@@ -34,7 +34,7 @@ describe('MongoWrapper (real)', () => {
 
   it('emits change stream events for insert, update, and delete', async () => {
     const changes: unknown[] = [];
-    const stop = mongo.watchChanges('testDocs', (change) => {
+    const stop = await mongo.watchChanges('testDocs', (change) => {
       changes.push(change);
     });
 
