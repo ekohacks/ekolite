@@ -222,6 +222,10 @@ export class ConnectionManager {
         break;
       }
       case 'result':
+      case 'pong':
+        // result settles via its request; pong is a liveness signal already
+        // consumed by the heartbeat in ClientSocketWrapper. Neither carries
+        // application data, so there is nothing to route here.
         break;
       case 'error': {
         const subscription = this.subscriptions.get(message.id);
@@ -229,10 +233,6 @@ export class ConnectionManager {
           subscription.readyRejector(message.error);
           this.subscriptions.delete(message.id);
         }
-        break;
-      }
-      case 'pong': {
-        // Yet to be implemented: Server doesn't send pong currently
         break;
       }
       default:

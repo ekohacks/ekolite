@@ -24,7 +24,7 @@ describe('file upload over real HTTP', () => {
     const storage = FileStorageWrapper.createNull();
     const ws = WebSocketWrapper.createNull();
     const files = new Files(mongo, storage);
-    const inserts = mongo.trackChanges('files');
+    const inserts = await mongo.trackChanges('files');
 
     server = await createServer({ ws, files });
     await server.listen({ port: 0 });

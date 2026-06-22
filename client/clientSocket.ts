@@ -60,41 +60,45 @@ export interface WebSocketLike {
 
 type WebSocketFactory = (url: string) => WebSocketLike;
 
-interface Clock {
-  now: () => number;
-}
-
 export class Heartbeat {
   private intervalId?: ReturnType<typeof setInterval> | undefined;
   private timeoutId?: ReturnType<typeof setTimeout> | undefined;
-  private lastPongAt = 0;
 
   constructor(
     private readonly sendPing: HeartbeatSender,
     private readonly close: HeartbeatCloser,
     private readonly options: ClientSocketOptions,
-    private readonly clock: Clock = { now: () => Date.now() },
   ) {}
 
-  start(now = this.clock.now()): void {
-    this.lastPongAt = now;
-
+  start(): void {
+    const interval = this.options.pingIntervalMs ?? 0;
+    if (interval <= 0) {
+      return; // opt-in: unset or 0 means the heartbeat is off
+    }
     this.intervalId = setInterval(() => {
-      const now = this.clock.now();
+      this.ping();
+    }, interval);
+  }
 
-      this.sendPing();
-
-      const timedOut = now - this.lastPongAt > (this.options.pongTimeoutMs ?? 0);
-
-      if (timedOut) {
-        this.stop();
-        this.close();
-      }
-    }, this.options.pingIntervalMs);
+  private ping(): void {
+    this.sendPing();
+    const timeout = this.options.pongTimeoutMs ?? 0;
+    if (timeout <= 0) {
+      return; // ping only, no liveness deadline configured
+    }
+    // A fresh deadline per ping, cleared by onPong. If it fires, the pong
+    // never came back within the window, so the connection is dead.
+    this.timeoutId = setTimeout(() => {
+      this.stop();
+      this.close();
+    }, timeout);
   }
 
   onPong(): void {
-    this.lastPongAt = this.clock.now();
+    if (this.timeoutId) {
+      clearTimeout(this.timeoutId);
+      this.timeoutId = undefined;
+    }
   }
 
   stop(): void {
@@ -104,7 +108,6 @@ export class Heartbeat {
     if (this.timeoutId) {
       clearTimeout(this.timeoutId);
     }
-
     this.intervalId = undefined;
     this.timeoutId = undefined;
   }
@@ -197,7 +200,7 @@ export class ClientSocketWrapper {
   private constructor(
     url: string,
     create: WebSocketFactory,
-    private readonly clientOptions: ClientSocketOptions = {},
+    private readonly clientOptions?: ClientSocketOptions,
   ) {
     this.socket = create(url);
     this.socket.onmessage = (event) => {
@@ -267,8 +270,8 @@ export class ClientSocketWrapper {
             this.socket.close();
           },
           {
-            pingIntervalMs: this.clientOptions.pingIntervalMs ?? 0,
-            pongTimeoutMs: this.clientOptions.pongTimeoutMs ?? 0,
+            pingIntervalMs: this.clientOptions?.pingIntervalMs ?? 0,
+            pongTimeoutMs: this.clientOptions?.pongTimeoutMs ?? 0,
           },
         );
 
