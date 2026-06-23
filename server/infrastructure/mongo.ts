@@ -55,10 +55,7 @@ export class MongoWrapper {
     return this.collectionFactory(collection).deleteMany(query);
   }
 
-  async watchChanges(
-    collection: string,
-    cb: (data: ChangeEvent) => void,
-  ): Promise<() => void> {
+  async watchChanges(collection: string, cb: (data: ChangeEvent) => void): Promise<() => void> {
     const wrappedCb = (data: unknown) => {
       if (isChangeEvent(data)) {
         cb(data);
