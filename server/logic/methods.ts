@@ -13,7 +13,7 @@ export class Methods {
   async call(name: string, args: unknown[]): Promise<unknown> {
     const method = this.methods.get(name);
     if (!method) {
-      methodNotFound(404, name);
+      throw methodNotFound(name);
     }
 
     return method(...args);

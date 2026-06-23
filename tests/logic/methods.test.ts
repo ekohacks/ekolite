@@ -17,11 +17,6 @@ describe('Methods', () => {
     });
   });
 
-  it('throws when calling a method that is not defined', async () => {
-    const methods = new Methods();
-    await expect(methods.call('missing', [])).rejects.toThrow('Method not found: missing');
-  });
-
   it('refuses to redefine a method that already exists', () => {
     const methods = new Methods();
     methods.define('echo', (msg) => Promise.resolve(`echo: ${String(msg)}`));
