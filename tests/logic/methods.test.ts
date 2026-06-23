@@ -9,9 +9,12 @@ describe('Methods', () => {
     expect(result).toBe('echo: hello');
   });
 
-  it('throws when calling a method that is not defined', async () => {
+  it('throws structured error for unknown method', async () => {
     const methods = new Methods();
-    await expect(methods.call('missing', [])).rejects.toThrow('Method not found: missing');
+    await expect(methods.call('nope', [])).rejects.toMatchObject({
+      code: 404,
+      message: 'Method not found: nope',
+    });
   });
 
   it('refuses to redefine a method that already exists', () => {

@@ -2,6 +2,8 @@
  * Shared type definitions used by both server and client.
  */
 
+import { EkoLiteError } from './protocol.ts';
+
 // ── File uploads ────────────────────────────────────────────────────────────
 
 export interface UploadMeta {
@@ -63,3 +65,17 @@ export function isChangeEvent(data: unknown): data is ChangeEvent {
 // ── Method definitions ──────────────────────────────────────────────────────
 
 export type MethodFn = (...args: unknown[]) => Promise<unknown>;
+
+export function methodNotFound(name: string): RpcError {
+  return new RpcError(404, `Method not found: ${name}`);
+}
+
+class RpcError extends Error implements EkoLiteError {
+  constructor(
+    public readonly code: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'RpcError';
+  }
+}
