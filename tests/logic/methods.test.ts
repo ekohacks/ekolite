@@ -8,4 +8,12 @@ describe('Methods', () => {
     const result = await methods.call('echo', ['hello']);
     expect(result).toBe('echo: hello');
   });
+
+  it('throws structured error for unknown method', async () => {
+    const methods = new Methods();
+    await expect(methods.call('nope', [])).rejects.toMatchObject({
+      code: 404,
+      message: 'Method not found: nope',
+    });
+  });
 });
