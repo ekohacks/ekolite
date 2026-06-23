@@ -63,3 +63,17 @@ export function isChangeEvent(data: unknown): data is ChangeEvent {
 // ── Method definitions ──────────────────────────────────────────────────────
 
 export type MethodFn = (...args: unknown[]) => Promise<unknown>;
+
+export function methodNotFound(code: number, name: string): never {
+  throw new RpcError(code, `Method not found: ${name}`);
+}
+
+class RpcError extends Error {
+  constructor(
+    public readonly code: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'RpcError';
+  }
+}
