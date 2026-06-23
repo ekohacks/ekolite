@@ -5,15 +5,8 @@ describe('ScriptRunnerWrapper (real)', () => {
   const runner = ScriptRunnerWrapper.create();
 
   it('executes a command and returns stdout', async () => {
-    const result =
-      process.platform === 'win32'
-        ? await runner.exec('cmd', ['/c', 'echo', 'hello'])
-        : await runner.exec('echo', ['hello']);
-    expect(result).toEqual({
-      stdout: process.platform === 'win32' ? 'hello\r\n' : 'hello\n',
-      stderr: '',
-      exitCode: 0,
-    });
+    const result = await runner.exec('node', ['-e', 'process.stdout.write("hello")']);
+    expect(result).toEqual({ stdout: 'hello', stderr: '', exitCode: 0 });
   });
 
   it('returns stderr and non-zero exit code on failure', async () => {
