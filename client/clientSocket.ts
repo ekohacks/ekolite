@@ -288,20 +288,6 @@ export class ClientSocketWrapper {
           reject(new Error('WebSocket connection failed'));
         }
       };
-      this.socket.onmessage = (event) => {
-        try {
-          const raw: unknown = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-
-          if (!isServerMessage(raw)) {
-            console.error('Invalid server message shape', raw);
-            return;
-          }
-
-          this.emitter.emit(EVENT_INBOUND, raw);
-        } catch (error) {
-          console.error('Failed to parse server message', error);
-        }
-      };
     });
   }
 
