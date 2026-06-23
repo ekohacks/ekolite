@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EkoLite client demo</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 40rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+        color: #1a1a1a;
+      }
+      h1 {
+        margin-bottom: 0.25rem;
+      }
+      .lede {
+        color: #555;
+        margin-top: 0;
+      }
+      #status {
+        font-weight: 600;
+        padding: 0.4rem 0.6rem;
+        background: #eef;
+        border-radius: 0.4rem;
+        display: inline-block;
+      }
+      .controls {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin: 1rem 0;
+      }
+      button {
+        padding: 0.4rem 0.8rem;
+        border: 1px solid #99c;
+        border-radius: 0.4rem;
+        background: #fff;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      ul {
+        padding-left: 1.2rem;
+      }
+      li {
+        padding: 0.15rem 0;
+      }
+      #log {
+        font-family: ui-monospace, monospace;
+        font-size: 0.85rem;
+        color: #444;
+        background: #f6f6f6;
+        border-radius: 0.4rem;
+        padding: 0.6rem;
+        max-height: 12rem;
+        overflow: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>EkoLite client demo</h1>
+      <p class="lede">
+        The real ConnectionManager and ReactiveStore, driven by a stubbed server (no backend, no
+        Mongo). The buttons play the part of server messages.
+      </p>
+      <p id="status">connecting…</p>
+
+      <div class="controls">
+        <button id="add">Add file</button>
+        <button id="rename">Rename first</button>
+        <button id="remove">Remove first</button>
+        <button id="disconnect">Disconnect</button>
+      </div>
+
+      <h2>files</h2>
+      <ul id="list"></ul>
+
+      <h2>server messages</h2>
+      <div id="log"></div>
+    </main>
+    <script type="module" src="./demo.ts"></script>
+  </body>
+</html>

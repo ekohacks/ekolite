@@ -1,260 +1,107 @@
-# ekolite
+# EkoLite
 
-A lightweight, real-time backend framework for data-driven apps. Fastify + MongoDB + WebSocket with typed pub/sub, RPC methods, and file uploads. ~820 lines, zero UI opinions.
+A lightweight, real time backend framework in the spirit of Meteor. Fastify, MongoDB and WebSocket with a typed pub/sub protocol, built test first with James Shore's Nullables pattern. No mocks anywhere in the suite.
 
-## Features
+EkoLite is a public, work in progress rebuild of Meteor's core ideas with deliberate differences. The documents in [`docs/ekolite-overview/`](docs/ekolite-overview/) cover the thinking. This README covers what is actually built today.
 
-- **Fastify** HTTP server with plugin architecture
-- **Mini-DDP** — WebSocket pub/sub + RPC with 6 message types
-- **MongoDB wrapper** with change streams for real-time updates
-- **Reactive store** — framework-agnostic client-side data store
-- **File uploads** via `@fastify/multipart` with progress tracking and validation
-- **Asset resolver** for server-side scripts and data files
-- **TypeScript** end-to-end with shared types between server and client
-- **Vite** for sub-100ms HMR in development
+## What works today
 
-## Quick Start
+- **Nullable infrastructure wrappers**, each with `create()` and `createNull()` factories: MongoDB (`MongoWrapper`), WebSocket server (`WebSocketWrapper`), file storage (`FileStorageWrapper`) and script runner (`ScriptRunnerWrapper`)
+- **Pub/sub engine** (`Publications`): define a publication on the server, subscribe over a live socket, receive `ready` and data messages, with reference counted teardown. Wired end to end now: a real browser client subscribes over a real socket and its store fills from Mongo
+- **File storage over HTTP** (`Files`): `POST /api/files` saves the bytes and inserts a document that streams into the live list through pub/sub; `GET /api/files/:id` streams them back
+- **Client stack**: `ClientSocketWrapper` (nullable WebSocket client), `ConnectionManager` (subscription lifecycle) and `ReactiveStore` (client side collection state)
+- **Mini DDP protocol** ([`shared/protocol.ts`](shared/protocol.ts)): six message types, typed end to end
+- **Live boot** (`start.ts`): real Mongo, websocket, publications and file store, with a runnable browser demo at [`client/demo/live.html`](client/demo/live.html)
+
+## What is planned, not yet built
+
+- A server side method registry (RPC). The `method`, `result` and `error` message types already exist in the protocol; the registry that handles them is the next epic.
+- Reconnect and resubscribe after a dropped socket, and auth on the HTTP routes. Today a closed socket disposes and stays disposed, and the file routes are open.
+
+## Quick start
 
 ```bash
-# Install dependencies
 npm install
 
-# Start development (two terminals)
-npm run dev:server   # Fastify with auto-restart
+# Development (two terminals)
+npm run dev:server   # Fastify on port 3001, auto restart
 npm run dev:client   # Vite with HMR
 
-# Type check
+# Checks
 npm run typecheck
-
-# Run tests
 npm test
 ```
 
-## Project Structure
+## Project structure
 
 ```
 ekolite/
 ├── server/
-│   ├── index.ts                # App class — wires everything
+│   ├── index.ts                  # createServer: Fastify, static, websocket, pub/sub + file routes
+│   ├── start.ts                  # Entry point: real Mongo, ws, publications, file store
 │   ├── infrastructure/
-│   │   ├── mongo.ts            # MongoWrapper + Null
-│   │   ├── websocket.ts        # WebSocketServer + Null
-│   │   ├── fileStorage.ts      # FileStorage + Null
-│   │   └── scriptRunner.ts     # ScriptRunner + Null
+│   │   ├── mongo.ts              # MongoWrapper, create() / createNull()
+│   │   ├── websocket.ts          # WebSocketWrapper, create() / createNull()
+│   │   ├── fileStorage.ts        # FileStorageWrapper
+│   │   ├── scriptRunner.ts       # ScriptRunnerWrapper
+│   │   └── outputTracker.ts      # EventEmitter + OutputTracker
 │   └── logic/
-│       ├── publications.ts     # Pub/sub logic
-│       ├── methods.ts          # RPC method registry
-│       ├── rpcHandler.ts       # Routes WS messages to methods
-│       └── uploadHandler.ts    # File upload logic
+│       ├── publications.ts       # Pub/sub engine
+│       └── files.ts              # Files: upload and read over storage + Mongo
 ├── client/
-│   ├── connection.ts           # WebSocket connection manager
-│   ├── store.ts                # ReactiveStore
-│   ├── subscribe.ts            # Subscribe to publications
-│   ├── call.ts                 # RPC method caller
-│   └── upload.ts               # File upload with progress
+│   ├── clientSocket.ts           # ClientSocketWrapper, nullable WebSocket client
+│   ├── connectionManager.ts      # Subscriptions and lifecycle
+│   ├── reactiveStore.ts          # Client side collection state
+│   └── main.ts                   # Browser entry point
 ├── shared/
-│   ├── protocol.ts             # Mini-DDP message types
-│   └── types.ts                # Shared type definitions
-├── tests/
-│   ├── infrastructure/         # Narrow integration tests (real systems)
-│   ├── logic/                  # Sociable tests (Nulled infrastructure)
-│   └── client/                 # Client-side tests
-├── vite.config.ts
-├── tsconfig.json
-└── package.json
+│   ├── protocol.ts               # Mini DDP message types
+│   └── types.ts                  # Shared type definitions
+└── tests/
+    ├── infrastructure/           # Nullable unit tests + narrow integration tests
+    ├── logic/                    # Sociable tests on nulled infrastructure
+    ├── client/                   # Client side tests
+    └── server/                   # Server integration tests
 ```
 
-## Server API
+## Mini DDP protocol
 
-### Collections
-
-```ts
-const UserFiles = defineCollection<UserFile>('UserFiles');
-await UserFiles.insert({
-  name: 'sample.bam',
-  path: '/uploads/sample.bam',
-  size: 1024,
-  uploadedAt: new Date(),
-});
-const files = await UserFiles.find({});
-```
-
-### Publications
-
-```ts
-definePublication('UserFiles.all', (): FindCursor<UserFile> => {
-  return UserFiles.find({});
-});
-```
-
-### Methods
-
-```ts
-defineMethod('runCountC', async (targetPath: string): Promise<string> => {
-  const scriptPath = resolveAsset('scripts/countC.py');
-  const result = await execScript('python3', [scriptPath, targetPath]);
-  return result.stdout;
-});
-```
-
-### File Uploads
-
-```ts
-defineUploadHandler({
-  collection: 'UserFiles',
-  storagePath: './uploads',
-  allowedExtensions: ['bam'],
-  onBeforeUpload: (file) => true,
-  onAfterUpload: (file) => {
-    /* post-processing */
-  },
-});
-```
-
-## Client API
-
-### Subscribe
-
-```ts
-const sub = MeteorLight.subscribe('UserFiles.all');
-sub.on('ready', () => {
-  /* initial data loaded */
-});
-
-const store = MeteorLight.collection<UserFile>('UserFiles');
-store.on('change', (docs) => {
-  /* update UI */
-});
-store.getAll();
-store.getById(id);
-```
-
-### Call Methods
-
-```ts
-const result = await MeteorLight.call<string>('runCountC', '/path/to/uploads');
-```
-
-### Upload Files
-
-```ts
-const upload = MeteorLight.upload('/api/upload', file);
-upload.on('progress', (pct) => {
-  /* update progress bar */
-});
-upload.on('complete', (file) => {
-  /* done */
-});
-upload.on('error', (err) => {
-  /* handle failure */
-});
-```
-
-## Mini-DDP Protocol
-
-6 message types (vs ~15 in full DDP):
+Six message types, against roughly fifteen in full DDP:
 
 ```
 Client → Server:
-  { type: 'subscribe', id, name, params }
+  { type: 'subscribe', id, name, params? }
   { type: 'unsubscribe', id }
-  { type: 'method', id, name, params }
+  { type: 'method', id, name, params }      // handled by the upcoming method registry
 
 Server → Client:
-  { type: 'ready', id }
-  { type: 'added' | 'changed' | 'removed', collection, id, fields }
-  { type: 'result' | 'error', id, result | error }
+  { type: 'ready', id, collection }
+  { type: 'added' | 'changed' | 'removed', collection, id, fields? }
+  { type: 'result' | 'error', id, ... }
 ```
 
 ## Testing
 
-Built with **Testing Without Mocks** (Nullable pattern). Every infrastructure wrapper has `create()` and `createNull()` factories. No mock libraries needed — just vitest.
+Built with [Testing Without Mocks](https://www.jamesshore.com/v2/projects/nullables/testing-without-mocks) (the Nullables pattern). Every infrastructure wrapper has `create()` and `createNull()` factories, and tests assert on state and `OutputTracker` output. No mocking libraries, just vitest.
 
 ```bash
-npm test                  # All tests
-npm run test:watch        # Fast tests on every save (logic + client)
-npm run test:integration  # Narrow integration tests (real MongoDB, real fs)
+npm test                  # Fast suite: nullable unit + sociable tests
+npm run test:watch        # The same, on every save
+npm run test:integration  # Narrow integration tests (needs a real local MongoDB)
 ```
 
-## Production Build
+Nullable unit tests and integration tests live in separate files (`x.test.ts` and `x.integration.test.ts`), so the fast suite never touches the network or disk.
+
+## How we work
+
+Strict TDD, red then green then refactor, with commit messages that show the loop (`test: red - ...`, `test: green - ...`, `refactor: ...`). Trunk based development: every branch comes off `main` and goes back via a small PR. The test suite is the safety net that makes that pace honest.
+
+## Production build
 
 ```bash
 npm run build   # tsc + vite build
 npm start       # node dist/server/index.js
 ```
 
-## Dependencies
-
-**Runtime (5):** fastify, @fastify/websocket, @fastify/multipart, @fastify/static, mongodb
-
-**Dev (4):** vite, typescript, tsx, vitest
-
 ## License
 
-## Architecture diagrams
-
-This project includes Mermaid diagrams to make the websocket architecture easier to understand visually.
-
-Why this exists:
-
-- code shows implementation details
-- diagrams show structure and flow
-- humans understand visual relationships faster than raw code alone
-
-The diagrams help explain:
-
-- how the client reaches the websocket layer
-- how Fastify, the wrapper, and backend implementations relate
-- how message flow works from connection to disconnect
-- how test doubles fit into the system
-
-### Diagram types
-
-- **ERD**: shows structural relationships between the main parts
-- **Flowchart**: shows the high-level runtime path
-- **Sequence diagram**: shows message flow step by step
-
-### How to view in VS Code
-
-1. Install the extension:
-   - `Markdown Preview Mermaid Support`
-
-2. Create or open a `.md` file containing a Mermaid code block.
-
-3. Open markdown preview:
-   - `Ctrl + Shift + V`
-
-### Example
-
-````
-```mermaid
-flowchart LR
-    client["Client App"] --> fastify["Fastify Server"]
-    fastify --> wrapper["WebSocket Wrapper"]
-````
-
-````
-
-### Notes
-
-- Mermaid diagrams must be inside a fenced block starting with ` ```mermaid `
-- The opening and closing backticks must be on their own lines
-- If a diagram does not render, first confirm it works with a tiny test diagram
-
-## My exprience
-I had blocker markdown extention that didnt allow my diagrams to show so
-- Solution
-I searched "mermaid" and deleted all related extentions
-I searched "markedown" and deleted all related extentions
-I left only
--  `Markdown Preview Mermaid Support`
-
-### Why this matters
-
-This architecture has multiple layers and interchangeable implementations.
-Visual diagrams make it easier to:
-- reason about the system
-- explain it to new contributors
-- spot incorrect assumptions early
-- keep implementation and design aligned
-````
+[MIT](LICENSE)

@@ -1,12 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { FileStorageWrapper } from '../../server/infrastructure/fileStorage.ts';
+import { fileStorageContract } from './fileStorageContract.ts';
 
 describe('FileStorageWrapper (null)', () => {
-  it('saves a file and confirms it exists', async () => {
-    const storage = FileStorageWrapper.createNull();
-    await storage.save('test.bam', Buffer.from('content'));
-    expect(await storage.exists('test.bam')).toBe(true);
-  });
+  // Same behaviour the real adapter is held to in the integration suite.
+  fileStorageContract(() => FileStorageWrapper.createNull());
 
   it('tracks save, exists, and remove operations', async () => {
     const storage = FileStorageWrapper.createNull();
@@ -17,32 +15,21 @@ describe('FileStorageWrapper (null)', () => {
     await storage.remove('test.bam');
 
     expect(tracker.data).toHaveLength(3);
-    expect(tracker.data[0]).toMatchObject({
-      type: 'save',
-      name: 'test.bam',
-    });
+    expect(tracker.data[0]).toMatchObject({ type: 'save', name: 'test.bam' });
     expect(tracker.data[0]).toHaveProperty('data');
-    expect(tracker.data[1]).toMatchObject({
-      type: 'exists',
-      name: 'test.bam',
-      exists: true,
-    });
-    expect(tracker.data[2]).toMatchObject({
-      type: 'remove',
-      name: 'test.bam',
-    });
+    expect(tracker.data[1]).toMatchObject({ type: 'exists', name: 'test.bam', exists: true });
+    expect(tracker.data[2]).toMatchObject({ type: 'remove', name: 'test.bam' });
   });
 
-  it('returns false for a file that does not exist', async () => {
+  it('notifies a watcher of a save without trackChanges being called first', async () => {
+    const events: unknown[] = [];
     const storage = FileStorageWrapper.createNull();
-    expect(await storage.exists('nope.bam')).toBe(false);
-  });
+    const stop = storage.watch((event) => events.push(event));
 
-  it('removes a file', async () => {
-    const storage = FileStorageWrapper.createNull();
-    await storage.save('test.bam', Buffer.from('content'));
-    await storage.remove('test.bam');
-    expect(await storage.exists('test.bam')).toBe(false);
+    await storage.save('watched.bam', Buffer.from('content'));
+    stop();
+
+    expect(events).toEqual([{ type: 'save', name: 'watched.bam', data: Buffer.from('content') }]);
   });
 
   it('throws configured save errors without mutating the store', async () => {
@@ -53,13 +40,7 @@ describe('FileStorageWrapper (null)', () => {
 
     await expect(storage.save('test.bam', Buffer.from('content'))).rejects.toThrow('Disk full');
     await expect(storage.exists('test.bam')).resolves.toBe(false);
-    expect(tracker.data).toEqual([
-      {
-        type: 'exists',
-        name: 'test.bam',
-        exists: false,
-      },
-    ]);
+    expect(tracker.data).toEqual([{ type: 'exists', name: 'test.bam', exists: false }]);
   });
 
   it('throws configured remove errors without deleting the file', async () => {
@@ -71,15 +52,8 @@ describe('FileStorageWrapper (null)', () => {
     await storage.save('test.bam', Buffer.from('content'));
     await expect(storage.remove('test.bam')).rejects.toThrow('Permission denied');
     await expect(storage.exists('test.bam')).resolves.toBe(true);
-    expect(tracker.data[0]).toMatchObject({
-      type: 'save',
-      name: 'test.bam',
-    });
-    expect(tracker.data[1]).toMatchObject({
-      type: 'exists',
-      name: 'test.bam',
-      exists: true,
-    });
+    expect(tracker.data[0]).toMatchObject({ type: 'save', name: 'test.bam' });
+    expect(tracker.data[1]).toMatchObject({ type: 'exists', name: 'test.bam', exists: true });
     expect(tracker.data).toHaveLength(2);
   });
 
@@ -95,11 +69,12 @@ describe('FileStorageWrapper (null)', () => {
 
   it('resolves to an absolute path', () => {
     const storage = FileStorageWrapper.createNull();
-    const resolved = storage.resolve('test.bam');
-    expect(resolved).toMatch(/^\/|^[A-Z]:/);
+    expect(storage.resolve('test.bam')).toMatch(/^\/|^[A-Z]:/);
   });
 
-  it('rejects save with empty name', async () => {
+  // Wrapper guard, not adapter behaviour: save throws before reaching the adapter,
+  // so it is the same for real and null and belongs here, not in the contract.
+  it('rejects a save with an empty name', async () => {
     const storage = FileStorageWrapper.createNull();
     await expect(storage.save('', Buffer.from('content'))).rejects.toThrow(
       'File name cannot be empty',

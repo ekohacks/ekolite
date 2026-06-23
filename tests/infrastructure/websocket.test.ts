@@ -29,6 +29,20 @@ describe('WebSocketWrapper (null)', () => {
     expect(ws.clientCount).toBe(0);
   });
 
+  it('removes a client and notifies onDisconnect exactly once when it disconnects', () => {
+    const ws = WebSocketWrapper.createNull();
+    const disconnected: string[] = [];
+    ws.onDisconnect((id) => disconnected.push(id));
+
+    const client = ws.simulateConnection();
+    expect(ws.clientCount).toBe(1);
+
+    client.close();
+
+    expect(ws.clientCount).toBe(0);
+    expect(disconnected).toEqual([client.id]);
+  });
+
   it('tracks messages from clients', () => {
     const ws = WebSocketWrapper.createNull();
     const tracker = ws.trackMessages();
@@ -58,7 +72,7 @@ describe('WebSocketWrapper (null)', () => {
     expect(client1.messages).toEqual([{ type: 'update', payload: 'refresh' }]);
     expect(client2.messages).toEqual([{ type: 'update', payload: 'refresh' }]);
   });
-  it('it tracks connection with nullable websocket', async () => {
+  it('tracks connection with nullable websocket', async () => {
     const ws = WebSocketWrapper.createNull();
     await createServer({ ws });
 
@@ -69,5 +83,23 @@ describe('WebSocketWrapper (null)', () => {
     client.close();
 
     expect(ws.clientCount).toBe(0);
+  });
+
+  it('throws an error with a clear message if undefined is sent to clients', () => {
+    const ws = WebSocketWrapper.createNull();
+    const client = ws.simulateConnection();
+
+    expect(() => {
+      ws.send(client.id, undefined);
+    }).toThrow('Cannot send undefined message to client');
+  });
+
+  it('throws an error with a clear message if undefined is broadcasted to clients', () => {
+    const ws = WebSocketWrapper.createNull();
+    ws.simulateConnection();
+
+    expect(() => {
+      ws.broadcast(undefined);
+    }).toThrow('Cannot broadcast undefined message to clients');
   });
 });

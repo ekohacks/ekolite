@@ -3,41 +3,24 @@ import { rm, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { FileStorageWrapper } from '../../server/infrastructure/fileStorage.ts';
+import { fileStorageContract } from './fileStorageContract.ts';
 
 const TEST_DIR = path.join(os.tmpdir(), 'ekolite-test-files');
 
 describe('FileStorageWrapper (real)', () => {
-  const storage = FileStorageWrapper.create(TEST_DIR);
-
   afterEach(async () => {
     await rm(TEST_DIR, { recursive: true, force: true });
     await mkdir(TEST_DIR, { recursive: true });
   });
 
-  it('saves a file and confirms it exists', async () => {
-    await storage.save('test.bam', Buffer.from('content'));
-    expect(await storage.exists('test.bam')).toBe(true);
-  });
+  // Same behaviour the null is held to in the unit suite. This is the run that
+  // proves the null's claims against a real disk.
+  fileStorageContract(() => FileStorageWrapper.create(TEST_DIR));
 
-  it('returns false for a file that does not exist', async () => {
-    expect(await storage.exists('nope.bam')).toBe(false);
-  });
-
-  it('removes a file', async () => {
-    await storage.save('test.bam', Buffer.from('content'));
-    await storage.remove('test.bam');
-    expect(await storage.exists('test.bam')).toBe(false);
-  });
-
-  it('resolves to an absolute path', () => {
+  it('resolves to an absolute path inside the base dir', () => {
+    const storage = FileStorageWrapper.create(TEST_DIR);
     const resolved = storage.resolve('test.bam');
     expect(resolved).toMatch(/^\/|^[A-Z]:/);
     expect(resolved).toContain(TEST_DIR);
-  });
-
-  it('rejects save with empty name', async () => {
-    await expect(storage.save('', Buffer.from('content'))).rejects.toThrow(
-      'File name cannot be empty',
-    );
   });
 });

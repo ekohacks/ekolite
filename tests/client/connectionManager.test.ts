@@ -25,11 +25,32 @@ describe('ConnectionManager', () => {
       id: '1',
       fields: { name: 'existing.bam' },
     });
-    server.send({ type: 'ready', id: sent.id });
+    server.send({ type: 'ready', id: sent.id, collection: 'files' });
 
     await handle.ready;
 
     expect(manager.store('files').getById('1')).toEqual({ _id: '1', name: 'existing.bam' });
+  });
+
+  it('subscribe with params includes them in the outbound message', async () => {
+    const socket = ClientSocketWrapper.createNull();
+    const manager = new ConnectionManager(socket);
+    const messages = socket.trackMessages();
+    const server = socket.simulateServer();
+
+    const handle = manager.subscribe('files.byFolder', { folderId: 'folder-a' });
+
+    // Manager sent the subscribe message with params.
+    expect(messages.data).toHaveLength(1);
+    const sent = messages.data[0] as SubscribeMsg;
+    expect(sent.type).toBe('subscribe');
+    expect(sent.name).toBe('files.byFolder');
+    expect(sent.params).toEqual({ folderId: 'folder-a' });
+
+    // Simulate the server responding.
+    server.send({ type: 'ready', id: sent.id, collection: 'files' });
+
+    await handle.ready;
   });
 
   it('rejects ready when subscribe fails on the server', async () => {
@@ -65,7 +86,7 @@ describe('ConnectionManager', () => {
       id: '1',
       fields: { name: 'existing.bam' },
     });
-    server.send({ type: 'ready', id: subId });
+    server.send({ type: 'ready', id: subId, collection: 'files' });
     await handle.ready;
 
     handle.stop();
@@ -74,12 +95,14 @@ describe('ConnectionManager', () => {
     expect(unsub).toEqual({ type: 'unsubscribe', id: subId });
   });
 
-  it('stop releases subscription bookkeeping', () => {
+  it('stop releases subscription bookkeeping', async () => {
     const socket = ClientSocketWrapper.createNull();
     const manager = new ConnectionManager(socket);
     const handle = manager.subscribe('files.all');
 
     handle.stop();
+
+    await expect(handle.ready).rejects.toThrow('subscription stopped before ready');
 
     expect(manager.activeSubscriptionCount()).toBe(0);
   });
@@ -92,7 +115,7 @@ describe('ConnectionManager', () => {
     const store = manager.store('files');
 
     const handle = manager.subscribe('files.all');
-    server.send({ type: 'ready', id: (messages.data[0] as SubscribeMsg).id });
+    server.send({ type: 'ready', id: (messages.data[0] as SubscribeMsg).id, collection: 'files' });
     await handle.ready;
 
     manager.dispose();
@@ -128,7 +151,7 @@ describe('ConnectionManager', () => {
       id: '1',
       fields: { name: 'test.bam' },
     });
-    server.send({ type: 'ready', id: subId });
+    server.send({ type: 'ready', id: subId, collection: 'files' });
 
     await handle.ready;
 
@@ -151,7 +174,7 @@ describe('ConnectionManager', () => {
       id: '1',
       fields: { name: 'existing.bam' },
     });
-    server.send({ type: 'ready', id: subId });
+    server.send({ type: 'ready', id: subId, collection: 'files' });
 
     await handle.ready;
 
@@ -167,6 +190,55 @@ describe('ConnectionManager', () => {
       id: '1',
     });
 
-    expect(store.getById('1')).toBeUndefined();
+    expect(store.getById('1')).toEqual({ _id: '1', name: 'existing.bam' });
+  });
+
+  it('does not route a late changed message into the store after stop()', async () => {
+    const socket = ClientSocketWrapper.createNull();
+    const server = socket.simulateServer();
+    const manager = new ConnectionManager(socket);
+    const messages = socket.trackMessages();
+    const store = manager.store('files');
+
+    const handle = manager.subscribe('files.all');
+    const subId = (messages.data[0] as SubscribeMsg).id;
+
+    server.send({
+      type: 'added',
+      collection: 'files',
+      id: '1',
+      fields: { name: 'existing.bam' },
+    });
+    server.send({ type: 'ready', id: subId, collection: 'files' });
+    await handle.ready;
+
+    handle.stop();
+
+    // A message that arrives after the unsubscribe must not leak into the store.
+    server.send({
+      type: 'changed',
+      collection: 'files',
+      id: '1',
+      fields: { name: 'late.bam' },
+    });
+
+    expect(store.getById('1')).toEqual({ _id: '1', name: 'existing.bam' });
+  });
+
+  it('handle.ready settles when stop() is called before the server responds', async () => {
+    const socket = ClientSocketWrapper.createNull();
+    const manager = new ConnectionManager(socket);
+    const handle = manager.subscribe('files.all');
+    handle.stop();
+    await expect(
+      Promise.race([
+        handle.ready,
+        new Promise((_, r) =>
+          setTimeout(() => {
+            r(new Error('hang'));
+          }, 50),
+        ),
+      ]),
+    ).rejects.toThrow();
   });
 });

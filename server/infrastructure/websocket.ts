@@ -7,6 +7,22 @@ const CONNECTION_EVENT = 'connection';
 const DISCONNECTION_EVENT = 'disconnection';
 const MESSAGE_EVENT = 'message';
 
+interface ServerSocketLike {
+  send(data: string): void;
+  close(): void;
+  onClose(cb: () => void): void;
+  onMessage?(cb: (message: unknown) => void): void;
+}
+
+interface ConnectionSource {
+  onConnection(cb: (socket: ServerSocketLike) => string): void;
+  close(): Promise<void>;
+  start?(): Promise<void>;
+  attach?(fastify: FastifyInstance): Promise<void>;
+}
+
+type ConnectionSourceFactory = () => ConnectionSource;
+
 interface WebSocketInterface {
   start?(): Promise<void>;
   attach?(fastify: FastifyInstance): Promise<void>;
@@ -14,86 +30,176 @@ interface WebSocketInterface {
   get clientCount(): number;
   send(clientId: string, message: unknown): void;
   broadcast(message: unknown): void;
-  onDisconnect?(cb: (clientId: string) => void): void;
+  onDisconnect?(cb: (clientId: string) => void): () => void;
   trackConnections(): OutputTracker;
   trackDisconnections(): OutputTracker;
   trackMessages(): OutputTracker;
 }
 
-export class WebSocketWrapper {
-  private server: WebSocketInterface;
-
-  private constructor(server: WebSocketInterface) {
-    this.server = server;
-  }
-
-  static create(): WebSocketWrapper {
-    return new WebSocketWrapper(new FastifyWebSocket());
-  }
-
-  static createRawWs(options: { port: number }): WebSocketWrapper {
-    return new WebSocketWrapper(new RealWebSocket(options.port));
-  }
-
-  static createNull(): WebSocketWrapper {
-    return new WebSocketWrapper(new StubbedWebSocket());
-  }
-
-  async start(): Promise<void> {
-    await this.server.start?.();
-  }
-
-  async attach(fastify: FastifyInstance): Promise<void> {
-    await this.server.attach?.(fastify);
-  }
-
-  async close(): Promise<void> {
-    await this.server.close?.();
-  }
-
-  get clientCount(): number {
-    return this.server.clientCount;
-  }
-
-  simulateConnection(): StubbedClient {
-    const stub = this.server as StubbedWebSocket;
-    return stub.simulateConnection();
-  }
-
-  send(clientId: string, message: unknown): void {
-    this.server.send(clientId, message);
-  }
-
-  broadcast(message: unknown): void {
-    this.server.broadcast(message);
-  }
-
-  onDisconnect(cb: (clientId: string) => void): () => void {
-    return this.server.onDisconnect?.(cb) || (() => {});
-  }
-
-  trackConnections(): OutputTracker {
-    return this.server.trackConnections();
-  }
-
-  trackDisconnections(): OutputTracker {
-    return this.server.trackDisconnections();
-  }
-
-  trackMessages(): OutputTracker {
-    return this.server.trackMessages();
-  }
-}
-
-class RealWebSocket implements WebSocketInterface {
-  private wss: WebSocketServer | null = null;
-  private port: number;
-  private clients = new Map<string, WebSocket>();
+export class WebSocketWrapper implements WebSocketInterface {
+  private source: ConnectionSource;
+  private clients = new Map<string, { socket: ServerSocketLike }>();
   private nextId = 0;
   private emitter = new EventEmitter();
 
+  private constructor(factory: ConnectionSourceFactory) {
+    this.source = factory();
+    this.source.onConnection((socket) => this.handleConnection(socket));
+  }
+
+  static create(): WebSocketWrapper {
+    return new WebSocketWrapper(() => new FastifyConnectionSource());
+  }
+
+  static createRawWs(options: { port: number }): WebSocketWrapper {
+    return new WebSocketWrapper(() => new WsConnectionSource(options.port));
+  }
+
+  static createNull(): WebSocketWrapper {
+    return new WebSocketWrapper(() => new NullConnectionSource());
+  }
+
+  async start(): Promise<void> {
+    if (typeof this.source.start === 'function') {
+      await this.source.start();
+    }
+  }
+
+  async attach(fastify: FastifyInstance): Promise<void> {
+    if (typeof this.source.attach === 'function') {
+      await this.source.attach(fastify);
+    }
+  }
+
+  async close(): Promise<void> {
+    await this.source.close();
+  }
+
+  get clientCount(): number {
+    return this.clients.size;
+  }
+
+  simulateConnection(): StubbedClient {
+    const sourceWithSimulate = this.source as {
+      simulateConnection?: () => StubbedClient;
+    };
+
+    if (typeof sourceWithSimulate.simulateConnection !== 'function') {
+      throw new Error('simulateConnection only available on null instance');
+    }
+
+    return sourceWithSimulate.simulateConnection();
+  }
+
+  send(clientId: string, message: unknown): void {
+    if (message === undefined) {
+      throw new Error('Cannot send undefined message to client');
+    }
+
+    const entry = this.clients.get(clientId);
+    if (!entry) {
+      return;
+    }
+    entry.socket.send(JSON.stringify(message));
+  }
+
+  broadcast(message: unknown): void {
+    if (message === undefined) {
+      throw new Error('Cannot broadcast undefined message to clients');
+    }
+
+    const data = JSON.stringify(message);
+    for (const entry of this.clients.values()) {
+      entry.socket.send(data);
+    }
+  }
+
+  onDisconnect(cb: (clientId: string) => void): () => void {
+    const listener = (data: unknown): void => {
+      if (isClientIdPayload(data)) {
+        cb(data.clientId);
+      }
+    };
+    this.emitter.on(DISCONNECTION_EVENT, listener);
+    return () => {
+      this.emitter.off(DISCONNECTION_EVENT, listener);
+    };
+  }
+
+  onMessage(cb: (clientId: string, message: unknown) => void): () => void {
+    const listener = (data: unknown): void => {
+      if (isClientMessagePayload(data)) {
+        cb(data.clientId, data.message);
+      }
+    };
+    this.emitter.on(MESSAGE_EVENT, listener);
+    return () => {
+      this.emitter.off(MESSAGE_EVENT, listener);
+    };
+  }
+
+  trackConnections(): OutputTracker {
+    return new OutputTracker(this.emitter, CONNECTION_EVENT);
+  }
+
+  trackDisconnections(): OutputTracker {
+    return new OutputTracker(this.emitter, DISCONNECTION_EVENT);
+  }
+
+  trackMessages(): OutputTracker {
+    return new OutputTracker(this.emitter, MESSAGE_EVENT);
+  }
+
+  private receiveMessage(clientId: string, message: unknown): void {
+    this.emitter.emit(MESSAGE_EVENT, { clientId, message });
+  }
+
+  private handleConnection(socket: ServerSocketLike): string {
+    const id = String(this.nextId++);
+    this.clients.set(id, { socket });
+    socket.onMessage?.((message: unknown) => {
+      this.receiveMessage(id, message);
+    });
+    this.emitter.emit(CONNECTION_EVENT, { clientId: id });
+
+    socket.onClose(() => {
+      if (this.clients.has(id)) {
+        this.clients.delete(id);
+        this.emitter.emit(DISCONNECTION_EVENT, { clientId: id });
+      }
+    });
+
+    return id;
+  }
+}
+
+function isClientIdPayload(data: unknown): data is { clientId: string } {
+  if (data === null || typeof data !== 'object') {
+    return false;
+  }
+
+  return typeof (data as Record<string, unknown>).clientId === 'string';
+}
+
+function isClientMessagePayload(data: unknown): data is { clientId: string; message: unknown } {
+  if (data === null || typeof data !== 'object') {
+    return false;
+  }
+
+  return typeof (data as Record<string, unknown>).clientId === 'string' && 'message' in data;
+}
+
+class WsConnectionSource implements ConnectionSource {
+  private wss: WebSocketServer | null = null;
+  private listeners: ((socket: ServerSocketLike) => string)[] = [];
+  private port: number;
+
   constructor(port: number) {
     this.port = port;
+  }
+
+  onConnection(cb: (socket: ServerSocketLike) => string): void {
+    this.listeners.push(cb);
   }
 
   async start(): Promise<void> {
@@ -101,15 +207,24 @@ class RealWebSocket implements WebSocketInterface {
       this.wss = new WebSocketServer({ port: this.port }, () => {
         resolve();
       });
-
-      this.wss.on('connection', (socket) => {
-        const id = String(this.nextId++);
-        this.clients.set(id, socket);
-
-        socket.on('close', () => {
-          this.clients.delete(id);
-          this.emitter.emit(DISCONNECTION_EVENT, { clientId: id });
-        });
+      this.wss.on('connection', (socket: WebSocket) => {
+        const wrapped: ServerSocketLike = {
+          send: (data: string) => {
+            socket.send(data);
+          },
+          close: () => {
+            socket.close();
+          },
+          onClose: (cb: () => void) => socket.on('close', cb),
+          onMessage(cb: (message: unknown) => void) {
+            socket.on('message', (data: Buffer) => {
+              cb(JSON.parse(data.toString()));
+            });
+          },
+        };
+        for (const l of this.listeners) {
+          l(wrapped);
+        }
       });
     });
   }
@@ -125,210 +240,103 @@ class RealWebSocket implements WebSocketInterface {
       }
     });
   }
-
-  get clientCount(): number {
-    return this.clients.size;
-  }
-
-  send(clientId: string, message: unknown): void {
-    const socket = this.clients.get(clientId);
-    if (socket) {
-      socket.send(JSON.stringify(message));
-    }
-  }
-
-  broadcast(message: unknown): void {
-    const data = JSON.stringify(message);
-    for (const socket of this.clients.values()) {
-      socket.send(data);
-    }
-  }
-
-  onDisconnect(cb: (clientId: string) => void): () => void {
-    const listener = (data: unknown): void => {
-      if (
-        typeof data === 'object' &&
-        data !== null &&
-        'clientId' in data &&
-        typeof data.clientId === 'string'
-      ) {
-        cb(data.clientId);
-      }
-    };
-    this.emitter.on(DISCONNECTION_EVENT, listener);
-
-    return () => {
-      this.emitter.off(DISCONNECTION_EVENT, listener);
-    };
-  }
-
-  trackConnections(): OutputTracker {
-    throw new Error('trackConnections is only available on null instances');
-  }
-
-  trackDisconnections(): OutputTracker {
-    return new OutputTracker(this.emitter, DISCONNECTION_EVENT);
-  }
-
-  trackMessages(): OutputTracker {
-    throw new Error('trackMessages is only available on null instances');
-  }
 }
 
-class FastifyWebSocket implements WebSocketInterface {
+class FastifyConnectionSource implements ConnectionSource {
   private fastify: FastifyInstance | null = null;
-  private clients = new Map<string, WebSocket>();
-  private nextId = 0;
-  private emitter = new EventEmitter();
+  private listeners: ((s: ServerSocketLike) => string)[] = [];
+
+  onConnection(cb: (socket: ServerSocketLike) => string): void {
+    this.listeners.push(cb);
+  }
 
   async attach(fastify: FastifyInstance): Promise<void> {
     this.fastify = fastify;
     await fastify.register(fastifyWebsocket);
-    fastify.get('/ws', { websocket: true }, (socket) => {
-      const id = String(this.nextId++);
-      this.clients.set(id, socket);
-
-      socket.on('close', () => {
-        this.clients.delete(id);
-        this.emitter.emit(DISCONNECTION_EVENT, { clientId: id });
-      });
+    fastify.get('/ws', { websocket: true }, (connection: WebSocket) => {
+      const wrapped: ServerSocketLike = {
+        send: (data: string) => {
+          connection.send(data);
+        },
+        close: () => {
+          connection.close();
+        },
+        onClose: (cb: () => void) => connection.on('close', cb),
+        onMessage(cb: (message: unknown) => void) {
+          connection.on('message', (data: Buffer) => {
+            cb(JSON.parse(data.toString()));
+          });
+        },
+      };
+      for (const l of this.listeners) {
+        l(wrapped);
+      }
     });
   }
 
   async close(): Promise<void> {
     await this.fastify?.close();
   }
-
-  get clientCount(): number {
-    return this.clients.size;
-  }
-
-  send(clientId: string, message: unknown): void {
-    const socket = this.clients.get(clientId);
-    if (socket) {
-      socket.send(JSON.stringify(message));
-    }
-  }
-
-  broadcast(message: unknown): void {
-    const data = JSON.stringify(message);
-    for (const socket of this.clients.values()) {
-      socket.send(data);
-    }
-  }
-
-  onDisconnect(cb: (clientId: string) => void): () => void {
-    const listener = (data: unknown): void => {
-      if (
-        typeof data === 'object' &&
-        data !== null &&
-        'clientId' in data &&
-        typeof data.clientId === 'string'
-      ) {
-        cb(data.clientId);
-      }
-    };
-    this.emitter.on(DISCONNECTION_EVENT, listener);
-
-    return () => {
-      this.emitter.off(DISCONNECTION_EVENT, listener);
-    };
-  }
-
-  trackConnections(): OutputTracker {
-    throw new Error('trackConnections is only available on null instances');
-  }
-
-  trackDisconnections(): OutputTracker {
-    return new OutputTracker(this.emitter, DISCONNECTION_EVENT);
-  }
-
-  trackMessages(): OutputTracker {
-    throw new Error('trackMessages is only available on null instances');
-  }
 }
 
 export class StubbedClient {
-  readonly id: string;
-  readonly messages: unknown[] = [];
-  private server: StubbedWebSocket;
+  constructor(
+    readonly id: string,
+    private readonly socket: NullServerSocket,
+  ) {}
 
-  constructor(id: string, server: StubbedWebSocket) {
-    this.id = id;
-    this.server = server;
+  get messages(): unknown[] {
+    return this.socket.messages;
   }
 
   send(message: unknown): void {
-    this.server.receiveMessage(this.id, message);
+    this.socket.receiveMessage(message);
   }
 
   close(): void {
-    this.server.disconnect(this.id);
+    this.socket.close();
   }
 }
 
-class StubbedWebSocket implements WebSocketInterface {
-  private clients = new Map<string, StubbedClient>();
-  private emitter = new EventEmitter();
-  private nextId = 0;
+class NullServerSocket implements ServerSocketLike {
+  readonly messages: unknown[] = [];
+  private closeHandler: (() => void) | undefined;
+  private messageHandler: ((message: unknown) => void) | undefined;
 
-  get clientCount(): number {
-    return this.clients.size;
+  onClose(cb: () => void): void {
+    this.closeHandler = cb;
+  }
+  send(data: string): void {
+    this.messages.push(JSON.parse(data));
+  }
+  close(): void {
+    this.closeHandler?.();
+  }
+  onMessage(cb: (message: unknown) => void): void {
+    this.messageHandler = cb;
+  }
+  receiveMessage(message: unknown): void {
+    this.messageHandler?.(message);
+  }
+}
+
+class NullConnectionSource implements ConnectionSource {
+  private listenersList: ((socket: ServerSocketLike) => string)[] = [];
+
+  onConnection(cb: (socket: ServerSocketLike) => string): void {
+    this.listenersList.push(cb);
   }
 
+  async close(): Promise<void> {
+    return Promise.resolve();
+  }
   simulateConnection(): StubbedClient {
-    const id = String(this.nextId++);
-    const client = new StubbedClient(id, this);
-    this.clients.set(id, client);
-    this.emitter.emit(CONNECTION_EVENT, { clientId: id });
-    return client;
-  }
+    const socket = new NullServerSocket();
+    let id = '';
 
-  disconnect(clientId: string): void {
-    this.clients.delete(clientId);
-    this.emitter.emit(DISCONNECTION_EVENT, { clientId });
-  }
-
-  receiveMessage(clientId: string, message: unknown): void {
-    this.emitter.emit(MESSAGE_EVENT, { clientId, message });
-  }
-
-  send(clientId: string, message: unknown): void {
-    const client = this.clients.get(clientId);
-    if (client) {
-      client.messages.push(message);
+    for (const listener of this.listenersList) {
+      id = listener(socket);
     }
-  }
-
-  broadcast(message: unknown): void {
-    for (const client of this.clients.values()) {
-      client.messages.push(message);
-    }
-  }
-
-  onDisconnect(cb: (clientId: string) => void): void {
-    const listener = (data: unknown): void => {
-      if (
-        typeof data === 'object' &&
-        data !== null &&
-        'clientId' in data &&
-        typeof data.clientId === 'string'
-      ) {
-        cb(data.clientId);
-      }
-    };
-    this.emitter.on(DISCONNECTION_EVENT, listener);
-  }
-
-  trackConnections(): OutputTracker {
-    return new OutputTracker(this.emitter, CONNECTION_EVENT);
-  }
-
-  trackDisconnections(): OutputTracker {
-    return new OutputTracker(this.emitter, DISCONNECTION_EVENT);
-  }
-
-  trackMessages(): OutputTracker {
-    return new OutputTracker(this.emitter, MESSAGE_EVENT);
+    return new StubbedClient(id, socket);
   }
 }

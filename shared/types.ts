@@ -37,10 +37,18 @@ export type ChangeEvent =
   | { type: 'remove'; collection: string; id: string };
 
 export function isChangeEvent(data: unknown): data is ChangeEvent {
-  if (typeof data !== 'object' || data === null) return false;
-  if (!('type' in data) || typeof data.type !== 'string') return false;
-  if (!('collection' in data) || typeof data.collection !== 'string') return false;
-  if (!('id' in data) || typeof data.id !== 'string') return false;
+  if (typeof data !== 'object' || data === null) {
+    return false;
+  }
+  if (!('type' in data) || typeof data.type !== 'string') {
+    return false;
+  }
+  if (!('collection' in data) || typeof data.collection !== 'string') {
+    return false;
+  }
+  if (!('id' in data) || typeof data.id !== 'string') {
+    return false;
+  }
   if (data.type === 'insert' || data.type === 'update') {
     return !(
       !('fields' in data) ||

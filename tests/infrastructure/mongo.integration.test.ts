@@ -31,4 +31,29 @@ describe('MongoWrapper (real)', () => {
     expect(docs).toHaveLength(1);
     expect(docs[0].name).toBe('keep');
   });
+
+  it('emits change stream events for insert, update, and delete', async () => {
+    const changes: unknown[] = [];
+    const stop = await mongo.watchChanges('testDocs', (change) => {
+      changes.push(change);
+    });
+
+    try {
+      await mongo.insert('testDocs', { name: 'hello' });
+      await mongo.update('testDocs', { name: 'hello' }, { $set: { name: 'updated' } });
+      await mongo.remove('testDocs', { name: 'updated' });
+
+      const deadline = Date.now() + 5000;
+      while (changes.length < 3 && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+
+      expect(changes).toHaveLength(3);
+      expect(changes[0]).toMatchObject({ type: 'insert', collection: 'testDocs' });
+      expect(changes[1]).toMatchObject({ type: 'update', collection: 'testDocs' });
+      expect(changes[2]).toMatchObject({ type: 'remove', collection: 'testDocs' });
+    } finally {
+      stop();
+    }
+  });
 });

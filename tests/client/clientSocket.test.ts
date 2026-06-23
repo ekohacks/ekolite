@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientSocketWrapper, isServerMessage } from '../../client/clientSocket.ts';
 import { ReadyMsg, ServerMessage, UnsubscribeMsg } from '../../shared/protocol.ts';
 
@@ -18,9 +18,57 @@ describe('ClientSocketWrapper URL validation', () => {
   it('accepts wss:// URLs', () => {
     expect(() => ClientSocketWrapper.create('wss://localhost:8080')).not.toThrow();
   });
+
+  it('appends the auth token as a query parameter', () => {
+    expect(() =>
+      ClientSocketWrapper.create('ws://localhost:8080', { token: 'a-token' }),
+    ).not.toThrow();
+  });
+});
+
+describe('ClientSocketWrapper simulateServer guard', () => {
+  it('throws when simulateServer is called on a real socket', () => {
+    const socket = ClientSocketWrapper.create('ws://localhost:8080');
+    expect(() => socket.simulateServer()).toThrow(
+      'simulateServer() is only available on null sockets',
+    );
+  });
+});
+
+describe('ClientSocketWrapper parsing contract', () => {
+  it('drops a non-JSON server payload without crashing the inbound listener', async () => {
+    const socket = ClientSocketWrapper.createNull();
+    const server = socket.simulateServer();
+    await socket.connect();
+
+    const received: ServerMessage[] = [];
+    socket.onMessage((m) => received.push(m));
+
+    server.sendRaw('not-json-at-all');
+    server.send({ type: 'ready', id: '1', collection: 'files' });
+
+    expect(received).toEqual([{ type: 'ready', id: '1', collection: 'files' }]);
+  });
+
+  it('drops a well-formed JSON payload that is not a server message', async () => {
+    const socket = ClientSocketWrapper.createNull();
+    const server = socket.simulateServer();
+    await socket.connect();
+
+    const received: ServerMessage[] = [];
+    socket.onMessage((m) => received.push(m));
+
+    server.sendRaw(JSON.stringify({ type: 'not-a-real-type' }));
+    server.send({ type: 'ready', id: '1', collection: 'files' });
+
+    expect(received).toEqual([{ type: 'ready', id: '1', collection: 'files' }]);
+  });
 });
 
 describe('ClientSocketWrapper (null)', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
   it('is not connected before connect is called', () => {
     const socket = ClientSocketWrapper.createNull();
     expect(socket.isConnected).toBe(false);
@@ -40,9 +88,33 @@ describe('ClientSocketWrapper (null)', () => {
 
     expect(socket.isConnected).toBe(false);
   });
+  it('connect resolves immediately when already open', async () => {
+    const socket = ClientSocketWrapper.createNull();
+
+    await socket.connect();
+    await expect(socket.connect()).resolves.toBeUndefined();
+
+    expect(socket.isConnected).toBe(true);
+  });
+  it('connect rejects once the socket has been closed', async () => {
+    const socket = ClientSocketWrapper.createNull();
+
+    await socket.connect();
+    await socket.close();
+
+    await expect(socket.connect()).rejects.toThrow('Socket already closed');
+  });
+  it('close is idempotent once the socket is already closed', async () => {
+    const socket = ClientSocketWrapper.createNull();
+
+    await socket.connect();
+    await socket.close();
+
+    await expect(socket.close()).resolves.toBeUndefined();
+  });
   it('can receive a message from the server', async () => {
     const received: ServerMessage[] = [];
-    const message: ReadyMsg = { type: 'ready', id: '1' };
+    const message: ReadyMsg = { type: 'ready', id: '1', collection: 'files' };
     const socket = ClientSocketWrapper.createNull();
     const unsubscribe = socket.onMessage((msg) => received.push(msg));
 
@@ -51,7 +123,7 @@ describe('ClientSocketWrapper (null)', () => {
     server.send(message);
 
     expect(received).toHaveLength(1);
-    expect(received).toEqual([{ type: 'ready', id: '1' }]);
+    expect(received).toEqual([{ type: 'ready', id: '1', collection: 'files' }]);
 
     unsubscribe();
   });
@@ -74,10 +146,83 @@ describe('ClientSocketWrapper (null)', () => {
 
     await socket.send({ type: 'unsubscribe', id: '1' });
 
-    server.send({ type: 'ready', id: '1' });
+    server.send({ type: 'ready', id: '1', collection: 'files' });
 
     expect(tracker.data).toHaveLength(1);
     expect(tracker.data[0]).toEqual({ type: 'unsubscribe', id: '1' });
+  });
+
+  it('sends a ping at the configured interval after connect', async () => {
+    vi.useFakeTimers();
+    const socket = ClientSocketWrapper.createNull({
+      pingIntervalMs: 1000,
+      pongTimeoutMs: 500,
+    });
+    await socket.connect();
+    vi.advanceTimersByTime(0);
+    const tracker = socket.trackMessages();
+
+    vi.advanceTimersByTime(1500);
+
+    expect(tracker.data.some((m) => (m as { type: string }).type === 'ping')).toBe(true);
+  });
+
+  it('closes the socket when no pong arrives within the configured window', async () => {
+    vi.useFakeTimers();
+    const socket = ClientSocketWrapper.createNull({
+      pingIntervalMs: 1000,
+      pongTimeoutMs: 500,
+    });
+    await socket.connect();
+    vi.advanceTimersByTime(0);
+
+    const closed = new Promise<void>((resolve) => socket.onClose(resolve));
+
+    vi.advanceTimersByTime(2000);
+
+    await closed;
+    expect(socket.isConnected).toBe(false);
+  });
+
+  it('does not close the connection when no heartbeat is configured', async () => {
+    const socket = ClientSocketWrapper.createNull();
+    await socket.connect();
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(socket.isConnected).toBe(true);
+  });
+
+  it('stays open while pongs arrive within the window', async () => {
+    vi.useFakeTimers();
+    const socket = ClientSocketWrapper.createNull({
+      pingIntervalMs: 1000,
+      pongTimeoutMs: 500,
+    });
+    const server = socket.simulateServer();
+    await socket.connect();
+    vi.advanceTimersByTime(0);
+
+    for (let i = 0; i < 5; i++) {
+      vi.advanceTimersByTime(1000);
+      server.send({ type: 'pong' });
+    }
+
+    expect(socket.isConnected).toBe(true);
+  });
+
+  it('closes when a ping gets no pong within the window', async () => {
+    vi.useFakeTimers();
+    const socket = ClientSocketWrapper.createNull({
+      pingIntervalMs: 1000,
+      pongTimeoutMs: 500,
+    });
+    await socket.connect();
+    vi.advanceTimersByTime(0);
+
+    vi.advanceTimersByTime(1500);
+
+    expect(socket.isConnected).toBe(false);
   });
 });
 
@@ -87,11 +232,15 @@ describe('isServerMessage type guard', () => {
   });
 
   it('accepts ready messages with required fields', () => {
-    expect(isServerMessage({ type: 'ready', id: '1' })).toBe(true);
+    expect(isServerMessage({ type: 'ready', id: '1', collection: 'files' })).toBe(true);
   });
 
   it('rejects ready messages without id', () => {
-    expect(isServerMessage({ type: 'ready' })).toBe(false);
+    expect(isServerMessage({ type: 'ready', collection: 'files' })).toBe(false);
+  });
+
+  it('rejects ready messages without a collection', () => {
+    expect(isServerMessage({ type: 'ready', id: '1' })).toBe(false);
   });
 
   it('accepts added messages with required fields', () => {
@@ -218,5 +367,20 @@ describe('isServerMessage type guard', () => {
 
   it('rejects objects without type', () => {
     expect(isServerMessage({ id: '1' })).toBe(false);
+  });
+
+  it('rejects undefined', () => {
+    expect(isServerMessage(undefined)).toBe(false);
+  });
+
+  it('rejects an array shaped like a message', () => {
+    const arrayShapedAsMessage: unknown = Object.assign([], { type: 'ready', id: '1' });
+    expect(isServerMessage(arrayShapedAsMessage)).toBe(false);
+  });
+
+  it('rejects a removed message carrying unexpected extras', () => {
+    expect(isServerMessage({ type: 'removed', collection: 'files', id: '1', fields: {} })).toBe(
+      false,
+    );
   });
 });
