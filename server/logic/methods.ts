@@ -1,5 +1,9 @@
 export type MethodFn = (...args: string[]) => Promise<string>;
 
+export function methodNotFound(code: number, name: string): never {
+  throw new RpcError(code, `Method not found: ${name}`);
+}
+
 class RpcError extends Error {
   constructor(
     public readonly code: number,
@@ -20,8 +24,9 @@ export class Methods {
   async call(name: string, args: string[]): Promise<string> {
     const method = this.methods.get(name);
     if (!method) {
-      throw new RpcError(404, `Method not found: ${name}`);
+      methodNotFound(404, name);
     }
+
     return method(...args);
   }
 }
