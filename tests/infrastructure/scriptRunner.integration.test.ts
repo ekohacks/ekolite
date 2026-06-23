@@ -5,8 +5,8 @@ describe('ScriptRunnerWrapper (real)', () => {
   const runner = ScriptRunnerWrapper.create();
 
   it('executes a command and returns stdout', async () => {
-    const result = await runner.exec('echo', ['hello']);
-    expect(result).toEqual({ stdout: 'hello\n', stderr: '', exitCode: 0 });
+    const result = await runner.exec('node', ['-e', 'process.stdout.write("hello")']);
+    expect(result).toEqual({ stdout: 'hello', stderr: '', exitCode: 0 });
   });
 
   it('returns stderr and non-zero exit code on failure', async () => {
