@@ -21,6 +21,7 @@ describe('Files.upload', () => {
 
     expect(await storage.exists('a.bam')).toBe(true);
     expect(stored).toEqual(expect.objectContaining({ name: 'a.bam', size: 3, extension: 'bam' }));
+    expect(stored.path).toBe(storage.resolve('a.bam'));
 
     const insert = inserts.data.find((event) => (event as { type?: unknown }).type === 'insert');
     expect(insert).toBeDefined();
