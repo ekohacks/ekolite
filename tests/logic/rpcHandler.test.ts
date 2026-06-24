@@ -24,4 +24,23 @@ describe('RpcHandler', () => {
       result: 'echo: hello',
     });
   });
+
+  it('throws a structured 404, or the method body itself throws', async () => {
+    const ws = WebSocketWrapper.createNull();
+    const rpc = new RpcHandler(new Methods(), ws);
+    const client = ws.simulateConnection();
+
+    await rpc.handleMessage(client.id, {
+      type: 'method',
+      id: 'm1',
+      name: 'nope',
+      params: [],
+    });
+
+    expect(client.messages).toContainEqual({
+      type: 'error',
+      id: 'm1',
+      error: { code: 404, message: 'Method not found: nope' },
+    });
+  });
 });
