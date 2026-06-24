@@ -9,6 +9,19 @@ export interface UploadInput {
   data: Buffer;
 }
 
+// The document recorded for an uploaded file. Pulled out so `upload` reads as
+// save, build, insert, with the field-by-field shape in one named place.
+function buildStoredFile(input: UploadInput, path: string): StoredFile {
+  return {
+    _id: globalThis.crypto.randomUUID(),
+    name: input.name,
+    path,
+    size: input.data.length,
+    extension: extname(input.name).replace(/^\./, ''),
+    uploadedAt: new Date(),
+  };
+}
+
 // Files sits over the two infrastructure wrappers the way Publications sits over
 // Mongo and the websocket: the route stays thin and the logic is testable on
 // nullables. Upload writes the bytes, then records a document describing them so
@@ -22,14 +35,7 @@ export class Files {
   async upload(input: UploadInput): Promise<StoredFile> {
     await this.storage.save(input.name, input.data);
 
-    const stored: StoredFile = {
-      _id: globalThis.crypto.randomUUID(),
-      name: input.name,
-      path: this.storage.resolve(input.name),
-      size: input.data.length,
-      extension: extname(input.name).replace(/^\./, ''),
-      uploadedAt: new Date(),
-    };
+    const stored = buildStoredFile(input, this.storage.resolve(input.name));
 
     await this.mongo.insert('files', stored);
     return stored;
