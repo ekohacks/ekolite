@@ -3,6 +3,8 @@ import { MongoWrapper } from './infrastructure/mongo.ts';
 import { WebSocketWrapper } from './infrastructure/websocket.ts';
 import { FileStorageWrapper } from './infrastructure/fileStorage.ts';
 import { Publications } from './logic/publications.ts';
+import { RpcHandler } from './logic/rpcHandler.ts';
+import { Methods } from './logic/methods.ts';
 import { Files } from './logic/files.ts';
 
 // Real boot. The same pieces the end-to-end test wires by hand, wired here for a
@@ -15,6 +17,8 @@ const port = Number(process.env.PORT ?? 3001);
 const mongo = MongoWrapper.create(mongoUri);
 const ws = WebSocketWrapper.create();
 const storage = FileStorageWrapper.create(fileDir);
+const methods = new Methods();
+const rpcHandler = new RpcHandler(methods, ws);
 const publications = new Publications(mongo, ws);
 const files = new Files(mongo, storage);
 
@@ -36,7 +40,7 @@ try {
   console.warn('skipped seeding (is Mongo running?):', err instanceof Error ? err.message : err);
 }
 
-const server = await createServer({ ws, publications, files });
+const server = await createServer({ ws, publications, rpcHandler, files });
 await server.listen({ port, host: '0.0.0.0' });
 
 console.warn(`EkoLite listening on http://localhost:${String(port)} (ws at /ws)`);

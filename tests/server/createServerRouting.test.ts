@@ -3,6 +3,8 @@ import { createServer } from '../../server/index.ts';
 import { WebSocketWrapper } from '../../server/infrastructure/websocket.ts';
 import { MongoWrapper } from '../../server/infrastructure/mongo.ts';
 import { Publications } from '../../server/logic/publications.ts';
+import { RpcHandler } from '../../server/logic/rpcHandler.ts';
+import { Methods } from '../../server/logic/methods.ts';
 
 // Tighter red for wires 2 and 3 only, with no real socket in sight. Everything is
 // nulled: a null ws lets us simulate a connection and an inbound subscribe, a null
@@ -39,6 +41,26 @@ describe('createServer routes inbound subscriptions into publications', () => {
           expect.objectContaining({ type: 'ready', id: 'sub1', collection: 'files' }),
         ]),
       );
+    });
+  });
+
+  it('routes method messages to the rpc handler and returns results to the same client', async () => {
+    const ws = WebSocketWrapper.createNull();
+    const methods = new Methods();
+    methods.define('echo', (msg) => Promise.resolve(`echo: ${String(msg)}`));
+    const rpcHandler = new RpcHandler(methods, ws);
+
+    await createServer({ ws, rpcHandler });
+
+    const client = ws.simulateConnection();
+    client.send({ type: 'method', id: 'm1', name: 'echo', params: ['hello'] });
+
+    await vi.waitFor(() => {
+      expect(client.messages).toContainEqual({
+        type: 'result',
+        id: 'm1',
+        result: 'echo: hello',
+      });
     });
   });
 });
