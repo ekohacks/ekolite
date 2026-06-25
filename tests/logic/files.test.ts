@@ -65,16 +65,6 @@ describe('Files.read', () => {
     expect(await files.read('nope')).toBeNull();
   });
 
-  it('accepts a configured extension such as .cram', () => {
-    const mongo = MongoWrapper.createNull();
-    const storage = FileStorageWrapper.createNull();
-
-    const wide = new Files(mongo, storage, {
-      allowedExtensions: ['bam', 'cram'],
-    });
-    expect(wide.validate('reads.cram')).toBe(true);
-  });
-
   it('validates files by the extension', () => {
     const mongo = MongoWrapper.createNull();
     const storage = FileStorageWrapper.createNull();
@@ -95,15 +85,17 @@ describe('Files.read', () => {
     expect(wide.validate('reads.cram')).toBe(true);
   });
 
-  it('upload questions files first before saving', async () => {
+  it('rejects an unsupported upload before writing anything', async () => {
     const mongo = MongoWrapper.createNull();
     const storage = FileStorageWrapper.createNull();
     const files = new Files(mongo, storage);
+    const inserts = await mongo.trackChanges('files');
 
     await expect(
       files.upload({ name: 'bad.txt', type: 'text/plain', data: Buffer.from('x') }),
     ).rejects.toMatchObject({ code: 400 });
 
     expect(await storage.exists('bad.txt')).toBe(false);
+    expect(inserts.data).toHaveLength(0);
   });
 });
