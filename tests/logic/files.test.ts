@@ -64,4 +64,14 @@ describe('Files.read', () => {
 
     expect(await files.read('nope')).toBeNull();
   });
+
+  it('validates files the extention', () => {
+    const mongo = MongoWrapper.createNull();
+    const storage = FileStorageWrapper.createNull();
+
+    const files = new Files(mongo, storage);
+
+    expect(files.validate('sample.bam')).toBe(true);
+    expect(files.validate('notes.txt')).toBe(false);
+  })
 });
