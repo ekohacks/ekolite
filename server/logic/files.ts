@@ -1,7 +1,7 @@
 import { extname } from 'node:path';
 import { MongoWrapper } from '../infrastructure/mongo.ts';
 import { FileStorageWrapper } from '../infrastructure/fileStorage.ts';
-import { StoredFile } from '../../shared/types.ts';
+import { fileUploadError, StoredFile } from '../../shared/types.ts';
 
 export interface UploadInput {
   name: string;
@@ -48,6 +48,11 @@ export class Files {
   }
 
   async upload(input: UploadInput): Promise<StoredFile> {
+    const extension = extensionOf(input.name);
+    if (!this.isAllowed(extension)) {
+      throw fileUploadError(extension);
+    }
+
     await this.storage.save(input.name, input.data);
 
     const stored = buildStoredFile(input, this.storage.resolve(input.name));
@@ -67,8 +72,10 @@ export class Files {
   }
 
   validate(name: string): boolean {
-    const extension = extensionOf(name);
+    return this.isAllowed(extensionOf(name));
+  }
 
+  private isAllowed(extension: string): boolean {
     return this.allowedExtensions.includes(extension);
   }
 }

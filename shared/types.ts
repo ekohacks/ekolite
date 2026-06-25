@@ -93,3 +93,9 @@ export function toEkoLiteError(error: unknown): EkoLiteError {
     message: error instanceof Error ? error.message : String(error),
   };
 }
+
+// ── File definitions ──────────────────────────────────────────────────────
+
+export function fileUploadError(extension: string): RpcError {
+  return new RpcError(400, `Unsupported file type: .${extension}`);
+}
