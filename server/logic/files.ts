@@ -9,6 +9,10 @@ export interface UploadInput {
   data: Buffer;
 }
 
+interface FilesOptions {
+  allowedExtensions?: string[];
+}
+
 // The document recorded for an uploaded file. Pulled out so `upload` reads as
 // save, build, insert, with the field-by-field shape in one named place.
 function buildStoredFile(input: UploadInput, path: string): StoredFile {
@@ -29,10 +33,15 @@ const ALLOWED_EXTENSIONS = ['bam'];
 // nullables. Upload writes the bytes, then records a document describing them so
 // the same document streams to subscribers through publications.
 export class Files {
+  private readonly allowedExtenstions: string[];
+
   constructor(
     private readonly mongo: MongoWrapper,
     private readonly storage: FileStorageWrapper,
-  ) {}
+    options?: FilesOptions,
+  ) {
+    this.allowedExtenstions = options?.allowedExtensions ?? ALLOWED_EXTENSIONS;
+  }
 
   async upload(input: UploadInput): Promise<StoredFile> {
     await this.storage.save(input.name, input.data);
@@ -56,6 +65,6 @@ export class Files {
   validate(name: string): boolean {
     const extension = extname(name).replace(/^\./, '').toLowerCase();
 
-    return ALLOWED_EXTENSIONS.includes(extension);
+    return this.allowedExtenstions.includes(extension);
   }
 }

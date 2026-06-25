@@ -74,4 +74,14 @@ describe('Files.read', () => {
     expect(files.validate('sample.bam')).toBe(true);
     expect(files.validate('notes.txt')).toBe(false);
   });
+
+  it('allows set configuration rather than a constant inside the check', () => {
+    const mongo = MongoWrapper.createNull();
+    const storage = FileStorageWrapper.createNull();
+
+    const wide = new Files(mongo, storage, {
+      allowedExtensions: ['bam', 'cram'],
+    });
+    expect(wide.validate('reads.cram')).toBe(true);
+  });
 });
