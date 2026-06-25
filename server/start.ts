@@ -26,6 +26,11 @@ const files = new Files(mongo, storage);
 // sync with the client as Mongo changes.
 publications.define('files.all', () => ({ collection: 'files', query: {} }));
 
+// One method to start with: echo bounces its argument straight back, so a live
+// call('echo', 'hello') comes back 'echo: hello'. It gives the method round trip
+// something real to hit, the way files.all does for subscriptions.
+methods.define('echo', (message) => Promise.resolve(`echo: ${String(message)}`));
+
 // Dev convenience: seed a couple of files so a fresh Mongo is not a blank page.
 // Idempotent (only seeds an empty collection) and best-effort (a missing Mongo
 // should not stop the server booting; subscriptions just come back empty).
