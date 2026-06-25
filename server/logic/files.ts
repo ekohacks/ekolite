@@ -22,6 +22,8 @@ function buildStoredFile(input: UploadInput, path: string): StoredFile {
   };
 }
 
+const ALLOWED_EXTENSIONS = ['bam'];
+
 // Files sits over the two infrastructure wrappers the way Publications sits over
 // Mongo and the websocket: the route stays thin and the logic is testable on
 // nullables. Upload writes the bytes, then records a document describing them so
@@ -49,5 +51,11 @@ export class Files {
     const file = docs[0];
     const data = await this.storage.read(file.name);
     return { file, data };
+  }
+
+  validate(name: string): boolean {
+    const extension = extname(name).replace(/^\./, '').toLowerCase();
+
+    return ALLOWED_EXTENSIONS.includes(extension);
   }
 }
