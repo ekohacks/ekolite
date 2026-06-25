@@ -34,15 +34,42 @@ describe('file upload over real HTTP', () => {
     form.append(
       'file',
       new Blob([Buffer.from('hello there')], { type: 'text/plain' }),
-      'greeting.txt',
+      'greeting.bam',
     );
     const res = await fetch(`http://localhost:${port}/api/files`, { method: 'POST', body: form });
 
     expect(res.status).toBe(201);
-    expect(await storage.exists('greeting.txt')).toBe(true);
+    expect(await storage.exists('greeting.bam')).toBe(true);
 
     const insert = inserts.data.find((event) => (event as { type?: unknown }).type === 'insert');
     expect(insert).toBeDefined();
-    expect((insert as { fields: { name?: unknown } }).fields.name).toBe('greeting.txt');
+    expect((insert as { fields: { name?: unknown } }).fields.name).toBe('greeting.bam');
+  });
+
+  it('throws an ekoLiteError with a code of 400', async () => {
+    const mongo = MongoWrapper.createNull();
+    const storage = FileStorageWrapper.createNull();
+    const ws = WebSocketWrapper.createNull();
+    const files = new Files(mongo, storage);
+    const inserts = await mongo.trackChanges('files');
+
+    server = await createServer({ ws, files });
+    await server.listen({ port: 0 });
+    const port = String(server.addresses()[0].port);
+
+    const form = new FormData();
+    form.append(
+      'file',
+      new Blob([Buffer.from('hello there')], { type: 'text/plain' }),
+      'greeting.txt',
+    );
+
+    const res = await fetch(`http://localhost:${port}/api/files`, { method: 'POST', body: form });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: 400 });
+
+    const insert = inserts.data.find((event) => (event as { type?: unknown }).type === 'insert');
+    expect(insert).toBeUndefined();
   });
 });
