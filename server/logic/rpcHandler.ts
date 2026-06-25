@@ -1,5 +1,5 @@
 import { MethodMsg } from '../../shared/protocol.ts';
-import { RpcHandleMessageError } from '../../shared/types.ts';
+import { toEkoLiteError } from '../../shared/types.ts';
 import { WebSocketWrapper } from '../infrastructure/websocket.ts';
 import { Methods } from './methods.ts';
 
@@ -25,7 +25,7 @@ export class RpcHandler {
       this.ws.send(clientId, {
         type: 'error',
         id: message.id,
-        error: RpcHandleMessageError(err),
+        error: toEkoLiteError(err),
       });
     }
   }

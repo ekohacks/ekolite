@@ -80,10 +80,10 @@ class RpcError extends Error implements EkoLiteError {
   }
 }
 
-export function RpcHandleMessageError(error: unknown): EkoLiteError {
-  if (error instanceof Error && 'code' in error) {
+export function toEkoLiteError(error: unknown): EkoLiteError {
+  if (error instanceof RpcError) {
     return {
-      code: (error as RpcError).code,
+      code: error.code,
       message: error.message,
     };
   }

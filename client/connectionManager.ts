@@ -171,7 +171,15 @@ export class ConnectionManager {
       this.stopSubscription(id);
     }
 
+    // No result can arrive over a closed connection, so settle every call still
+    // waiting as a rejection the caller can catch, rather than leaving its
+    // promise pending forever.
+    for (const { reject } of this.pendingRequests.values()) {
+      reject(new Error('connection closed'));
+    }
+
     this.subscriptions.clear();
+    this.pendingRequests.clear();
     this.stores.clear();
     this.pendingData = [];
   }
