@@ -13,6 +13,10 @@ interface FilesOptions {
   allowedExtensions?: string[];
 }
 
+function extensionOf(name: string) {
+  return extname(name).replace(/^\./, '').toLowerCase();
+}
+
 // The document recorded for an uploaded file. Pulled out so `upload` reads as
 // save, build, insert, with the field-by-field shape in one named place.
 function buildStoredFile(input: UploadInput, path: string): StoredFile {
@@ -21,7 +25,7 @@ function buildStoredFile(input: UploadInput, path: string): StoredFile {
     name: input.name,
     path,
     size: input.data.length,
-    extension: extname(input.name).replace(/^\./, ''),
+    extension: extensionOf(input.name),
     uploadedAt: new Date(),
   };
 }
@@ -33,14 +37,14 @@ const ALLOWED_EXTENSIONS = ['bam'];
 // nullables. Upload writes the bytes, then records a document describing them so
 // the same document streams to subscribers through publications.
 export class Files {
-  private readonly allowedExtenstions: string[];
+  private readonly allowedExtensions: string[];
 
   constructor(
     private readonly mongo: MongoWrapper,
     private readonly storage: FileStorageWrapper,
     options?: FilesOptions,
   ) {
-    this.allowedExtenstions = options?.allowedExtensions ?? ALLOWED_EXTENSIONS;
+    this.allowedExtensions = options?.allowedExtensions ?? ALLOWED_EXTENSIONS;
   }
 
   async upload(input: UploadInput): Promise<StoredFile> {
@@ -63,8 +67,8 @@ export class Files {
   }
 
   validate(name: string): boolean {
-    const extension = extname(name).replace(/^\./, '').toLowerCase();
+    const extension = extensionOf(name);
 
-    return this.allowedExtenstions.includes(extension);
+    return this.allowedExtensions.includes(extension);
   }
 }

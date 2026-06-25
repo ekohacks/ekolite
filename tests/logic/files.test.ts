@@ -65,7 +65,7 @@ describe('Files.read', () => {
     expect(await files.read('nope')).toBeNull();
   });
 
-  it('validates files by the extention', () => {
+  it('validates files by the extension', () => {
     const mongo = MongoWrapper.createNull();
     const storage = FileStorageWrapper.createNull();
 
@@ -75,7 +75,7 @@ describe('Files.read', () => {
     expect(files.validate('notes.txt')).toBe(false);
   });
 
-  it('allows set configuration rather than a constant inside the check', () => {
+  it('accepts a configured extension such as .cram', () => {
     const mongo = MongoWrapper.createNull();
     const storage = FileStorageWrapper.createNull();
 
