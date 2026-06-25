@@ -72,4 +72,45 @@ describe('file upload over real HTTP', () => {
     const insert = inserts.data.find((event) => (event as { type?: unknown }).type === 'insert');
     expect(insert).toBeUndefined();
   });
+
+  // Step c of the story: every route renders an EkoLiteError the same way. These two
+  // replies are still the old { error } shape. Marked `it.fails` so the pipeline stays
+  // green while they document the gap. Flip `it.fails` back to `it` locally to watch
+  // them fail, fold the replies into { code, message }, then they pass as normal tests
+  // (at which point `it.fails` goes red, telling you to drop the `.fails`).
+  it.fails('answers a missing file in the shared EkoLiteError shape', async () => {
+    const mongo = MongoWrapper.createNull();
+    const storage = FileStorageWrapper.createNull();
+    const ws = WebSocketWrapper.createNull();
+    const files = new Files(mongo, storage);
+
+    server = await createServer({ ws, files });
+    await server.listen({ port: 0 });
+    const port = String(server.addresses()[0].port);
+
+    // A multipart body with fields but no file part hits the "no file" branch.
+    const form = new FormData();
+    form.append('note', 'no file here');
+
+    const res = await fetch(`http://localhost:${port}/api/files`, { method: 'POST', body: form });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: 400 });
+  });
+
+  it.fails('answers an unknown file id in the shared EkoLiteError shape', async () => {
+    const mongo = MongoWrapper.createNull();
+    const storage = FileStorageWrapper.createNull();
+    const ws = WebSocketWrapper.createNull();
+    const files = new Files(mongo, storage);
+
+    server = await createServer({ ws, files });
+    await server.listen({ port: 0 });
+    const port = String(server.addresses()[0].port);
+
+    const res = await fetch(`http://localhost:${port}/api/files/does-not-exist`);
+
+    expect(res.status).toBe(404);
+    expect(await res.json()).toMatchObject({ code: 404 });
+  });
 });
