@@ -48,7 +48,7 @@ export class Files {
   }
 
   async upload(input: UploadInput): Promise<StoredFile> {
-    const extension = extname(input.name).replace(/^\./, '');
+    const extension = extensionOf(input.name);
     if (!this.validate(input.name)) {
       throw fileUploadError(extension);
     }
