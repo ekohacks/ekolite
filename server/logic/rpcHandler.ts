@@ -1,4 +1,5 @@
 import { MethodMsg } from '../../shared/protocol.ts';
+import { toEkoLiteError } from '../../shared/types.ts';
 import { WebSocketWrapper } from '../infrastructure/websocket.ts';
 import { Methods } from './methods.ts';
 
@@ -12,11 +13,20 @@ export class RpcHandler {
   }
 
   async handleMessage(clientId: string, message: MethodMsg): Promise<void> {
-    const result = await this.methods.call(message.name, message.params);
-    this.ws.send(clientId, {
-      type: 'result',
-      id: message.id,
-      result,
-    });
+    try {
+      const result = await this.methods.call(message.name, message.params);
+
+      this.ws.send(clientId, {
+        type: 'result',
+        id: message.id,
+        result,
+      });
+    } catch (err) {
+      this.ws.send(clientId, {
+        type: 'error',
+        id: message.id,
+        error: toEkoLiteError(err),
+      });
+    }
   }
 }

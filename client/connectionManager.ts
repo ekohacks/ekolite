@@ -1,6 +1,12 @@
 import { ClientSocketWrapper } from './clientSocket.ts';
 import { ReactiveStore } from './reactiveStore.ts';
-import { DataMsg, ServerMessage, SubscribeMsg, UnsubscribeMsg } from '../shared/protocol.ts';
+import {
+  DataMsg,
+  MethodMsg,
+  ServerMessage,
+  SubscribeMsg,
+  UnsubscribeMsg,
+} from '../shared/protocol.ts';
 import { assertNever } from '../shared/helperFunctions.ts';
 
 export interface SubscriptionHandle {
@@ -36,6 +42,11 @@ const generateSubscriptionId = (): string => {
   return globalThis.crypto.randomUUID();
 };
 
+interface PendingRequest {
+  resolve: (value: unknown) => void;
+  reject: (error: unknown) => void;
+}
+
 export class ConnectionManager {
   private readonly socket: ClientSocketWrapper;
   private readonly stores = new Map<string, ReactiveStore>();
@@ -47,6 +58,7 @@ export class ConnectionManager {
   // its collection. Held here until the matching `ready` binds the collection,
   // then flushed into the store. See handleServerMessage.
   private pendingData: DataMsg[] = [];
+  private readonly pendingRequests = new Map<string, PendingRequest>();
 
   constructor(socket: ClientSocketWrapper) {
     this.socket = socket;
@@ -62,6 +74,29 @@ export class ConnectionManager {
     this.teardownCloseListener = this.socket.onClose(() => {
       this.dispose();
     });
+  }
+
+  call(name: string, ...args: unknown[]): Promise<unknown> {
+    this.assertNotDisposed();
+
+    const id = generateSubscriptionId();
+
+    const promise = new Promise<unknown>((resolve, reject) => {
+      this.pendingRequests.set(id, { resolve, reject });
+    });
+
+    const message: MethodMsg = {
+      type: 'method',
+      id,
+      name,
+      params: args,
+    };
+
+    this.socket.send(message).catch(() => {
+      this.pendingRequests.delete(id);
+    });
+
+    return promise;
   }
 
   subscribe(name: string, params?: Record<string, unknown>): SubscriptionHandle {
@@ -221,14 +256,32 @@ export class ConnectionManager {
         }
         break;
       }
-      case 'result':
+      case 'result': {
+        const request = this.pendingRequests.get(message.id);
+
+        if (request) {
+          request.resolve(message.result);
+          this.pendingRequests.delete(message.id);
+        }
+
+        break;
+      }
       case 'pong':
         // result settles via its request; pong is a liveness signal already
         // consumed by the heartbeat in ClientSocketWrapper. Neither carries
         // application data, so there is nothing to route here.
         break;
       case 'error': {
+        const request = this.pendingRequests.get(message.id);
+
+        if (request) {
+          request.reject(message.error);
+          this.pendingRequests.delete(message.id);
+          break;
+        }
+
         const subscription = this.subscriptions.get(message.id);
+
         if (subscription) {
           subscription.readyRejector(message.error);
           this.subscriptions.delete(message.id);
