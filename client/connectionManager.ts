@@ -44,6 +44,7 @@ const generateSubscriptionId = (): string => {
 
 interface PendingRequest {
   resolve: (value: unknown) => void;
+  reject: (error: unknown) => void;
 }
 
 export class ConnectionManager {
@@ -80,8 +81,8 @@ export class ConnectionManager {
 
     const id = generateSubscriptionId();
 
-    const promise = new Promise<unknown>((resolve) => {
-      this.pendingRequests.set(id, { resolve });
+    const promise = new Promise<unknown>((resolve, reject) => {
+      this.pendingRequests.set(id, { resolve, reject });
     });
 
     const message: MethodMsg = {
@@ -271,7 +272,16 @@ export class ConnectionManager {
         // application data, so there is nothing to route here.
         break;
       case 'error': {
+        const request = this.pendingRequests.get(message.id);
+
+        if (request) {
+          request.reject(message.error);
+          this.pendingRequests.delete(message.id);
+          break;
+        }
+
         const subscription = this.subscriptions.get(message.id);
+
         if (subscription) {
           subscription.readyRejector(message.error);
           this.subscriptions.delete(message.id);
