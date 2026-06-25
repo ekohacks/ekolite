@@ -8,6 +8,7 @@ import { type Publications } from './logic/publications.ts';
 import { type Files } from './logic/files.ts';
 import { type RpcHandler } from './logic/rpcHandler.ts';
 import { type ClientMessage } from '../shared/protocol.ts';
+import { RpcError, toEkoLiteError } from '../shared/types.ts';
 
 export interface ServerOptions {
   ws: WebSocketWrapper;
@@ -59,12 +60,26 @@ export async function createServer(options: ServerOptions) {
       if (!upload) {
         return reply.status(400).send({ error: 'no file in request' });
       }
-      const stored = await files.upload({
-        name: upload.filename,
-        type: upload.mimetype,
-        data: await upload.toBuffer(),
-      });
-      return reply.status(201).send({ id: stored._id, name: stored.name });
+      try {
+        const stored = await files.upload({
+          name: upload.filename,
+          type: upload.mimetype,
+          data: await upload.toBuffer(),
+        });
+        reply.status(201).send({ id: stored._id, name: stored.name });
+        return;
+      } catch (err) {
+        if (err instanceof RpcError) {
+          reply.status(err.code).send(toEkoLiteError(err));
+          return;
+        }
+
+        reply.status(500).send({
+          code: 500,
+          message: 'Internal Server Error',
+        });
+        return;
+      }
     });
 
     server.get('/api/files/:id', async (request, reply) => {
