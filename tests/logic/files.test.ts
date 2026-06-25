@@ -65,6 +65,16 @@ describe('Files.read', () => {
     expect(await files.read('nope')).toBeNull();
   });
 
+  it('accepts a configured extension such as .cram', () => {
+    const mongo = MongoWrapper.createNull();
+    const storage = FileStorageWrapper.createNull();
+
+    const wide = new Files(mongo, storage, {
+      allowedExtensions: ['bam', 'cram'],
+    });
+    expect(wide.validate('reads.cram')).toBe(true);
+  });
+
   it('validates files by the extension', () => {
     const mongo = MongoWrapper.createNull();
     const storage = FileStorageWrapper.createNull();
