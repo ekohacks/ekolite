@@ -49,7 +49,7 @@ export class Files {
 
   async upload(input: UploadInput): Promise<StoredFile> {
     const extension = extensionOf(input.name);
-    if (!this.validate(input.name)) {
+    if (!this.isAllowed(extension)) {
       throw fileUploadError(extension);
     }
 
@@ -72,8 +72,10 @@ export class Files {
   }
 
   validate(name: string): boolean {
-    const extension = extensionOf(name);
+    return this.isAllowed(extensionOf(name));
+  }
 
+  private isAllowed(extension: string): boolean {
     return this.allowedExtensions.includes(extension);
   }
 }
