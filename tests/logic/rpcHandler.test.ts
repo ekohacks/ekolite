@@ -25,7 +25,7 @@ describe('RpcHandler', () => {
     });
   });
 
-  it('throws a structured 404, or the method body itself throws', async () => {
+  it('throws a structured 404 unknown method', async () => {
     const ws = WebSocketWrapper.createNull();
     const rpc = new RpcHandler(new Methods(), ws);
     const client = ws.simulateConnection();
