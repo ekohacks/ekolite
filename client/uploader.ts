@@ -73,7 +73,7 @@ class NullRequest implements RequestLike {
   method = '';
   url = '';
 
-  constructor(private readonly response: NullUploaderOptions['response']) {
+  constructor(response: NullUploaderOptions['response']) {
     this.status = response.status;
     this.responseText = JSON.stringify(response.body);
   }
