@@ -73,11 +73,6 @@ describe('file upload over real HTTP', () => {
     expect(insert).toBeUndefined();
   });
 
-  // Step c of the story: every route renders an EkoLiteError the same way. These two
-  // replies are still the old { error } shape. Marked `it.fails` so the pipeline stays
-  // green while they document the gap. Flip `it.fails` back to `it` locally to watch
-  // them fail, fold the replies into { code, message }, then they pass as normal tests
-  // (at which point `it.fails` goes red, telling you to drop the `.fails`).
   it('answers a missing file in the shared EkoLiteError shape', async () => {
     const mongo = MongoWrapper.createNull();
     const storage = FileStorageWrapper.createNull();
