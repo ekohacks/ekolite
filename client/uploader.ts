@@ -26,7 +26,7 @@ function isUploadResponse(data: unknown): data is UploadResponse {
 interface NullUploaderOptions {
   response: {
     status: number;
-    body: UploadResponse;
+    body: unknown;
   };
 }
 
@@ -40,6 +40,8 @@ interface RequestLike {
   status: number;
   responseText: string;
 }
+
+type RequestFactory = () => RequestLike;
 
 class RealRequest implements RequestLike {
   private readonly xhr = new XMLHttpRequest();
@@ -99,14 +101,14 @@ class NullRequest implements RequestLike {
 export class Uploader {
   private readonly emitter = new EventEmitter();
 
-  private constructor(private readonly request: RequestLike) {}
+  private constructor(private readonly createRequest: RequestFactory) {}
 
   static create(): Uploader {
-    return new Uploader(new RealRequest());
+    return new Uploader(() => new RealRequest());
   }
 
   static createNull(options: NullUploaderOptions): Uploader {
-    return new Uploader(new NullRequest(options.response));
+    return new Uploader(() => new NullRequest(options.response));
   }
 
   async upload(file: File): Promise<UploadResponse> {
@@ -115,6 +117,7 @@ export class Uploader {
     this.emitter.emit(REQUEST_EVENT, {
       method: request.method,
       url: request.url,
+      filename: file.name,
     });
 
     return this.execute(request);
@@ -131,8 +134,8 @@ export class Uploader {
     };
   }
 
-  private parseResponse(): UploadResponse {
-    const parsed: unknown = JSON.parse(this.request.responseText);
+  private parseResponse(request: RequestLike): UploadResponse {
+    const parsed: unknown = JSON.parse(request.responseText);
 
     if (!isUploadResponse(parsed)) {
       throw new Error('Invalid upload response');
@@ -141,23 +144,29 @@ export class Uploader {
     return parsed;
   }
 
-  private execute(request: UploadRequest): Promise<UploadResponse> {
-    return new Promise((resolve, reject) => {
-      this.request.open(request.method, request.url);
+  private execute(upload: UploadRequest): Promise<UploadResponse> {
+    const request = this.createRequest();
 
-      this.request.onload = () => {
-        if (this.request.status >= 200 && this.request.status < 300) {
-          resolve(this.parseResponse());
+    return new Promise((resolve, reject) => {
+      request.open(upload.method, upload.url);
+
+      request.onload = () => {
+        if (request.status >= 200 && request.status < 300) {
+          try {
+            resolve(this.parseResponse(request));
+          } catch (error) {
+            reject(error instanceof Error ? error : new Error(String(error)));
+          }
         } else {
-          reject(new Error(`Upload failed (${String(this.request.status)})`));
+          reject(new Error(`Upload failed (${String(request.status)})`));
         }
       };
 
-      this.request.onerror = () => {
+      request.onerror = () => {
         reject(new Error('Upload failed'));
       };
 
-      this.request.send(request.body);
+      request.send(upload.body);
     });
   }
 

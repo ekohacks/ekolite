@@ -29,4 +29,46 @@ describe('Uploader (null)', () => {
       message: 'Unsupported file type: .txt',
     });
   });
+
+  it('completes every upload when two run concurrently', async () => {
+    const uploader = Uploader.createNull({
+      response: { status: 201, body: { id: 'f1', name: 'sample.bam' } },
+    });
+    const requests = uploader.trackRequests();
+
+    const first = uploader.upload(new File([Buffer.from('A')], 'a.bam'));
+    const second = uploader.upload(new File([Buffer.from('B')], 'b.bam'));
+
+    const [a, b] = await Promise.all([first, second]);
+
+    expect(a).toEqual({ id: 'f1', name: 'sample.bam' });
+    expect(b).toEqual({ id: 'f1', name: 'sample.bam' });
+    expect(requests.data).toHaveLength(2);
+  }, 2000);
+
+  it('records which file went out, not just the route', async () => {
+    const uploader = Uploader.createNull({
+      response: { status: 201, body: { id: 'f1', name: 'sample.bam' } },
+    });
+    const requests = uploader.trackRequests();
+
+    await uploader.upload(new File([Buffer.from('BAMDATA')], 'sample.bam'));
+
+    expect(requests.data).toContainEqual(
+      expect.objectContaining({ method: 'POST', url: '/api/files', filename: 'sample.bam' }),
+    );
+  });
+
+  it('rejects, rather than hanging, when a 2xx body is the wrong shape', async () => {
+    const uploader = Uploader.createNull({
+      response: {
+        status: 201,
+        body: { wrong: 'shape' } as unknown as { id: string; name: string },
+      },
+    });
+
+    await expect(uploader.upload(new File([Buffer.from('x')], 'x.bam'))).rejects.toThrow(
+      'Invalid upload response',
+    );
+  }, 2000);
 });
