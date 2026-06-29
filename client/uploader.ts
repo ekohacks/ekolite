@@ -2,6 +2,12 @@ import { EventEmitter, OutputTracker } from '../server/infrastructure/outputTrac
 
 const REQUEST_EVENT = 'request';
 
+interface UploadRequest {
+  method: string;
+  url: string;
+  body: FormData;
+}
+
 interface UploadResponse {
   id: string;
   name: string;
@@ -104,22 +110,44 @@ export class Uploader {
   }
 
   async upload(file: File): Promise<UploadResponse> {
-    return new Promise((resolve, reject) => {
-      const form = new FormData();
-      form.append('file', file);
+    const request = this.buildRequest(file);
 
-      this.request.open('POST', '/api/files');
+    this.emitter.emit(REQUEST_EVENT, {
+      method: request.method,
+      url: request.url,
+    });
+
+    return this.execute(request);
+  }
+
+  private buildRequest(file: File): UploadRequest {
+    const body = new FormData();
+    body.append('file', file);
+
+    return {
+      method: 'POST',
+      url: '/api/files',
+      body,
+    };
+  }
+
+  private parseResponse(): UploadResponse {
+    const parsed: unknown = JSON.parse(this.request.responseText);
+
+    if (!isUploadResponse(parsed)) {
+      throw new Error('Invalid upload response');
+    }
+
+    return parsed;
+  }
+
+  private execute(request: UploadRequest): Promise<UploadResponse> {
+    return new Promise((resolve, reject) => {
+      this.request.open(request.method, request.url);
 
       this.request.onload = () => {
         if (this.request.status >= 200 && this.request.status < 300) {
-          const parsed: unknown = JSON.parse(this.request.responseText);
-
-          if (!isUploadResponse(parsed)) {
-            reject(new Error('Invalid upload response'));
-            return;
-          }
-
-          resolve(parsed);
+          resolve(this.parseResponse());
         } else {
           reject(new Error(`Upload failed (${String(this.request.status)})`));
         }
@@ -129,12 +157,7 @@ export class Uploader {
         reject(new Error('Upload failed'));
       };
 
-      this.request.send(form);
-
-      this.emitter.emit(REQUEST_EVENT, {
-        method: 'POST',
-        url: '/api/files',
-      });
+      this.request.send(request.body);
     });
   }
 
