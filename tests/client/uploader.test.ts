@@ -16,4 +16,17 @@ describe('Uploader (null)', () => {
     );
     expect(stored).toEqual({ id: 'f1', name: 'sample.bam' });
   });
+
+  it('rejects with server error when the upload is refused', async () => {
+    const uploader = Uploader.createNull({
+      response: { status: 400, body: { code: 400, message: 'Unsupported file type: .txt' } },
+    });
+
+    const bad = new File([Buffer.from('notes')], 'bad.txt');
+
+    await expect(uploader.upload(bad)).rejects.toMatchObject({
+      code: 400,
+      message: 'Unsupported file type: .txt',
+    });
+  });
 });
