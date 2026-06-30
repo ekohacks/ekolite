@@ -1,6 +1,18 @@
 import { EventEmitter, OutputTracker } from '../server/infrastructure/outputTracker.ts';
+import { EkoLiteError } from '../shared/protocol.ts';
+import { RpcError } from '../shared/types.ts';
 
 const REQUEST_EVENT = 'request';
+
+function isUploadError(data: unknown): data is EkoLiteError {
+  if (typeof data !== 'object' || data === null) {
+    return false;
+  }
+
+  const error = data as Record<string, unknown>;
+
+  return typeof error.code === 'number' && typeof error.message === 'string';
+}
 
 interface UploadRequest {
   method: string;
@@ -134,14 +146,22 @@ export class Uploader {
     };
   }
 
-  private parseResponse(request: RequestLike): UploadResponse {
+  private resolveUpload(request: RequestLike): UploadResponse {
     const parsed: unknown = JSON.parse(request.responseText);
 
-    if (!isUploadResponse(parsed)) {
-      throw new Error('Invalid upload response');
+    if (request.status >= 200 && request.status < 300) {
+      if (!isUploadResponse(parsed)) {
+        throw new Error('Invalid upload response');
+      }
+
+      return parsed;
     }
 
-    return parsed;
+    if (!isUploadError(parsed)) {
+      throw new Error('Invalid upload error');
+    }
+
+    throw new RpcError(parsed.code, parsed.message);
   }
 
   private execute(upload: UploadRequest): Promise<UploadResponse> {
@@ -151,14 +171,10 @@ export class Uploader {
       request.open(upload.method, upload.url);
 
       request.onload = () => {
-        if (request.status >= 200 && request.status < 300) {
-          try {
-            resolve(this.parseResponse(request));
-          } catch (error) {
-            reject(error instanceof Error ? error : new Error(String(error)));
-          }
-        } else {
-          reject(new Error(`Upload failed (${String(request.status)})`));
+        try {
+          resolve(this.resolveUpload(request));
+        } catch (error) {
+          reject(error instanceof Error ? error : new Error(String(error)));
         }
       };
 

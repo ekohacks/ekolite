@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Uploader } from '../../client/uploader.ts';
+import { RpcError } from '../../shared/types.ts';
 
 describe('Uploader (null)', () => {
   it('sends the bytes and resolves with what server stored', async () => {
@@ -15,6 +16,29 @@ describe('Uploader (null)', () => {
       expect.objectContaining({ method: 'POST', url: '/api/files' }),
     );
     expect(stored).toEqual({ id: 'f1', name: 'sample.bam' });
+  });
+
+  it('rejects with server error when the upload is refused', async () => {
+    const uploader = Uploader.createNull({
+      response: { status: 400, body: { code: 400, message: 'Unsupported file type: .txt' } },
+    });
+
+    const bad = new File([Buffer.from('notes')], 'bad.txt');
+
+    await expect(uploader.upload(bad)).rejects.toMatchObject({
+      code: 400,
+      message: 'Unsupported file type: .txt',
+    });
+  });
+
+  it('rejects with the shared RpcError the rest of the app already uses', async () => {
+    const uploader = Uploader.createNull({
+      response: { status: 400, body: { code: 400, message: 'Unsupported file type: .txt' } },
+    });
+
+    await expect(
+      uploader.upload(new File([Buffer.from('notes')], 'bad.txt')),
+    ).rejects.toBeInstanceOf(RpcError);
   });
 
   it('completes every upload when two run concurrently', async () => {
