@@ -50,7 +50,7 @@ describe('Uploader (null)', () => {
     const uploader = Uploader.createNull({
       response: {
         status: 201,
-        body: { wrong: 'shape' } as unknown as { id: string; name: string },
+        body: { wrong: 'shape' },
       },
     });
 
