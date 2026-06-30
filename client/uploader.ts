@@ -1,17 +1,8 @@
 import { EventEmitter, OutputTracker } from '../server/infrastructure/outputTracker.ts';
 import { EkoLiteError } from '../shared/protocol.ts';
+import { RpcError } from '../shared/types.ts';
 
 const REQUEST_EVENT = 'request';
-
-class UploadErrorResponse extends Error implements EkoLiteError {
-  constructor(
-    public readonly code: number,
-    message: string,
-  ) {
-    super(message);
-    this.name = 'UploadError';
-  }
-}
 
 function isUploadError(data: unknown): data is EkoLiteError {
   if (typeof data !== 'object' || data === null) {
@@ -170,7 +161,7 @@ export class Uploader {
       throw new Error('Invalid upload error');
     }
 
-    throw new UploadErrorResponse(parsed.code, parsed.message);
+    throw new RpcError(parsed.code, parsed.message);
   }
 
   private execute(upload: UploadRequest): Promise<UploadResponse> {
