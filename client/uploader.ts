@@ -1,0 +1,176 @@
+import { EventEmitter, OutputTracker } from '../server/infrastructure/outputTracker.ts';
+
+const REQUEST_EVENT = 'request';
+
+interface UploadRequest {
+  method: string;
+  url: string;
+  body: FormData;
+}
+
+interface UploadResponse {
+  id: string;
+  name: string;
+}
+
+function isUploadResponse(data: unknown): data is UploadResponse {
+  if (typeof data !== 'object' || data === null) {
+    return false;
+  }
+
+  const response = data as Record<string, unknown>;
+
+  return typeof response.id === 'string' && typeof response.name === 'string';
+}
+
+interface NullUploaderOptions {
+  response: {
+    status: number;
+    body: unknown;
+  };
+}
+
+interface RequestLike {
+  open(method: string, url: string): void;
+  send(body: FormData): void;
+
+  onload: (() => void) | null;
+  onerror: (() => void) | null;
+
+  status: number;
+  responseText: string;
+}
+
+type RequestFactory = () => RequestLike;
+
+class RealRequest implements RequestLike {
+  private readonly xhr = new XMLHttpRequest();
+
+  onload: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+
+  constructor() {
+    this.xhr.onload = () => this.onload?.();
+    this.xhr.onerror = () => this.onerror?.();
+  }
+
+  open(method: string, url: string): void {
+    this.xhr.open(method, url);
+  }
+
+  send(body: FormData): void {
+    this.xhr.send(body);
+  }
+
+  get status(): number {
+    return this.xhr.status;
+  }
+
+  get responseText(): string {
+    return this.xhr.responseText;
+  }
+}
+
+class NullRequest implements RequestLike {
+  onload: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+
+  status: number;
+  responseText: string;
+
+  method = '';
+  url = '';
+
+  constructor(response: NullUploaderOptions['response']) {
+    this.status = response.status;
+    this.responseText = JSON.stringify(response.body);
+  }
+
+  open(method: string, url: string): void {
+    this.method = method;
+    this.url = url;
+  }
+
+  send(_body: FormData): void {
+    queueMicrotask(() => {
+      this.onload?.();
+    });
+  }
+}
+
+export class Uploader {
+  private readonly emitter = new EventEmitter();
+
+  private constructor(private readonly createRequest: RequestFactory) {}
+
+  static create(): Uploader {
+    return new Uploader(() => new RealRequest());
+  }
+
+  static createNull(options: NullUploaderOptions): Uploader {
+    return new Uploader(() => new NullRequest(options.response));
+  }
+
+  async upload(file: File): Promise<UploadResponse> {
+    const request = this.buildRequest(file);
+
+    this.emitter.emit(REQUEST_EVENT, {
+      method: request.method,
+      url: request.url,
+      filename: file.name,
+    });
+
+    return this.execute(request);
+  }
+
+  private buildRequest(file: File): UploadRequest {
+    const body = new FormData();
+    body.append('file', file);
+
+    return {
+      method: 'POST',
+      url: '/api/files',
+      body,
+    };
+  }
+
+  private parseResponse(request: RequestLike): UploadResponse {
+    const parsed: unknown = JSON.parse(request.responseText);
+
+    if (!isUploadResponse(parsed)) {
+      throw new Error('Invalid upload response');
+    }
+
+    return parsed;
+  }
+
+  private execute(upload: UploadRequest): Promise<UploadResponse> {
+    const request = this.createRequest();
+
+    return new Promise((resolve, reject) => {
+      request.open(upload.method, upload.url);
+
+      request.onload = () => {
+        if (request.status >= 200 && request.status < 300) {
+          try {
+            resolve(this.parseResponse(request));
+          } catch (error) {
+            reject(error instanceof Error ? error : new Error(String(error)));
+          }
+        } else {
+          reject(new Error(`Upload failed (${String(request.status)})`));
+        }
+      };
+
+      request.onerror = () => {
+        reject(new Error('Upload failed'));
+      };
+
+      request.send(upload.body);
+    });
+  }
+
+  trackRequests(): OutputTracker {
+    return new OutputTracker(this.emitter, REQUEST_EVENT);
+  }
+}
