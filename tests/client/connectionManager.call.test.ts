@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ClientSocketWrapper } from '../../client/clientSocket.ts';
 import { ConnectionManager } from '../../client/connectionManager.ts';
 import { MethodMsg } from '../../shared/protocol.ts';
+import { RpcError } from '../../shared/types.ts';
 
 describe('ClientSocketWrapper call', () => {
   it('sends method message to the server when connectionManager.call is used', async () => {
@@ -40,7 +41,7 @@ describe('ClientSocketWrapper call', () => {
       },
     });
 
-    await expect(result).rejects.toEqual({
+    await expect(result).rejects.toMatchObject({
       code: 404,
       message: 'Method not found: nope',
     });
@@ -73,5 +74,32 @@ describe('ClientSocketWrapper call', () => {
     ]);
 
     expect(outcome).toBe('rejected');
+  });
+
+  it('rejects method calls with RpcError preserving the server error', async () => {
+    const socket = ClientSocketWrapper.createNull();
+    const server = socket.simulateServer();
+    const manager = new ConnectionManager(socket);
+    const messages = socket.trackMessages();
+
+    const call = manager.call('missingMethod');
+
+    const sent = messages.data[0] as MethodMsg;
+
+    server.send({
+      type: 'error',
+      id: sent.id,
+      error: {
+        code: 404,
+        message: 'Method not found: missingMethod',
+      },
+    });
+
+    await expect(call).rejects.toMatchObject({
+      code: 404,
+      message: 'Method not found: missingMethod',
+    });
+
+    await expect(call).rejects.toBeInstanceOf(RpcError);
   });
 });

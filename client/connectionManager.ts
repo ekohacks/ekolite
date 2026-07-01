@@ -8,6 +8,7 @@ import {
   UnsubscribeMsg,
 } from '../shared/protocol.ts';
 import { assertNever } from '../shared/helperFunctions.ts';
+import { RpcError } from '../shared/types.ts';
 
 export interface SubscriptionHandle {
   stop(): void;
@@ -283,7 +284,7 @@ export class ConnectionManager {
         const request = this.pendingRequests.get(message.id);
 
         if (request) {
-          request.reject(message.error);
+          request.reject(new RpcError(message.error.code, message.error.message));
           this.pendingRequests.delete(message.id);
           break;
         }
@@ -291,7 +292,7 @@ export class ConnectionManager {
         const subscription = this.subscriptions.get(message.id);
 
         if (subscription) {
-          subscription.readyRejector(message.error);
+          subscription.readyRejector(new RpcError(message.error.code, message.error.message));
           this.subscriptions.delete(message.id);
         }
         break;
