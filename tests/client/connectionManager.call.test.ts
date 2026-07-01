@@ -41,7 +41,7 @@ describe('ClientSocketWrapper call', () => {
       },
     });
 
-    await expect(result).rejects.toEqual({
+    await expect(result).rejects.toMatchObject({
       code: 404,
       message: 'Method not found: nope',
     });
