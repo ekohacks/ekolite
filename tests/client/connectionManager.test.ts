@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ClientSocketWrapper } from '../../client/clientSocket.ts';
 import { ConnectionManager } from '../../client/connectionManager.ts';
 import { SubscribeMsg } from '../../shared/protocol.ts';
+import { RpcError } from '../../shared/types.ts';
 
 describe('ConnectionManager', () => {
   it('subscribe sends a subscribe message and routes added documents into the store', async () => {
@@ -69,6 +70,28 @@ describe('ConnectionManager', () => {
     });
 
     await expect(handle.ready).rejects.toMatchObject({ code: 404 });
+  });
+
+  it('rejects ready with an RpcError preserving the server error', async () => {
+    const socket = ClientSocketWrapper.createNull();
+    const server = socket.simulateServer();
+    const manager = new ConnectionManager(socket);
+    const messages = socket.trackMessages();
+
+    const handle = manager.subscribe('nope');
+    const sent = messages.data[0] as SubscribeMsg;
+
+    server.send({
+      type: 'error',
+      id: sent.id,
+      error: { code: 404, message: 'Unknown publication' },
+    });
+
+    await expect(handle.ready).rejects.toMatchObject({
+      code: 404,
+      message: 'Unknown publication',
+    });
+    await expect(handle.ready).rejects.toBeInstanceOf(RpcError);
   });
 
   it('handle.stop sends an unsubscribe to the server', async () => {

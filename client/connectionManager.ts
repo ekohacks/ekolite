@@ -292,7 +292,7 @@ export class ConnectionManager {
         const subscription = this.subscriptions.get(message.id);
 
         if (subscription) {
-          subscription.readyRejector(message.error);
+          subscription.readyRejector(new RpcError(message.error.code, message.error.message));
           this.subscriptions.delete(message.id);
         }
         break;
