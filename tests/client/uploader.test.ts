@@ -82,4 +82,21 @@ describe('Uploader (null)', () => {
       'Invalid upload response',
     );
   }, 2000);
+
+  it('reports progress as the bytes go up', async () => {
+    const uploader = Uploader.createNull({
+      response: { status: 201, body: { id: 'f1', name: 'big.bam' } },
+      progress: [
+        { loaded: 25, total: 100 },
+        { loaded: 100, total: 100 },
+      ],
+    });
+
+    const percents: number[] = [];
+    await uploader.upload(new File([Buffer.from('BAMDATA')], 'big.bam'), {
+      onProgress: ({ percent }) => percents.push(percent),
+    });
+
+    expect(percents).toEqual([25, 100]);
+  });
 });
