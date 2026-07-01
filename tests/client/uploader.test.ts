@@ -93,6 +93,7 @@ describe('Uploader (null)', () => {
     });
 
     const percents: number[] = [];
+
     await uploader.upload(new File([Buffer.from('BAMDATA')], 'big.bam'), {
       onProgress: ({ percent }) => percents.push(percent),
     });
