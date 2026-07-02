@@ -127,4 +127,22 @@ describe('Uploader (null)', () => {
 
     expect(percents).toEqual([0]);
   });
+
+  it('rejects when the network drops after progress has been reported', async () => {
+    const uploader = Uploader.createNull({
+      response: { status: 201, body: { id: 'f1', name: 'big.bam' } },
+      progress: [{ loaded: 25, total: 100 }],
+      networkError: true,
+    });
+
+    const percents: number[] = [];
+
+    await expect(
+      uploader.upload(new File([Buffer.from('BAMDATA')], 'big.bam'), {
+        onProgress: ({ percent }) => percents.push(percent),
+      }),
+    ).rejects.toThrow('Upload failed');
+
+    expect(percents).toEqual([25]);
+  });
 });
