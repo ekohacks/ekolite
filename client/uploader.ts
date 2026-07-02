@@ -14,6 +14,20 @@ function isUploadError(data: unknown): data is EkoLiteError {
   return typeof error.code === 'number' && typeof error.message === 'string';
 }
 
+interface UploadProgress {
+  percent: number;
+}
+
+interface UploadOptions {
+  onProgress?: (progress: UploadProgress) => void;
+}
+
+interface ProgressEventLike {
+  loaded: number;
+  total: number;
+  lengthComputable?: boolean;
+}
+
 interface UploadRequest {
   method: string;
   url: string;
@@ -40,6 +54,9 @@ interface NullUploaderOptions {
     status: number;
     body: unknown;
   };
+
+  progress?: ProgressEventLike[];
+  networkError?: boolean;
 }
 
 interface RequestLike {
@@ -48,6 +65,8 @@ interface RequestLike {
 
   onload: (() => void) | null;
   onerror: (() => void) | null;
+
+  onprogress: ((event: ProgressEventLike) => void) | null;
 
   status: number;
   responseText: string;
@@ -61,9 +80,18 @@ class RealRequest implements RequestLike {
   onload: (() => void) | null = null;
   onerror: (() => void) | null = null;
 
+  onprogress: ((event: ProgressEventLike) => void) | null = null;
+
   constructor() {
     this.xhr.onload = () => this.onload?.();
     this.xhr.onerror = () => this.onerror?.();
+    this.xhr.upload.onprogress = (event) => {
+      this.onprogress?.({
+        loaded: event.loaded,
+        total: event.total,
+        lengthComputable: event.lengthComputable,
+      });
+    };
   }
 
   open(method: string, url: string): void {
@@ -86,14 +114,18 @@ class RealRequest implements RequestLike {
 class NullRequest implements RequestLike {
   onload: (() => void) | null = null;
   onerror: (() => void) | null = null;
-
+  onprogress: ((event: ProgressEventLike) => void) | null = null;
   status: number;
   responseText: string;
 
   method = '';
   url = '';
 
-  constructor(response: NullUploaderOptions['response']) {
+  constructor(
+    response: NullUploaderOptions['response'],
+    private readonly progress: ProgressEventLike[] = [],
+    private readonly networkError = false,
+  ) {
     this.status = response.status;
     this.responseText = JSON.stringify(response.body);
   }
@@ -105,6 +137,19 @@ class NullRequest implements RequestLike {
 
   send(_body: FormData): void {
     queueMicrotask(() => {
+      for (const step of this.progress) {
+        this.onprogress?.({
+          loaded: step.loaded,
+          total: step.total,
+          lengthComputable: step.lengthComputable ?? true,
+        });
+      }
+
+      if (this.networkError) {
+        this.onerror?.();
+        return;
+      }
+
       this.onload?.();
     });
   }
@@ -120,10 +165,12 @@ export class Uploader {
   }
 
   static createNull(options: NullUploaderOptions): Uploader {
-    return new Uploader(() => new NullRequest(options.response));
+    return new Uploader(
+      () => new NullRequest(options.response, options.progress, options.networkError),
+    );
   }
 
-  async upload(file: File): Promise<UploadResponse> {
+  async upload(file: File, options?: UploadOptions): Promise<UploadResponse> {
     const request = this.buildRequest(file);
 
     this.emitter.emit(REQUEST_EVENT, {
@@ -132,7 +179,7 @@ export class Uploader {
       filename: file.name,
     });
 
-    return this.execute(request);
+    return this.execute(request, options?.onProgress);
   }
 
   private buildRequest(file: File): UploadRequest {
@@ -164,11 +211,18 @@ export class Uploader {
     throw new RpcError(parsed.code, parsed.message);
   }
 
-  private execute(upload: UploadRequest): Promise<UploadResponse> {
+  private execute(
+    upload: UploadRequest,
+    onProgress?: (progress: UploadProgress) => void,
+  ): Promise<UploadResponse> {
     const request = this.createRequest();
 
     return new Promise((resolve, reject) => {
       request.open(upload.method, upload.url);
+
+      request.onprogress = (event) => {
+        onProgress?.(this.normalizeProgress(event));
+      };
 
       request.onload = () => {
         try {
@@ -184,6 +238,16 @@ export class Uploader {
 
       request.send(upload.body);
     });
+  }
+
+  private normalizeProgress(event: ProgressEventLike): UploadProgress {
+    if (!event.lengthComputable || event.total === 0) {
+      return { percent: 0 };
+    }
+
+    return {
+      percent: Math.min(100, Math.round((event.loaded / event.total) * 100)),
+    };
   }
 
   trackRequests(): OutputTracker {

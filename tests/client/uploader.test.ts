@@ -82,4 +82,82 @@ describe('Uploader (null)', () => {
       'Invalid upload response',
     );
   }, 2000);
+
+  it('reports progress as the bytes go up', async () => {
+    const uploader = Uploader.createNull({
+      response: { status: 201, body: { id: 'f1', name: 'big.bam' } },
+      progress: [
+        { loaded: 25, total: 100 },
+        { loaded: 100, total: 100 },
+      ],
+    });
+
+    const percents: number[] = [];
+
+    await uploader.upload(new File([Buffer.from('BAMDATA')], 'big.bam'), {
+      onProgress: ({ percent }) => percents.push(percent),
+    });
+
+    expect(percents).toEqual([25, 100]);
+  });
+
+  it('reports zero percent when total is unknown', async () => {
+    const uploader = Uploader.createNull({
+      response: {
+        status: 201,
+        body: {
+          id: 'f1',
+          name: 'big.bam',
+        },
+      },
+      progress: [
+        {
+          loaded: 50,
+          total: 0,
+          lengthComputable: false,
+        },
+      ],
+    });
+
+    const percents: number[] = [];
+
+    await uploader.upload(new File([Buffer.from('BAMDATA')], 'big.bam'), {
+      onProgress: ({ percent }) => percents.push(percent),
+    });
+
+    expect(percents).toEqual([0]);
+  });
+
+  it('rejects when the network drops after progress has been reported', async () => {
+    const uploader = Uploader.createNull({
+      response: { status: 201, body: { id: 'f1', name: 'big.bam' } },
+      progress: [{ loaded: 25, total: 100 }],
+      networkError: true,
+    });
+
+    const percents: number[] = [];
+
+    await expect(
+      uploader.upload(new File([Buffer.from('BAMDATA')], 'big.bam'), {
+        onProgress: ({ percent }) => percents.push(percent),
+      }),
+    ).rejects.toThrow('Upload failed');
+
+    expect(percents).toEqual([25]);
+  });
+
+  it('never reports more than one hundred percent', async () => {
+    const uploader = Uploader.createNull({
+      response: { status: 201, body: { id: 'f1', name: 'big.bam' } },
+      progress: [{ loaded: 150, total: 100 }],
+    });
+
+    const percents: number[] = [];
+
+    await uploader.upload(new File([Buffer.from('BAMDATA')], 'big.bam'), {
+      onProgress: ({ percent }) => percents.push(percent),
+    });
+
+    expect(percents).toEqual([100]);
+  });
 });
