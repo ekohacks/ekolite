@@ -2,21 +2,25 @@ import { createServer } from './index.ts';
 import { MongoWrapper } from './infrastructure/mongo.ts';
 import { WebSocketWrapper } from './infrastructure/websocket.ts';
 import { FileStorageWrapper } from './infrastructure/fileStorage.ts';
+import { ScriptRunnerWrapper } from './infrastructure/scriptRunner.ts';
 import { Publications } from './logic/publications.ts';
 import { RpcHandler } from './logic/rpcHandler.ts';
 import { Methods } from './logic/methods.ts';
 import { Files } from './logic/files.ts';
+import { defineRunCountC } from './logic/analysis.ts';
 
 // Real boot. The same pieces the end-to-end test wires by hand, wired here for a
 // live process: a Mongo connection, a websocket server, the pub/sub engine that
 // turns subscriptions into live document streams, and the file store behind uploads.
 const mongoUri = process.env.MONGO_URI ?? 'mongodb://localhost:27017/ekolite';
 const fileDir = process.env.FILE_DIR ?? './uploads';
+const countCScript = process.env.COUNTC_SCRIPT ?? 'scripts/countC.py';
 const port = Number(process.env.PORT ?? 3001);
 
 const mongo = MongoWrapper.create(mongoUri);
 const ws = WebSocketWrapper.create();
 const storage = FileStorageWrapper.create(fileDir);
+const scriptRunner = ScriptRunnerWrapper.create();
 const methods = new Methods();
 const rpcHandler = new RpcHandler(methods, ws);
 const publications = new Publications(mongo, ws);
@@ -30,6 +34,13 @@ publications.define('files.all', () => ({ collection: 'files', query: {} }));
 // call('echo', 'hello') comes back 'echo: hello'. It gives the method round trip
 // something real to hit, the way files.all does for subscriptions.
 methods.define('echo', (message) => Promise.resolve(`echo: ${String(message)}`));
+
+// The first analysis method: runCountC resolves its script asset, runs it under
+// python3, and returns what the script printed. The path comes from config the
+// same way MONGO_URI and FILE_DIR do, so the method is handed its script rather
+// than knowing where it lives. The script itself lands in a later story; until
+// then a live call resolves and shells out, and fails loudly if it is missing.
+defineRunCountC(methods, scriptRunner, countCScript);
 
 // Dev convenience: seed a couple of files so a fresh Mongo is not a blank page.
 // Idempotent (only seeds an empty collection) and best-effort (a missing Mongo
