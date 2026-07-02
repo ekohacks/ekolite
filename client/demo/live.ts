@@ -6,12 +6,15 @@
 // SubscriptionHandle, ReactiveStore) is identical. That is the Nullables payoff.
 //
 // It shows the read side (subscribe, see the documents, watch the list update as the
-// files collection changes) plus one write: uploading a file. The upload is a plain
-// HTTP POST to /api/files, which stores the bytes and inserts a document, so the file
-// then streams back into the list through the same subscription.
+// files collection changes) plus one write: uploading a file through the real Uploader
+// surface. upload() POSTs to /api/files; on success the file streams back into the list
+// through the same subscription, and on a refusal it rejects with the server's error so
+// the demo can show it rather than swallow it.
 
 import { ClientSocketWrapper } from '../clientSocket.ts';
 import { ConnectionManager } from '../connectionManager.ts';
+import { Uploader } from '../uploader.ts';
+import { RpcError } from '../../shared/types.ts';
 
 function el(id: string): HTMLElement {
   const node = document.getElementById(id);
@@ -33,6 +36,14 @@ function button(id: string): HTMLButtonElement {
   const node = el(id);
   if (!(node instanceof HTMLButtonElement)) {
     throw new Error(`#${id} is not a button`);
+  }
+  return node;
+}
+
+function progressBar(id: string): HTMLProgressElement {
+  const node = el(id);
+  if (!(node instanceof HTMLProgressElement)) {
+    throw new Error(`#${id} is not a progress element`);
   }
   return node;
 }
@@ -89,10 +100,15 @@ files.onChange(() => {
   render();
 });
 
-// 4. Upload a file over HTTP. It hits the server, lands on disk and inserts a
-// document, which streams back into the list above through the subscription.
+// 4. Upload a file through the real Uploader surface. The same code runs in
+// production; only create() differs from the nulled uploader the tests drive. The
+// request goes to the relative /api/files, so it rides the vite proxy (/api → :3001)
+// and stays same-origin. The bar is fed by the { percent } signal from onProgress:
+// reset on each upload, filled as the bytes climb, cleared on success or refusal.
+const uploader = Uploader.create();
 const fileInput = input('file');
 const uploadBtn = button('upload');
+const uploadProgress = progressBar('progress');
 
 uploadBtn.addEventListener('click', () => {
   const file = fileInput.files?.[0];
@@ -100,19 +116,29 @@ uploadBtn.addEventListener('click', () => {
     log('pick a file first');
     return;
   }
-  const form = new FormData();
-  form.append('file', file, file.name);
   log(`out: upload ${file.name}`);
-  // POST through the vite proxy (/api → :3001) so it stays same-origin, no CORS.
-  void fetch('/api/files', { method: 'POST', body: form })
-    .then((res) => {
-      log(res.ok ? `in: stored ${file.name}` : `upload failed: ${String(res.status)}`);
-      if (res.ok) {
-        fileInput.value = '';
-      }
+  uploadProgress.value = 0;
+  uploadProgress.hidden = false;
+  void uploader
+    .upload(file, {
+      onProgress: ({ percent }) => {
+        uploadProgress.value = percent;
+        log(`upload progress: ${String(percent)}%`);
+      },
+    })
+    .then((stored) => {
+      log(`in: stored ${stored.name} (${stored.id})`);
+      fileInput.value = '';
     })
     .catch((err: unknown) => {
-      log(`upload error: ${err instanceof Error ? err.message : String(err)}`);
+      if (err instanceof RpcError) {
+        log(`upload refused: ${String(err.code)} ${err.message}`);
+      } else {
+        log(`upload error: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    })
+    .finally(() => {
+      uploadProgress.hidden = true;
     });
 });
 

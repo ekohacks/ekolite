@@ -44,6 +44,9 @@
         opacity: 0.4;
         cursor: not-allowed;
       }
+      progress {
+        width: 10rem;
+      }
       ul {
         padding-left: 1.2rem;
       }
@@ -76,6 +79,7 @@
       <div class="controls">
         <input type="file" id="file" />
         <button id="upload">Upload</button>
+        <progress id="progress" max="100" value="0" hidden></progress>
       </div>
 
       <h2>files</h2>
