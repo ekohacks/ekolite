@@ -100,3 +100,7 @@ export function toEkoLiteError(error: unknown): EkoLiteError {
 export function fileUploadError(extension: string): RpcError {
   return new RpcError(400, `Unsupported file type: .${extension}`);
 }
+
+export function fileNotFound(id: string): RpcError {
+  return new RpcError(404, `File not found: ${id}`);
+}
