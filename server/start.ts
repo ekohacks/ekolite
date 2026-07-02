@@ -38,8 +38,8 @@ methods.define('echo', (message) => Promise.resolve(`echo: ${String(message)}`))
 // The first analysis method: runCountC resolves its script asset, runs it under
 // python3, and returns what the script printed. The path comes from config the
 // same way MONGO_URI and FILE_DIR do, so the method is handed its script rather
-// than knowing where it lives. The script itself lands in a later story; until
-// then a live call resolves and shells out, and fails loudly if it is missing.
+// than knowing where it lives. For now scripts/countC.py is a stand-in that prints
+// a fixed count; the real analysis lands in a later story.
 defineRunCountC(methods, scriptRunner, countCScript);
 
 // Dev convenience: seed a couple of files so a fresh Mongo is not a blank page.
