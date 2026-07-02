@@ -246,7 +246,7 @@ export class Uploader {
     }
 
     return {
-      percent: Math.round((event.loaded / event.total) * 100),
+      percent: Math.min(100, Math.round((event.loaded / event.total) * 100)),
     };
   }
 
