@@ -145,4 +145,19 @@ describe('Uploader (null)', () => {
 
     expect(percents).toEqual([25]);
   });
+
+  it('never reports more than one hundred percent', async () => {
+    const uploader = Uploader.createNull({
+      response: { status: 201, body: { id: 'f1', name: 'big.bam' } },
+      progress: [{ loaded: 150, total: 100 }],
+    });
+
+    const percents: number[] = [];
+
+    await uploader.upload(new File([Buffer.from('BAMDATA')], 'big.bam'), {
+      onProgress: ({ percent }) => percents.push(percent),
+    });
+
+    expect(percents).toEqual([100]);
+  });
 });
