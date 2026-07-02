@@ -55,11 +55,7 @@ interface NullUploaderOptions {
     body: unknown;
   };
 
-  progress?: {
-    loaded: number;
-    total: number;
-    lengthComputable?: boolean;
-  }[];
+  progress?: ProgressEventLike[];
 }
 
 interface RequestLike {
@@ -126,7 +122,7 @@ class NullRequest implements RequestLike {
 
   constructor(
     response: NullUploaderOptions['response'],
-    private readonly progress: NullUploaderOptions['progress'] = [],
+    private readonly progress: ProgressEventLike[] = [],
   ) {
     this.status = response.status;
     this.responseText = JSON.stringify(response.body);
@@ -139,14 +135,12 @@ class NullRequest implements RequestLike {
 
   send(_body: FormData): void {
     queueMicrotask(() => {
-      if (this.progress) {
-        for (const step of this.progress) {
-          this.onprogress?.({
-            loaded: step.loaded,
-            total: step.total,
-            lengthComputable: step.lengthComputable ?? true,
-          });
-        }
+      for (const step of this.progress) {
+        this.onprogress?.({
+          loaded: step.loaded,
+          total: step.total,
+          lengthComputable: step.lengthComputable ?? true,
+        });
       }
 
       this.onload?.();
