@@ -71,6 +71,21 @@ export class Files {
     return { file, data };
   }
 
+  // The lean lookup the analysis method needs: the document for an id, and only the
+  // document. Unlike read it does not pull the bytes off disk; the script opens the
+  // file itself and only the path is wanted.
+  async locate(id: string): Promise<StoredFile | null> {
+    const docs = await this.mongo.find<StoredFile>('files', { _id: id });
+    return docs[0] ?? null;
+  }
+
+  // Write a computed count back onto the file's own document. A $set keyed by id so
+  // it merges the field rather than replacing the document, and so the change streams
+  // to subscribers through the same files.all publication the upload used.
+  async recordCountC(id: string, count: number): Promise<void> {
+    await this.mongo.update('files', { _id: id }, { $set: { countC: count } });
+  }
+
   validate(name: string): boolean {
     return this.isAllowed(extensionOf(name));
   }

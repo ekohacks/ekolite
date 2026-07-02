@@ -99,3 +99,87 @@ describe('Files.read', () => {
     expect(inserts.data).toHaveLength(0);
   });
 });
+
+// A count computed on the server is written back onto the file's own document, so it
+// streams to subscribers through the same files.all publication the upload used. The
+// write is a $set on the existing file keyed by id, not a new document.
+describe('Files.recordCountC', () => {
+  it('writes the count onto the file document as a $set keyed by id', async () => {
+    const mongo = MongoWrapper.createNull();
+    const storage = FileStorageWrapper.createNull();
+    const files = new Files(mongo, storage);
+    const updates = await mongo.trackChanges('files');
+
+    await files.recordCountC('file-1', 42);
+
+    const update = updates.data.find((event) => (event as { type?: unknown }).type === 'update');
+    expect(update).toMatchObject({ type: 'update', collection: 'files', id: 'file-1' });
+    // Exactly the count and nothing else, so $set merges the field rather than
+    // replacing the document and losing name, path and the rest.
+    expect((update as { fields: unknown }).fields).toEqual({ countC: 42 });
+  });
+
+  it('writes a count of zero rather than dropping it', async () => {
+    const mongo = MongoWrapper.createNull();
+    const storage = FileStorageWrapper.createNull();
+    const files = new Files(mongo, storage);
+    const updates = await mongo.trackChanges('files');
+
+    await files.recordCountC('file-1', 0);
+
+    const update = updates.data.find((event) => (event as { type?: unknown }).type === 'update');
+    expect((update as { fields: unknown }).fields).toEqual({ countC: 0 });
+  });
+
+  it('updates the existing document rather than inserting a new one', async () => {
+    const mongo = MongoWrapper.createNull();
+    const storage = FileStorageWrapper.createNull();
+    const files = new Files(mongo, storage);
+    const changes = await mongo.trackChanges('files');
+
+    await files.recordCountC('file-1', 7);
+
+    const byType = (type: string) =>
+      changes.data.filter((event) => (event as { type?: unknown }).type === type);
+    expect(byType('insert')).toHaveLength(0);
+    expect(byType('update')).toHaveLength(1);
+  });
+});
+
+// locate is the lean lookup runCountC needs: the document for an id, and only the
+// document. Unlike read it does not pull the bytes off disk, because the analysis
+// script opens the file itself and only the path is needed.
+describe('Files.locate', () => {
+  it('returns the document for a known id without reading the bytes', async () => {
+    const mongo = MongoWrapper.createNull({
+      find: [
+        [
+          {
+            _id: 'known',
+            name: 'reads.bam',
+            path: '/data/reads.bam',
+            size: 9,
+            extension: 'bam',
+            uploadedAt: new Date(),
+          },
+        ],
+      ],
+    });
+    // Storage is empty on purpose: if locate read the bytes it would fail here,
+    // so a document coming back proves it never touched the store.
+    const storage = FileStorageWrapper.createNull();
+    const files = new Files(mongo, storage);
+
+    const file = await files.locate('known');
+
+    expect(file).toMatchObject({ _id: 'known', name: 'reads.bam', path: '/data/reads.bam' });
+  });
+
+  it('returns null when the id is unknown', async () => {
+    const mongo = MongoWrapper.createNull();
+    const storage = FileStorageWrapper.createNull();
+    const files = new Files(mongo, storage);
+
+    expect(await files.locate('nope')).toBeNull();
+  });
+});

@@ -20,6 +20,7 @@ export interface StoredFile {
   size: number;
   extension: string;
   uploadedAt: Date;
+  countC?: number;
   meta?: Record<string, unknown>;
 }
 
