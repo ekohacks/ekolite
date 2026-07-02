@@ -56,6 +56,7 @@ interface NullUploaderOptions {
   };
 
   progress?: ProgressEventLike[];
+  networkError?: boolean;
 }
 
 interface RequestLike {
@@ -123,6 +124,7 @@ class NullRequest implements RequestLike {
   constructor(
     response: NullUploaderOptions['response'],
     private readonly progress: ProgressEventLike[] = [],
+    private readonly networkError = false,
   ) {
     this.status = response.status;
     this.responseText = JSON.stringify(response.body);
@@ -143,6 +145,11 @@ class NullRequest implements RequestLike {
         });
       }
 
+      if (this.networkError) {
+        this.onerror?.();
+        return;
+      }
+
       this.onload?.();
     });
   }
@@ -158,7 +165,9 @@ export class Uploader {
   }
 
   static createNull(options: NullUploaderOptions): Uploader {
-    return new Uploader(() => new NullRequest(options.response, options.progress));
+    return new Uploader(
+      () => new NullRequest(options.response, options.progress, options.networkError),
+    );
   }
 
   async upload(file: File, options?: UploadOptions): Promise<UploadResponse> {
