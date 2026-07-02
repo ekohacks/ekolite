@@ -88,7 +88,29 @@ function render(): void {
     ...docs.map((doc) => {
       const item = document.createElement('li');
       const name = typeof doc.name === 'string' ? doc.name : '';
-      item.textContent = `${doc._id} · ${name}`;
+      const count = typeof doc.countC === 'number' ? ` · C: ${String(doc.countC)}` : '';
+
+      const label = document.createElement('span');
+      label.textContent = `${doc._id} · ${name}${count}`;
+
+      // Call runCountC on this file over the socket. The server counts, writes the
+      // count onto the document, and it streams back into this same store, so the
+      // number appears on re-render with no extra wiring here.
+      const countBtn = document.createElement('button');
+      countBtn.textContent = 'Count C';
+      countBtn.addEventListener('click', () => {
+        log(`out: runCountC ${doc._id}`);
+        void manager
+          .call('runCountC', doc._id)
+          .then((result) => {
+            log(`in: runCountC ${doc._id} → ${String(result)}`);
+          })
+          .catch((err: unknown) => {
+            log(`runCountC error: ${err instanceof Error ? err.message : String(err)}`);
+          });
+      });
+
+      item.append(label, ' ', countBtn);
       return item;
     }),
   );
