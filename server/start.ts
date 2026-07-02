@@ -35,12 +35,12 @@ publications.define('files.all', () => ({ collection: 'files', query: {} }));
 // something real to hit, the way files.all does for subscriptions.
 methods.define('echo', (message) => Promise.resolve(`echo: ${String(message)}`));
 
-// The first analysis method: runCountC resolves its script asset, runs it under
-// python3, and returns what the script printed. The path comes from config the
-// same way MONGO_URI and FILE_DIR do, so the method is handed its script rather
-// than knowing where it lives. For now scripts/countC.py is a stand-in that prints
-// a fixed count; the real analysis lands in a later story.
-defineRunCountC(methods, scriptRunner, countCScript);
+// The first analysis method: runCountC resolves an uploaded file by id, runs the
+// count script against it, and writes the count back onto the file's document so it
+// streams to subscribers. The script path comes from config the same way MONGO_URI
+// and FILE_DIR do. For now scripts/countC.py is a stand-in that prints a fixed
+// count; the real counting script lands in a later story.
+defineRunCountC(methods, scriptRunner, files, countCScript);
 
 // Dev convenience: seed a couple of files so a fresh Mongo is not a blank page.
 // Idempotent (only seeds an empty collection) and best-effort (a missing Mongo
