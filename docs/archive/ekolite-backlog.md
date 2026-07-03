@@ -693,35 +693,43 @@ _(See `ekolite-tdd-training.md` Section 4: Worked Example for the full code walk
 
 ### Story 7.B: Application wiring
 
-> Wire all subsystems into the `App` class. This is the A-Frame application layer.
+> **What Meteor does today:** `server/main.js` runs on startup, by which point the framework has already wired collections, publications, and methods into the global `Meteor` object. There is no explicit composition root — the framework is the container.
+>
+> **What we're building:** an `App` class, the A-Frame application layer. It is the one place the subsystems meet — `WebSocketWrapper`, `Publications`, `Methods` + `RpcHandler`, and `Files` — along with the `files.all` publication and the `echo` / `runCountC` definitions. `App.create(config)` wires the real wrappers for a live process; `App.createNull({ scriptResponses })` wires the Nulled wrappers for tests. Both hand the assembled pieces to `createServer(options)`, which stays the HTTP/WS factory.
+>
+> **Why now:** this wiring already exists twice — once in `server/start.ts` for the real boot, and again by hand at the top of every server integration test (`runCountCReactive`, `livePubsub`, `fileUpload`). `App` is where that duplication collapses. Logic classes never learn whether they got real or Nulled wrappers.
 
 #### Developer Story 7.B.1: App.createNull assembles all parts
 
-**Sub-story a — Red:** `App.createNull()` returns object with `publications`, `methods`, `uploads`, `ws`.
-**Sub-story b — Green:** Constructor wires everything. `createNull()` injects all Nulled wrappers.
-**Sub-story c — Refactor:** Add config interface.
+**Sub-story a — Red:** `App.createNull()` returns an object exposing `publications`, `methods`, `files`, and `ws`. Assert each is present, and that the `files.all` publication and the `runCountC` / `echo` methods are already defined.
+**Sub-story b — Green:** the constructor wires every subsystem; `createNull()` injects the Nulled `MongoWrapper`, `FileStorageWrapper`, and `ScriptRunnerWrapper`, then registers the standard publications and methods. `App.createNull({ scriptResponses: { python3: '7\n' } })` threads the script response through to the Nulled runner.
+**Sub-story c — Refactor:** extract an `AppConfig` interface (`mongoUri`, `fileDir`, `countCScript`, `port`) so `create` and `createNull` share one shape.
 
-#### Developer Story 7.B.2: Full pipeline integration test
+#### Developer Story 7.B.2: Full pipeline integration test (THE GATE)
 
-**Sub-story a — Red:** The big one:
+> The behaviour is already proven end to end by `tests/server/runCountCReactive.integration.test.ts`, but that test hand-wires ten collaborators. This story points the gate at `App.createNull`, so it proves the _assembly_, not just the pieces.
 
-1. `App.createNull({ scriptResponses: { python3: 'count: 7' } })`
-2. Client connects, subscribes to `'UserFiles.all'`
-3. Upload `.bam` file
-4. Assert `'added'` message for the file
-5. Call `'runCountC'`
-6. Assert `{ type: 'result', result: 'count: 7' }`
+**Sub-story a — Red:** build the gate test off `App`:
 
-**Sub-story b — Green:** Should pass if everything is wired. If not, reveals the gap.
-**Sub-story c — Refactor:** Final cleanup.
+1. `App.createNull({ scriptResponses: { python3: '7' }, findResponses: [[file], [file]], ws: WebSocketWrapper.create() })`
+2. `createServer(app)` and listen on an ephemeral port
+3. Client connects, subscribes to `'files.all'`, and its store fills with the seeded file
+4. Call `'runCountC'` → the call resolves to `7`, and the same count arrives on the file's document in the store through the same `files.all` subscription
 
-**Done when:** `connect → subscribe → upload → see file → analyze → get result`. **This is the gate.**
+> Seed and subscribe rather than upload over HTTP: the Nulled Mongo is a queue that ignores the query, so an upload would mint a random id that `runCountC`'s locate could not match through the stub. The seeded `findResponses` answer the two finds the flow makes — the subscribe that fills the store, then locate. The HTTP upload half is proven separately in `tests/server/fileUpload.integration.test.ts`.
+
+**Sub-story b — Green:** should pass with no production change if `App` wires everything the hand-rolled setup did. A gap here is an `App` wiring bug, not a subsystem bug. (`createServer(app)` works because `App` exposes the same parts `ServerOptions` names, including the rpc handler.)
+**Sub-story c — Refactor:** delete the hand-wiring from the other server integration tests that `App.createNull` now subsumes.
+
+**Done when:** `connect → subscribe → see the file → analyse → get the result`, driven off `App.createNull`. **This is the gate.**
 
 #### Developer Story 7.B.3: App.create with real infrastructure
 
-**Sub-story a — Red:** `App.create(config)` starts Fastify, connects MongoDB, serves static files.
-**Sub-story b — Green:** Wire all `.create()` factories.
-**Sub-story c — Refactor:** Add graceful shutdown.
+> This is today's `server/start.ts`, moved behind `App.create(config)`.
+
+**Sub-story a — Red:** `App.create(config)` wires the real `MongoWrapper`, `WebSocketWrapper`, `FileStorageWrapper`, and `ScriptRunnerWrapper`; `createServer` then starts Fastify, serves the built client, and listens. Assert a booted app answers `GET /` with the page and accepts a `/ws` connection.
+**Sub-story b — Green:** move the wiring out of `start.ts` into `App.create`; `start.ts` shrinks to reading config from env and calling `App.create(config)`.
+**Sub-story c — Refactor:** add graceful shutdown — `app.close()` closes the socket, the Mongo connection, and the Fastify server in order.
 
 ---
 
