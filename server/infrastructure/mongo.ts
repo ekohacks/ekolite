@@ -24,19 +24,34 @@ export class MongoWrapper {
   private readonly emitter = new EventEmitter();
   private readonly activeWatches = new Map<string, Promise<() => void>>();
 
-  private constructor(collectionFactory: CollectionFactory) {
+  private readonly closer: () => Promise<void>;
+
+  private constructor(
+    collectionFactory: CollectionFactory,
+    closer: () => Promise<void> = () => Promise.resolve(),
+  ) {
     this.collectionFactory = collectionFactory;
+    this.closer = closer;
   }
 
   static create(uri: string): MongoWrapper {
     const client = new Driver(uri);
     const db = client.db();
-    return new MongoWrapper((name: string) => new RealCollection(db.collection(name)));
+    return new MongoWrapper(
+      (name: string) => new RealCollection(db.collection(name)),
+      () => client.close(),
+    );
   }
 
   static createNull(options: StubbedMongoOptions = {}): MongoWrapper {
     const stub = new StubbedCollectionFactory(options);
     return new MongoWrapper((name: string) => stub.collection(name));
+  }
+
+  // Close the driver connection. Safe to call when nothing ever connected: the
+  // driver's own close is a no-op in that case. Nulled instances close to nothing.
+  async close(): Promise<void> {
+    await this.closer();
   }
 
   async find<T>(collection: string, query: object): Promise<T[]> {
