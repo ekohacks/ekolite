@@ -3,8 +3,8 @@ import { ReactiveStore } from './reactiveStore.ts';
 type StoredDocWithId = Record<string, unknown> & { _id: string };
 
 export interface StoreBinding {
-  subscribe(onStoreChange: () => void): () => void;
-  getSnapshot(): StoredDocWithId[];
+  subscribe: (onStoreChange: () => void) => () => void;
+  getSnapshot: () => StoredDocWithId[];
 }
 
 // The framework-agnostic core of the React hook. useSyncExternalStore wants a
@@ -16,14 +16,11 @@ export function bindStore(store: ReactiveStore): StoreBinding {
   let snapshot = store.getAll();
 
   return {
-    subscribe(onStoreChange: () => void): () => void {
-      return store.onChange(() => {
+    subscribe: (onStoreChange: () => void): (() => void) =>
+      store.onChange(() => {
         snapshot = store.getAll();
         onStoreChange();
-      });
-    },
-    getSnapshot(): StoredDocWithId[] {
-      return snapshot;
-    },
+      }),
+    getSnapshot: (): StoredDocWithId[] => snapshot,
   };
 }
