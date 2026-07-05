@@ -60,7 +60,18 @@ describe('Shutdown', () => {
     expect(exits.data).toEqual([{ code: 0 }]);
   });
 
-  it.todo('exits 1 when the close is still pending at the grace deadline');
+  it('exits 1 when the close is still pending at the grace deadline', () => {
+    const { closable } = closableDouble();
+    const proc = ProcessWrapper.createNull();
+    const exits = proc.trackExits();
+    new Shutdown(closable, proc).arm();
+
+    proc.simulateSignal('SIGINT');
+    proc.advanceTime(5000);
+
+    // The close never resolved; the deadline exits anyway. No race needed.
+    expect(exits.data).toEqual([{ code: 1 }]);
+  });
 
   it.todo('a clean close cancels the deadline: time can pass, only one exit is recorded');
 
