@@ -73,7 +73,22 @@ describe('Shutdown', () => {
     expect(exits.data).toEqual([{ code: 1 }]);
   });
 
-  it.todo('a clean close cancels the deadline: time can pass, only one exit is recorded');
+  it('a clean close cancels the deadline: time can pass, only one exit is recorded', async () => {
+    const { closable, resolveClose } = closableDouble();
+    const proc = ProcessWrapper.createNull();
+    const exits = proc.trackExits();
+    new Shutdown(closable, proc).arm();
+
+    proc.simulateSignal('SIGTERM');
+    resolveClose();
+    await flush();
+
+    // A real process dies at exit(0) and can never testify about a forgotten
+    // clearTimeout. The nulled one outlives it, so the mess would show up here.
+    proc.advanceTime(60_000);
+
+    expect(exits.data).toEqual([{ code: 0 }]);
+  });
 
   it.todo('the grace period is configurable and fires at the deadline, not before');
 

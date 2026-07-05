@@ -21,11 +21,12 @@ export class Shutdown {
 
   arm(): void {
     this.proc.onSignal(() => {
-      this.proc.startTimer(this.graceMs, () => {
+      const cancelDeadline = this.proc.startTimer(this.graceMs, () => {
         console.error('shutdown timed out, exiting hard');
         this.proc.exit(1);
       });
       void this.closable.close().then(() => {
+        cancelDeadline();
         this.proc.exit(0);
       });
     });
