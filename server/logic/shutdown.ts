@@ -33,10 +33,17 @@ export class Shutdown {
         console.error('shutdown timed out, exiting hard');
         this.proc.exit(1);
       });
-      void this.closable.close().then(() => {
-        cancelDeadline();
-        this.proc.exit(0);
-      });
+      void this.closable.close().then(
+        () => {
+          cancelDeadline();
+          this.proc.exit(0);
+        },
+        (err: unknown) => {
+          cancelDeadline();
+          console.error('shutdown failed:', err);
+          this.proc.exit(1);
+        },
+      );
     });
   }
 }

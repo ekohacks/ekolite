@@ -133,5 +133,20 @@ describe('Shutdown', () => {
     expect(closeCalls()).toBe(1);
   });
 
-  it.todo('a close that rejects exits 1 instead of dying as an unhandled rejection');
+  it('a close that rejects exits 1 instead of dying as an unhandled rejection', async () => {
+    const { closable, rejectClose } = closableDouble();
+    const proc = ProcessWrapper.createNull();
+    const exits = proc.trackExits();
+    new Shutdown(closable, proc).arm();
+
+    proc.simulateSignal('SIGTERM');
+    rejectClose(new Error('mongo refused to hang up'));
+    await flush();
+
+    expect(exits.data).toEqual([{ code: 1 }]);
+
+    // And the deadline was stood down here too: no second exit later.
+    proc.advanceTime(60_000);
+    expect(exits.data).toEqual([{ code: 1 }]);
+  });
 });
