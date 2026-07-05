@@ -1,4 +1,33 @@
-import { describe, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import { ProcessWrapper } from '../../server/infrastructure/process.ts';
+import { Shutdown } from '../../server/logic/shutdown.ts';
+
+// Recording double for the app side: a plain closable whose close() the test can
+// resolve, reject, or leave hanging, and which counts how often it was asked.
+function closableDouble() {
+  let closeCalls = 0;
+  // Assigned synchronously by the Promise executor below.
+  let resolveClose!: () => void;
+  let rejectClose!: (err: Error) => void;
+  const closed = new Promise<void>((resolve, reject) => {
+    resolveClose = resolve;
+    rejectClose = reject;
+  });
+  return {
+    closable: {
+      close: () => {
+        closeCalls += 1;
+        return closed;
+      },
+    },
+    closeCalls: () => closeCalls,
+    resolveClose,
+    rejectClose,
+  };
+}
+
+// Let settled promises run their then handlers before asserting.
+const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 // 7.B.4 (proposed) — graceful shutdown with a deadline.
 //
@@ -16,7 +45,20 @@ import { describe, it } from 'vitest';
 // one behaviour from the design conversation; nothing here tests how (no
 // Promise.race assertions, no clearTimeout spies), only what the process observes.
 describe('Shutdown', () => {
-  it.todo('a signal closes the app, and a clean close exits 0');
+  it('a signal closes the app, and a clean close exits 0', async () => {
+    const { closable, closeCalls, resolveClose } = closableDouble();
+    const proc = ProcessWrapper.createNull();
+    const exits = proc.trackExits();
+    new Shutdown(closable, proc).arm();
+
+    proc.simulateSignal('SIGTERM');
+    expect(closeCalls()).toBe(1);
+
+    resolveClose();
+    await flush();
+
+    expect(exits.data).toEqual([{ code: 0 }]);
+  });
 
   it.todo('exits 1 when the close is still pending at the grace deadline');
 
