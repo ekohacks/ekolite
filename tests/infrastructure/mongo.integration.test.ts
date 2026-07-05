@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, afterAll } from 'vitest';
 import { MongoWrapper } from '../../server/infrastructure/mongo.ts';
 
 describe('MongoWrapper (real)', () => {
@@ -6,6 +6,12 @@ describe('MongoWrapper (real)', () => {
 
   afterEach(async () => {
     await mongo.remove('testDocs', {});
+  });
+
+  // Close the driver client once, cleanly. close() now drains any open change
+  // stream first, so this no longer races a live stream into "Topology is closed".
+  afterAll(async () => {
+    await mongo.close();
   });
 
   it('inserts and finds documents', async () => {
@@ -53,7 +59,9 @@ describe('MongoWrapper (real)', () => {
       expect(changes[1]).toMatchObject({ type: 'update', collection: 'testDocs' });
       expect(changes[2]).toMatchObject({ type: 'remove', collection: 'testDocs' });
     } finally {
-      stop();
+      // Await the stream actually closing, not fire-and-forget, so it is gone
+      // before the suite tears the client down.
+      await stop();
     }
   });
 });
