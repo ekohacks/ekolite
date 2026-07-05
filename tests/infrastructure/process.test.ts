@@ -35,7 +35,20 @@ describe('ProcessWrapper (null)', () => {
     expect(exits.data).toEqual([{ code: 0 }, { code: 1 }]);
   });
 
-  it.todo('fires a timer when time advances to its deadline, and not before');
+  it('fires a timer when time advances to its deadline, and not before', () => {
+    const proc = ProcessWrapper.createNull();
+    let fired = false;
+
+    proc.startTimer(5000, () => {
+      fired = true;
+    });
+
+    proc.advanceTime(4999);
+    expect(fired).toBe(false);
+
+    proc.advanceTime(1);
+    expect(fired).toBe(true);
+  });
 
   it.todo('never fires a cancelled timer, however far time advances');
 });

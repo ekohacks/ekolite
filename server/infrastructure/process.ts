@@ -7,6 +7,7 @@ const EXIT_EVENT = 'exit';
 interface ProcessLike {
   onSignal(handler: (signal: Signal) => void): void;
   exit(code: number): void;
+  startTimer(ms: number, callback: () => void): () => void;
 }
 
 export class ProcessWrapper {
@@ -38,6 +39,17 @@ export class ProcessWrapper {
     return new OutputTracker(this.emitter, EXIT_EVENT);
   }
 
+  startTimer(ms: number, callback: () => void): () => void {
+    return this.proc.startTimer(ms, callback);
+  }
+
+  advanceTime(ms: number): void {
+    if (!(this.proc instanceof StubbedProcess)) {
+      throw new Error('advanceTime only available on null instance');
+    }
+    this.proc.advanceTime(ms);
+  }
+
   simulateSignal(signal: Signal): void {
     if (!(this.proc instanceof StubbedProcess)) {
       throw new Error('simulateSignal only available on null instance');
@@ -58,10 +70,25 @@ class RealProcess implements ProcessLike {
   exit(code: number): void {
     process.exit(code);
   }
+
+  startTimer(ms: number, callback: () => void): () => void {
+    const timer = setTimeout(callback, ms);
+    return () => {
+      clearTimeout(timer);
+    };
+  }
+}
+
+interface StubbedTimer {
+  dueAt: number;
+  callback: () => void;
+  live: boolean;
 }
 
 class StubbedProcess implements ProcessLike {
   private readonly handlers: ((signal: Signal) => void)[] = [];
+  private readonly timers: StubbedTimer[] = [];
+  private now = 0;
 
   onSignal(handler: (signal: Signal) => void): void {
     this.handlers.push(handler);
@@ -69,6 +96,24 @@ class StubbedProcess implements ProcessLike {
 
   exit(): void {
     // The nulled process survives its own exit; the tracker holds the story.
+  }
+
+  startTimer(ms: number, callback: () => void): () => void {
+    const timer = { dueAt: this.now + ms, callback, live: true };
+    this.timers.push(timer);
+    return () => {
+      timer.live = false;
+    };
+  }
+
+  advanceTime(ms: number): void {
+    this.now += ms;
+    for (const timer of [...this.timers]) {
+      if (timer.live && timer.dueAt <= this.now) {
+        timer.live = false;
+        timer.callback();
+      }
+    }
   }
 
   simulateSignal(signal: Signal): void {
