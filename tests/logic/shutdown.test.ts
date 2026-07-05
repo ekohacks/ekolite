@@ -105,7 +105,20 @@ describe('Shutdown', () => {
     expect(exits.data).toEqual([{ code: 1 }]);
   });
 
-  it.todo('the grace period defaults to five seconds');
+  it('the grace period defaults to five seconds', () => {
+    const { closable } = closableDouble();
+    const proc = ProcessWrapper.createNull();
+    const exits = proc.trackExits();
+    new Shutdown(closable, proc).arm();
+
+    proc.simulateSignal('SIGTERM');
+
+    proc.advanceTime(4999);
+    expect(exits.data).toEqual([]);
+
+    proc.advanceTime(1);
+    expect(exits.data).toEqual([{ code: 1 }]);
+  });
 
   it.todo('a second signal exits 1 immediately, without waiting for the close');
 
