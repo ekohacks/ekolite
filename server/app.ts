@@ -96,10 +96,12 @@ export class App {
   }
 
   // Graceful shutdown. Closing the socket also closes the Fastify server it
-  // attached to; then the Mongo connection goes. Order matters: stop taking
-  // requests before dropping the database underneath them.
+  // attached to; then the publications' change streams are drained; then the Mongo
+  // connection goes. Order matters: stop taking requests, stop the streams, and only
+  // then drop the database, so it never closes with a change stream open underneath.
   async close(): Promise<void> {
     await this.ws.close();
+    await this.publications.stopAll();
     await this.mongo.close();
   }
 }
