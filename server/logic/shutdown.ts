@@ -12,11 +12,12 @@ const DEFAULT_GRACE_MS = 5000;
 export class Shutdown {
   private readonly closable: Closable;
   private readonly proc: ProcessWrapper;
-  private readonly graceMs = DEFAULT_GRACE_MS;
+  private readonly graceMs: number;
 
-  constructor(closable: Closable, proc: ProcessWrapper) {
+  constructor(closable: Closable, proc: ProcessWrapper, options: { graceMs?: number } = {}) {
     this.closable = closable;
     this.proc = proc;
+    this.graceMs = options.graceMs ?? DEFAULT_GRACE_MS;
   }
 
   arm(): void {

@@ -90,7 +90,20 @@ describe('Shutdown', () => {
     expect(exits.data).toEqual([{ code: 0 }]);
   });
 
-  it.todo('the grace period is configurable and fires at the deadline, not before');
+  it('the grace period is configurable and fires at the deadline, not before', () => {
+    const { closable } = closableDouble();
+    const proc = ProcessWrapper.createNull();
+    const exits = proc.trackExits();
+    new Shutdown(closable, proc, { graceMs: 100 }).arm();
+
+    proc.simulateSignal('SIGTERM');
+
+    proc.advanceTime(99);
+    expect(exits.data).toEqual([]);
+
+    proc.advanceTime(1);
+    expect(exits.data).toEqual([{ code: 1 }]);
+  });
 
   it.todo('the grace period defaults to five seconds');
 
