@@ -50,5 +50,16 @@ describe('ProcessWrapper (null)', () => {
     expect(fired).toBe(true);
   });
 
-  it.todo('never fires a cancelled timer, however far time advances');
+  it('never fires a cancelled timer, however far time advances', () => {
+    const proc = ProcessWrapper.createNull();
+    let fired = false;
+
+    const cancel = proc.startTimer(5000, () => {
+      fired = true;
+    });
+    cancel();
+
+    proc.advanceTime(60_000);
+    expect(fired).toBe(false);
+  });
 });
