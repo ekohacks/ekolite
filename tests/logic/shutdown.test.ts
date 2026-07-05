@@ -120,7 +120,18 @@ describe('Shutdown', () => {
     expect(exits.data).toEqual([{ code: 1 }]);
   });
 
-  it.todo('a second signal exits 1 immediately, without waiting for the close');
+  it('a second signal exits 1 immediately, without waiting for the close', () => {
+    const { closable, closeCalls } = closableDouble();
+    const proc = ProcessWrapper.createNull();
+    const exits = proc.trackExits();
+    new Shutdown(closable, proc).arm();
+
+    proc.simulateSignal('SIGINT');
+    proc.simulateSignal('SIGINT');
+
+    expect(exits.data).toEqual([{ code: 1 }]);
+    expect(closeCalls()).toBe(1);
+  });
 
   it.todo('a close that rejects exits 1 instead of dying as an unhandled rejection');
 });
