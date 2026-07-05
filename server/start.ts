@@ -1,5 +1,7 @@
 import { createServer } from './index.ts';
 import { App, type AppConfig } from './app.ts';
+import { ProcessWrapper } from './infrastructure/process.ts';
+import { Shutdown } from './logic/shutdown.ts';
 
 // Real boot. Read config from the environment, let App wire the graph (Mongo, the
 // websocket, the pub/sub engine, the file store, and the standard files.all / echo /
@@ -20,11 +22,6 @@ await server.listen({ port: config.port, host: '0.0.0.0' });
 console.warn(`EkoLite listening on http://localhost:${String(config.port)} (ws at /ws)`);
 
 // Graceful shutdown: stop taking requests, then drop the database connection.
-for (const signal of ['SIGINT', 'SIGTERM'] as const) {
-  process.on(signal, () => {
-    void (async () => {
-      await app.close();
-      process.exit(0);
-    })();
-  });
-}
+// The policy (deadline, exit codes, second signal) lives in Shutdown, tested on
+// the nulled process; the shell only wires it to the real one.
+new Shutdown(app, ProcessWrapper.create()).arm();
