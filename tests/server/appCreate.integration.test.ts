@@ -12,15 +12,18 @@ import { App } from '../../server/app.ts';
 // graceful shutdown: it closes the socket (and with it the Fastify server) and the
 // Mongo connection.
 describe('App.create wires real infrastructure', () => {
-  let app: App;
+  let app: App | undefined;
   let server: Awaited<ReturnType<typeof createServer>>;
   let client: WebSocket | undefined;
 
   afterEach(async () => {
     client?.close();
+    client = undefined;
     // app.close() shuts the socket, which closes the Fastify server it attached to,
-    // then the Mongo connection. One close for the whole graph.
-    await app.close();
+    // then the Mongo connection. One close for the whole graph. Guarded: if
+    // App.create ever throws, app is still undefined here.
+    await app?.close();
+    app = undefined;
   });
 
   it('boots a server that serves the page and accepts websocket connections', async () => {
