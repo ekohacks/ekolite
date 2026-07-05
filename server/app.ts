@@ -7,6 +7,7 @@ import { RpcHandler } from './logic/rpcHandler.ts';
 import { Methods } from './logic/methods.ts';
 import { Files } from './logic/files.ts';
 import { defineRunCountC } from './logic/analysis.ts';
+import { closeAll } from '../shared/helperFunctions.ts';
 import { type StoredFile } from '../shared/types.ts';
 
 // Config for the real boot. The same knobs start.ts reads from the environment.
@@ -100,8 +101,13 @@ export class App {
   // connection goes. Order matters: stop taking requests, stop the streams, and only
   // then drop the database, so it never closes with a change stream open underneath.
   async close(): Promise<void> {
-    await this.ws.close();
-    await this.publications.stopAll();
-    await this.mongo.close();
+    // Best-effort: each step runs even if an earlier one rejects, so a failing socket
+    // close never leaves the Mongo connection open. closeAll rethrows the first error
+    // so a hung or broken shutdown still exits non-zero through Shutdown.
+    await closeAll([
+      () => this.ws.close(),
+      () => this.publications.stopAll(),
+      () => this.mongo.close(),
+    ]);
   }
 }
