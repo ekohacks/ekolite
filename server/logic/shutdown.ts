@@ -23,27 +23,31 @@ export class Shutdown {
 
   arm(): void {
     this.proc.onSignal(() => {
-      // A second signal means it: exit hard, no second goodbye.
-      if (this.shuttingDown) {
-        this.proc.exit(1);
-        return;
-      }
-      this.shuttingDown = true;
-      const cancelDeadline = this.proc.startTimer(this.graceMs, () => {
-        console.error('shutdown timed out, exiting hard');
-        this.proc.exit(1);
-      });
-      void this.closable.close().then(
-        () => {
-          cancelDeadline();
-          this.proc.exit(0);
-        },
-        (err: unknown) => {
-          cancelDeadline();
-          console.error('shutdown failed:', err);
-          this.proc.exit(1);
-        },
-      );
+      this.handleShutdownSignal();
     });
+  }
+
+  private handleShutdownSignal(): void {
+    // A second signal means it: exit hard, no second goodbye.
+    if (this.shuttingDown) {
+      this.proc.exit(1);
+      return;
+    }
+    this.shuttingDown = true;
+    const cancelDeadline = this.proc.startTimer(this.graceMs, () => {
+      console.error('shutdown timed out, exiting hard');
+      this.proc.exit(1);
+    });
+    void this.closable.close().then(
+      () => {
+        cancelDeadline();
+        this.proc.exit(0);
+      },
+      (err: unknown) => {
+        cancelDeadline();
+        console.error('shutdown failed:', err);
+        this.proc.exit(1);
+      },
+    );
   }
 }
