@@ -96,8 +96,8 @@ class StubbedProcess implements ProcessLike {
     this.handlers.push(handler);
   }
 
-  exit(): void {
-    // The nulled process survives its own exit; the tracker holds the story.
+  exit(_code: number): void {
+    // Intentionally ignored. The stubbed process survives its own exit; the tracker holds the story.
   }
 
   startTimer(ms: number, callback: () => void): () => void {
