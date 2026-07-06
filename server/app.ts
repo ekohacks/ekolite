@@ -56,9 +56,11 @@ export class App {
   readonly methods: Methods;
   readonly files: Files;
   readonly rpcHandler: RpcHandler;
+  private readonly mongo: MongoWrapper;
 
   private constructor(parts: AppParts) {
     this.ws = parts.ws;
+    this.mongo = parts.mongo;
     this.methods = new Methods();
     this.rpcHandler = new RpcHandler(this.methods, parts.ws);
     this.publications = new Publications(parts.mongo, parts.ws);
@@ -91,5 +93,13 @@ export class App {
       scriptRunner: ScriptRunnerWrapper.createNull(nullConfig.scriptResponses ?? {}),
       countCScript: nullConfig.countCScript ?? DEFAULT_COUNTC_SCRIPT,
     });
+  }
+
+  // Graceful shutdown. Closing the socket also closes the Fastify server it
+  // attached to; then the Mongo connection goes. Order matters: stop taking
+  // requests before dropping the database underneath them.
+  async close(): Promise<void> {
+    await this.ws.close();
+    await this.mongo.close();
   }
 }
