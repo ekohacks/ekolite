@@ -7,7 +7,7 @@ interface CollectionLike {
   insertOne(doc: object): Promise<void>;
   updateMany(query: object, changes: object): Promise<void>;
   deleteMany(query: object): Promise<void>;
-  watch(onChange: (raw: unknown) => void): Promise<() => void>;
+  watch(onChange: (raw: unknown) => void): Promise<() => Promise<void>>;
 }
 
 type CollectionFactory = (name: string) => CollectionLike;
@@ -22,7 +22,7 @@ interface StubbedMongoOptions {
 export class MongoWrapper {
   private readonly collectionFactory: CollectionFactory;
   private readonly emitter = new EventEmitter();
-  private readonly activeWatches = new Map<string, Promise<() => void>>();
+  private readonly activeWatches = new Map<string, Promise<() => Promise<void>>>();
 
   private readonly closer: () => Promise<void>;
 
@@ -48,10 +48,24 @@ export class MongoWrapper {
     return new MongoWrapper((name: string) => stub.collection(name));
   }
 
-  // Close the driver connection. Safe to call when nothing ever connected: the
-  // driver's own close is a no-op in that case. Nulled instances close to nothing.
+  // Close the driver connection. Stop every open change stream first: closing the
+  // driver client with a change stream still open is the race that logs
+  // MongoClientClosedError. Safe to call when nothing ever connected — the driver's
+  // own close is a no-op then, and Nulled instances close to nothing.
   async close(): Promise<void> {
+    await this.stopAllWatches();
     await this.closer();
+  }
+
+  // Force every active change stream shut, regardless of remaining subscribers.
+  // Mirrors closeWatchIfUnused but drains the whole map at once, for shutdown.
+  private async stopAllWatches(): Promise<void> {
+    const watches = [...this.activeWatches.values()];
+    this.activeWatches.clear();
+    for (const watch of watches) {
+      const stopWatching = await watch;
+      await stopWatching();
+    }
   }
 
   async find<T>(collection: string, query: object): Promise<T[]> {
@@ -70,7 +84,10 @@ export class MongoWrapper {
     return this.collectionFactory(collection).deleteMany(query);
   }
 
-  async watchChanges(collection: string, cb: (data: ChangeEvent) => void): Promise<() => void> {
+  async watchChanges(
+    collection: string,
+    cb: (data: ChangeEvent) => void,
+  ): Promise<() => Promise<void>> {
     const wrappedCb = (data: unknown) => {
       if (isChangeEvent(data)) {
         cb(data);
@@ -79,9 +96,9 @@ export class MongoWrapper {
     this.emitter.on(collection, wrappedCb);
     await this.openWatchIfNeeded(collection);
 
-    return () => {
+    return async () => {
       this.emitter.off(collection, wrappedCb);
-      void this.closeWatchIfUnused(collection);
+      await this.closeWatchIfUnused(collection);
     };
   }
 
@@ -120,7 +137,7 @@ export class MongoWrapper {
     if (watch) {
       this.activeWatches.delete(collection);
       const stopWatching = await watch;
-      stopWatching();
+      await stopWatching();
     }
   }
 }
@@ -144,7 +161,7 @@ class RealCollection implements CollectionLike {
     return this.collection.deleteMany(query).then(() => undefined);
   }
 
-  async watch(onChange: (raw: unknown) => void): Promise<() => void> {
+  async watch(onChange: (raw: unknown) => void): Promise<() => Promise<void>> {
     const changeStream = this.collection.watch([], { fullDocument: 'updateLookup' });
     changeStream.on('change', onChange);
     changeStream.on('error', (err) => {
@@ -161,9 +178,9 @@ class RealCollection implements CollectionLike {
       });
       changeStream.once('error', reject);
     });
-    return () => {
-      void changeStream.close();
-    };
+    // Return the close promise so callers can await the stream actually shutting
+    // down before the driver client is closed underneath it.
+    return () => changeStream.close();
   }
 }
 
@@ -277,13 +294,14 @@ class StubbedCollection implements CollectionLike {
     return Promise.resolve();
   }
 
-  watch(onChange: (raw: unknown) => void): Promise<() => void> {
+  watch(onChange: (raw: unknown) => void): Promise<() => Promise<void>> {
     const listener = (data: unknown) => {
       onChange(data);
     };
     this.emitter.on(this.collectionName, listener);
     return Promise.resolve(() => {
       this.emitter.off(this.collectionName, listener);
+      return Promise.resolve();
     });
   }
 }

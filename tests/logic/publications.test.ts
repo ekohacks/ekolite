@@ -28,6 +28,25 @@ describe('Publications', () => {
     });
   });
 
+  it('stopAll stops every active subscription watch across clients', async () => {
+    const mongo = MongoWrapper.createNull();
+    const ws = WebSocketWrapper.createNull();
+    const clientA = ws.simulateConnection();
+    const clientB = ws.simulateConnection();
+    const pubs = new Publications(mongo, ws);
+    pubs.define('files.all', () => ({ collection: 'files', query: {} }));
+
+    await pubs.handleMessage(clientA.id, { type: 'subscribe', id: 's1', name: 'files.all' });
+    await pubs.handleMessage(clientB.id, { type: 'subscribe', id: 's2', name: 'files.all' });
+    expect(mongo.watcherCount('files')).toBe(2);
+
+    await pubs.stopAll();
+
+    // Every client's change stream is drained, so a shutdown can close Mongo with
+    // no stream still open underneath it.
+    expect(mongo.watcherCount('files')).toBe(0);
+  });
+
   it('notifies observer on failed subscribe for unknown publication', async () => {
     const notifications: { type: string; outcome: ObserverOutcome; reason?: string | undefined }[] =
       [];

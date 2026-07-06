@@ -9,7 +9,7 @@ import { ChangeEvent } from '../../shared/types.ts';
 type PublicationDef = (params?: Record<string, unknown>) => { collection: string; query: object };
 
 interface SubscriptionRecord {
-  cleanup: () => void;
+  cleanup: () => Promise<void>;
   // Document ids this subscription has sent `added` for and not yet sent
   // `removed` for. Mirrors the client's view of what's been delivered, not
   // the live Mongo state. When watcher 'update'/'delete' get wired through,
@@ -64,7 +64,7 @@ export class Publications {
     this.ws = ws;
     this.observer = observer;
     this.ws.onDisconnect((clientId) => {
-      this.tearDownClient(clientId);
+      void this.tearDownClient(clientId);
     });
   }
 
@@ -95,17 +95,21 @@ export class Publications {
     this.notifyObserver(message, 'failed', reason);
   }
 
-  private tearDownClient(clientId: string): void {
+  private async tearDownClient(clientId: string): Promise<void> {
     const clientSubs = this.subscriptions.get(clientId);
     if (!clientSubs) {
       return;
     }
 
-    for (const { cleanup } of clientSubs.values()) {
-      cleanup();
-    }
-
     this.subscriptions.delete(clientId);
+    await Promise.all([...clientSubs.values()].map(({ cleanup }) => cleanup()));
+  }
+
+  // Stop every subscription's change stream across all clients. Called on shutdown
+  // so App.close can await the streams closing before the Mongo client is dropped.
+  async stopAll(): Promise<void> {
+    const clientIds = [...this.subscriptions.keys()];
+    await Promise.all(clientIds.map((clientId) => this.tearDownClient(clientId)));
   }
 
   define(name: string, queryFn: PublicationDef): void {
@@ -216,7 +220,7 @@ export class Publications {
 
       const existing = clientSubs.get(message.id);
       if (existing) {
-        existing.cleanup();
+        await existing.cleanup();
       }
 
       clientSubs.set(message.id, { cleanup, documentIds, collection: collectionName });
@@ -245,7 +249,7 @@ export class Publications {
         return Promise.resolve();
       }
 
-      subscriptionRecord.cleanup();
+      await subscriptionRecord.cleanup();
 
       for (const docId of subscriptionRecord.documentIds) {
         this.ws.send(clientId, removedMessage(subscriptionRecord.collection, docId));

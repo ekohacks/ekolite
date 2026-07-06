@@ -257,9 +257,9 @@ describe('MongoWrapper (null)', () => {
       /* empty */
     });
     expect(mongo.watcherCount('files')).toBe(2);
-    stop1();
+    await stop1();
     expect(mongo.watcherCount('files')).toBe(1);
-    stop2();
+    await stop2();
     expect(mongo.watcherCount('files')).toBe(0);
   });
 
@@ -289,5 +289,19 @@ describe('MongoWrapper (null)', () => {
 
     expect(changes).toHaveLength(1);
     expect(changes[0]).toMatchObject({ type: 'insert', collection: 'todos' });
+  });
+
+  it('close() stops the underlying change streams so no changes arrive after', async () => {
+    const mongo = MongoWrapper.createNull();
+    const changes: ChangeEvent[] = [];
+    await mongo.watchChanges('todos', (c) => changes.push(c));
+
+    await mongo.close();
+    await mongo.insert('todos', { text: 'after close' });
+
+    // With the streams stopped, the insert reaches no watcher. Before the fix,
+    // close() left the change stream open and this insert still arrived — the same
+    // open-stream-while-client-closes race that logs MongoClientClosedError in prod.
+    expect(changes).toHaveLength(0);
   });
 });
