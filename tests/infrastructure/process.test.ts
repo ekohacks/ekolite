@@ -50,6 +50,21 @@ describe('ProcessWrapper (null)', () => {
     expect(fired).toBe(true);
   });
 
+  it('fires due timers in deadline order and skips cancelled ones', () => {
+    const proc = ProcessWrapper.createNull();
+    const order: number[] = [];
+
+    proc.startTimer(20, () => order.push(20));
+    proc.startTimer(10, () => order.push(10));
+    const cancel = proc.startTimer(15, () => order.push(15));
+    cancel();
+    proc.startTimer(5, () => order.push(5));
+
+    proc.advanceTime(20);
+
+    expect(order).toEqual([5, 10, 20]);
+  });
+
   it('never fires a cancelled timer, however far time advances', () => {
     const proc = ProcessWrapper.createNull();
     let fired = false;
