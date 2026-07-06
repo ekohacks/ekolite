@@ -110,12 +110,21 @@ class StubbedProcess implements ProcessLike {
 
   advanceTime(ms: number): void {
     this.now += ms;
-    for (const timer of [...this.timers]) {
-      if (timer.live && timer.dueAt <= this.now) {
-        timer.live = false;
-        timer.callback();
+
+    const dueTimers = this.timers
+      .filter((timer) => timer.live && timer.dueAt <= this.now)
+      .sort((left, right) => left.dueAt - right.dueAt);
+
+    for (const timer of dueTimers) {
+      if (!timer.live) {
+        continue;
       }
+
+      timer.live = false;
+      timer.callback();
     }
+
+    this.timers.splice(0, this.timers.length, ...this.timers.filter((timer) => timer.live));
   }
 
   simulateSignal(signal: Signal): void {
