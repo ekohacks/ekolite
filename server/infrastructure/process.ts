@@ -26,9 +26,9 @@ export class ProcessWrapper {
     return new ProcessWrapper(new StubbedProcess());
   }
 
-  private requireStubbedProcess(errorMethod: 'advanceTime' | 'simulateSignal'): StubbedProcess {
+  private requireStubbedProcess(): StubbedProcess {
     if (!(this.proc instanceof StubbedProcess)) {
-      throw new Error(`${errorMethod} only available on null instance`);
+      throw new Error('Method only available on null instance');
     }
 
     return this.proc;
@@ -52,11 +52,11 @@ export class ProcessWrapper {
   }
 
   advanceTime(ms: number): void {
-    this.requireStubbedProcess('advanceTime').advanceTime(ms);
+    this.requireStubbedProcess().advanceTime(ms);
   }
 
   simulateSignal(signal: Signal): void {
-    this.requireStubbedProcess('simulateSignal').simulateSignal(signal);
+    this.requireStubbedProcess().simulateSignal(signal);
   }
 }
 
