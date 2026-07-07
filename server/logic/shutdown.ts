@@ -14,6 +14,7 @@ export class Shutdown {
   private readonly proc: ProcessWrapper;
   private readonly graceMs: number;
   private shuttingDown = false;
+  private exited = false;
 
   constructor(closable: Closable, proc: ProcessWrapper, options: { graceMs?: number } = {}) {
     this.closable = closable;
@@ -36,15 +37,26 @@ export class Shutdown {
     this.shuttingDown = true;
     const cancelDeadline = this.proc.startTimer(this.graceMs, () => {
       console.error('shutdown timed out, exiting hard');
+      this.exited = true;
       this.proc.exit(1);
     });
     void this.closable.close().then(
       () => {
+        if (this.exited) {
+          return;
+        }
+
         cancelDeadline();
+        this.exited = true;
         this.proc.exit(0);
       },
       (err: unknown) => {
+        if (this.exited) {
+          return;
+        }
+
         cancelDeadline();
+        this.exited = true;
         console.error('shutdown failed:', err);
         this.proc.exit(1);
       },
