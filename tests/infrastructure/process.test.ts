@@ -77,4 +77,18 @@ describe('ProcessWrapper (null)', () => {
     proc.advanceTime(60_000);
     expect(fired).toBe(false);
   });
+
+  it('fires a timer scheduled by another timer, when both come due in the same advance', () => {
+    const proc = ProcessWrapper.createNull();
+    const order: number[] = [];
+
+    proc.startTimer(10, () => {
+      order.push(10);
+      proc.startTimer(5, () => order.push(15));
+    });
+
+    proc.advanceTime(100);
+
+    expect(order).toEqual([10, 15]);
+  });
 });
