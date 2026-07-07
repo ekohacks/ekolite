@@ -130,10 +130,9 @@ class StubbedProcess implements ProcessLike {
       }
 
       this.now = nextTimer.dueAt;
-      nextTimer.live = false;
 
-      // Remove fired/cancelled timers before running callbacks.
-      this.timers.splice(0, this.timers.length, ...this.timers.filter((timer) => timer.live));
+      const index = this.timers.indexOf(nextTimer);
+      this.timers.splice(index, 1);
 
       nextTimer.callback();
     }
