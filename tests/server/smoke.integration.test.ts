@@ -1,6 +1,7 @@
 import net from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ServerProcess } from '../helpers/serverProcess.ts';
+import { READY_MESSAGE } from '../../shared/serverMessages.ts';
 
 // The one test that bypasses every Null and drives the real entry point. It spawns
 // server/start.ts as a child process and waits for it to announce readiness on stdout.
@@ -10,9 +11,6 @@ import { ServerProcess } from '../helpers/serverProcess.ts';
 //
 // Integration only: it needs a real port and a real MongoDB (see AGENTS.md), so it
 // lives in the integration config and runs under `npm run test:integration`.
-
-// Cadence step 3 extracts this to shared/ and imports it here and in start.ts.
-const READY_MESSAGE = 'ekolite: ready on';
 
 // A fresh ephemeral port per run, so the smoke test never collides with the default
 // 3001 that `npm run dev:server` binds.

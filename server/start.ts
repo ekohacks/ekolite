@@ -2,6 +2,7 @@ import { createServer } from './index.ts';
 import { App, type AppConfig } from './app.ts';
 import { ProcessWrapper } from './infrastructure/process.ts';
 import { Shutdown } from './logic/shutdown.ts';
+import { READY_MESSAGE } from '../shared/serverMessages.ts';
 
 // Real boot. Read config from the environment, let App wire the graph (Mongo, the
 // websocket, the pub/sub engine, the file store, and the standard files.all / echo /
@@ -30,7 +31,7 @@ await server.listen({ port: config.port, host: '0.0.0.0' });
 // stderr that console.warn writes to) and carries the port, so a spawned harness can
 // confirm the server bound the one it was handed. Written directly because the lint
 // rule reserves console for warn/error.
-process.stdout.write(`ekolite: ready on http://localhost:${String(config.port)}\n`);
+process.stdout.write(`${READY_MESSAGE} http://localhost:${String(config.port)}\n`);
 
 // Graceful shutdown: stop taking requests, then drop the database connection.
 // The policy (deadline, exit codes, second signal) lives in Shutdown, tested on
