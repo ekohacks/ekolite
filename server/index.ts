@@ -33,7 +33,9 @@ export async function createServer(options: ServerOptions) {
   });
 
   await server.register(fastifyStatic, {
-    root: resolve(__dirname, '..', 'dist', 'client'),
+    // The demo page. tsc owns dist/client for the packaged client library, so the vite
+    // demo build lives in dist/demo and this serves from there.
+    root: resolve(__dirname, '..', 'dist', 'demo'),
   });
   await options.ws.attach(server);
 

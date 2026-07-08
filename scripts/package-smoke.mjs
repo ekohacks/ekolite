@@ -124,7 +124,7 @@ function main() {
     console.log('package smoke: PASS');
     console.log(`  consumer said: ${out}`);
     console.log('  declarations resolve to shipped files only');
-    console.log('  a TS consumer compiles against ekolite and ekolite/shared');
+    console.log('  a TS consumer compiles against ekolite, ekolite/shared and ekolite/client');
   } finally {
     rmSync(dir, { recursive: true, force: true });
     rmSync(tarball, { force: true });

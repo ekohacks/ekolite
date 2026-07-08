@@ -7,6 +7,14 @@
     "outDir": "dist",
     "rootDir": "."
   },
-  "include": ["server", "shared"],
-  "exclude": ["node_modules", "dist", "tests", "**/*.test.ts", "**/*.integration.test.ts"]
+  "include": ["server", "shared", "client"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "tests",
+    "client/main.ts",
+    "client/demo",
+    "**/*.test.ts",
+    "**/*.integration.test.ts"
+  ]
 }

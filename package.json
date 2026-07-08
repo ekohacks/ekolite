@@ -23,6 +23,10 @@
     "./shared": {
       "types": "./dist/shared/protocol.d.ts",
       "import": "./dist/shared/protocol.js"
+    },
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "import": "./dist/client/index.js"
     }
   },
   "files": [
