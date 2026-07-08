@@ -4,6 +4,28 @@ A lightweight, real time backend framework in the spirit of Meteor. Fastify, Mon
 
 EkoLite is a public, work in progress rebuild of Meteor's core ideas with deliberate differences. The documents in [`docs/ekolite-overview/`](docs/ekolite-overview/) cover the thinking. This README covers what is actually built today.
 
+## Status
+
+Work in progress, published early at `0.x` to claim the name and share the shape. The public API is still settling and can change between `0.x` releases, so pin a version and read the notes before upgrading. Not recommended for production yet.
+
+## Install
+
+```bash
+npm install ekolite
+```
+
+Three entry points, everything else stays internal for now:
+
+```ts
+import { App } from 'ekolite'; // the server framework
+import { ConnectionManager } from 'ekolite/client'; // the browser client stack
+import type { ReadyMsg } from 'ekolite/shared'; // the wire protocol types
+
+const app = App.createNull();
+app.methods.define('greet', (name) => `hello ${String(name)}`);
+await app.methods.call('greet', ['world']); // 'hello world'
+```
+
 ## What works today
 
 - **Nullable infrastructure wrappers**, each with `create()` and `createNull()` factories: MongoDB (`MongoWrapper`), WebSocket server (`WebSocketWrapper`), file storage (`FileStorageWrapper`) and script runner (`ScriptRunnerWrapper`)
