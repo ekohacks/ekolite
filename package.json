@@ -16,7 +16,7 @@
   "main": "dist/server/index.js",
   "types": "dist/server/index.d.ts",
   "engines": {
-    "node": ">=18"
+    "node": ">=24"
   },
   "scripts": {
     "dev:server": "tsx watch server/start.ts",
