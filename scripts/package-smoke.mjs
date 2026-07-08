@@ -94,12 +94,14 @@ function main() {
       [
         "import { App } from 'ekolite';",
         "import type { ReadyMsg } from 'ekolite/shared';",
+        "import { ConnectionManager } from 'ekolite/client';",
         '',
         'const app = App.createNull();',
         "const ready: ReadyMsg = { type: 'ready', id: 'sub-1', collection: 'files' };",
         '',
         'void app;',
         'void ready;',
+        'void ConnectionManager;',
         '',
       ].join('\n'),
     );
