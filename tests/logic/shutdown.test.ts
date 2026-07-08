@@ -165,4 +165,20 @@ describe('Shutdown', () => {
 
     expect(exits.data).toEqual([{ code: 1 }]);
   });
+
+  it('a second signal exits hard, and a later clean close records no second exit', async () => {
+    const { closable, resolveClose } = closableDouble();
+    const proc = ProcessWrapper.createNull();
+    const exits = proc.trackExits();
+    new Shutdown(closable, proc).arm();
+
+    proc.simulateSignal('SIGTERM');
+    proc.simulateSignal('SIGTERM');
+    expect(exits.data).toEqual([{ code: 1 }]);
+
+    resolveClose();
+    await flush();
+
+    expect(exits.data).toEqual([{ code: 1 }]);
+  });
 });
