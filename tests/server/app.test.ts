@@ -4,6 +4,7 @@ import { Publications } from '../../server/logic/publications.ts';
 import { Methods } from '../../server/logic/methods.ts';
 import { Files } from '../../server/logic/files.ts';
 import { WebSocketWrapper } from '../../server/infrastructure/websocket.ts';
+import { MongoWrapper } from '../../server/infrastructure/mongo.ts';
 import { StoredFile } from '../../shared/types.ts';
 
 // 7.B.1 — App.createNull assembles all parts.
@@ -45,6 +46,17 @@ describe('App.createNull assembles all parts', () => {
     const app = App.createNull();
 
     expect(await app.methods.call('echo', ['ping'])).toBe('echo: ping');
+  });
+
+  it('still closes Mongo when the nulled socket close rejects', async () => {
+    const mongo = MongoWrapper.createNull();
+    const closeTracker = mongo.trackClose();
+    const ws = WebSocketWrapper.createNull({ close: [new Error('socket close failed')] });
+    const app = App.createNull({ mongo, ws });
+
+    await expect(app.close()).rejects.toThrow('socket close failed');
+
+    expect(closeTracker.data).toHaveLength(1);
   });
 
   it('registers runCountC, wired to files and the nulled script runner', async () => {
