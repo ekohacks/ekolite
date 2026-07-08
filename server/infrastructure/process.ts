@@ -26,6 +26,14 @@ export class ProcessWrapper {
     return new ProcessWrapper(new StubbedProcess());
   }
 
+  private requireStubbedProcess(): StubbedProcess {
+    if (!(this.proc instanceof StubbedProcess)) {
+      throw new Error('Method only available on null instance');
+    }
+
+    return this.proc;
+  }
+
   onSignal(handler: (signal: Signal) => void): void {
     this.proc.onSignal(handler);
   }
@@ -44,17 +52,11 @@ export class ProcessWrapper {
   }
 
   advanceTime(ms: number): void {
-    if (!(this.proc instanceof StubbedProcess)) {
-      throw new Error('advanceTime only available on null instance');
-    }
-    this.proc.advanceTime(ms);
+    this.requireStubbedProcess().advanceTime(ms);
   }
 
   simulateSignal(signal: Signal): void {
-    if (!(this.proc instanceof StubbedProcess)) {
-      throw new Error('simulateSignal only available on null instance');
-    }
-    this.proc.simulateSignal(signal);
+    this.requireStubbedProcess().simulateSignal(signal);
   }
 }
 
@@ -94,8 +96,8 @@ class StubbedProcess implements ProcessLike {
     this.handlers.push(handler);
   }
 
-  exit(): void {
-    // The nulled process survives its own exit; the tracker holds the story.
+  exit(_code: number): void {
+    // Intentionally ignored. The stubbed process survives its own exit; the tracker holds the story.
   }
 
   startTimer(ms: number, callback: () => void): () => void {
@@ -107,12 +109,32 @@ class StubbedProcess implements ProcessLike {
   }
 
   advanceTime(ms: number): void {
-    this.now += ms;
-    for (const timer of [...this.timers]) {
-      if (timer.live && timer.dueAt <= this.now) {
-        timer.live = false;
-        timer.callback();
+    const target = this.now + ms;
+
+    while (true) {
+      const nextTimer = this.timers.reduce<StubbedTimer | null>((earliest, timer) => {
+        if (!timer.live || timer.dueAt > target) {
+          return earliest;
+        }
+
+        if (earliest === null || timer.dueAt < earliest.dueAt) {
+          return timer;
+        }
+
+        return earliest;
+      }, null);
+
+      if (nextTimer === null) {
+        this.now = target;
+        break;
       }
+
+      this.now = nextTimer.dueAt;
+
+      const index = this.timers.indexOf(nextTimer);
+      this.timers.splice(index, 1);
+
+      nextTimer.callback();
     }
   }
 
