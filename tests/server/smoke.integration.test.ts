@@ -4,10 +4,10 @@ import { ServerProcess } from '../helpers/serverProcess.ts';
 import { READY_MESSAGE } from '../../shared/serverMessages.ts';
 
 // The one test that bypasses every Null and drives the real entry point. It spawns
-// server/start.ts as a child process and waits for it to announce readiness on stdout.
-// Later steps fetch the home page and ask it to shut down cleanly. If start.ts ever
-// stops wiring Mongo, Fastify, the websocket, publications and files together, this is
-// the test that catches it, because nothing else looks at the wiring.
+// server/start.ts as a child process, waits for it to announce readiness on stdout,
+// fetches the home page, and asks it to shut down cleanly. If start.ts ever stops
+// wiring Mongo, Fastify, the websocket, publications and files together, this is the
+// test that catches it, because nothing else looks at the wiring.
 //
 // Integration only: it needs a real port and a real MongoDB (see AGENTS.md), so it
 // lives in the integration config and runs under `npm run test:integration`.

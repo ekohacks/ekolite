@@ -12,6 +12,9 @@ import { fileURLToPath } from 'node:url';
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const ENTRY_POINT = 'server/start.ts';
 
+const DEFAULT_READY_TIMEOUT_MS = 10_000;
+const DEFAULT_STOP_GRACE_MS = 5_000;
+
 export interface ServerProcessOptions {
   // The child is considered up once this string appears on stdout.
   readyString: string;
@@ -38,8 +41,8 @@ export class ServerProcess {
   constructor(options: ServerProcessOptions) {
     this.readyString = options.readyString;
     this.env = options.env ?? {};
-    this.readyTimeoutMs = options.readyTimeoutMs ?? 10_000;
-    this.stopGraceMs = options.stopGraceMs ?? 5_000;
+    this.readyTimeoutMs = options.readyTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS;
+    this.stopGraceMs = options.stopGraceMs ?? DEFAULT_STOP_GRACE_MS;
   }
 
   get stdout(): string {
