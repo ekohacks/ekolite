@@ -2,6 +2,8 @@ import { Collection, MongoClient as Driver, ObjectId } from 'mongodb';
 import { ChangeEvent, isChangeEvent } from '../../shared/types.ts';
 import { ConfigurableResponse, EventEmitter, OutputTracker } from './outputTracker.ts';
 
+const CLOSE_EVENT = 'close';
+
 interface CollectionLike {
   find<T>(query: object): Promise<T[]>;
   insertOne(doc: object): Promise<void>;
@@ -55,6 +57,7 @@ export class MongoWrapper {
   async close(): Promise<void> {
     await this.stopAllWatches();
     await this.closer();
+    this.emitter.emit(CLOSE_EVENT);
   }
 
   // Force every active change stream shut, regardless of remaining subscribers.
@@ -110,6 +113,10 @@ export class MongoWrapper {
     const tracker = new OutputTracker(this.emitter, collection);
     await this.openWatchIfNeeded(collection);
     return tracker;
+  }
+
+  trackClose(): OutputTracker {
+    return new OutputTracker(this.emitter, CLOSE_EVENT);
   }
 
   private openWatchIfNeeded(collection: string): Promise<() => void> {

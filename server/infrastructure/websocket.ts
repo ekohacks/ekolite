@@ -1,11 +1,12 @@
 import fastifyWebsocket from '@fastify/websocket';
 import { type FastifyInstance } from 'fastify';
 import { WebSocketServer, type WebSocket } from 'ws';
-import { EventEmitter, OutputTracker } from './outputTracker.ts';
+import { ConfigurableResponse, EventEmitter, OutputTracker } from './outputTracker.ts';
 
 const CONNECTION_EVENT = 'connection';
 const DISCONNECTION_EVENT = 'disconnection';
 const MESSAGE_EVENT = 'message';
+const CLOSE_EVENT = 'close';
 
 interface ServerSocketLike {
   send(data: string): void;
@@ -55,8 +56,8 @@ export class WebSocketWrapper implements WebSocketInterface {
     return new WebSocketWrapper(() => new WsConnectionSource(options.port));
   }
 
-  static createNull(): WebSocketWrapper {
-    return new WebSocketWrapper(() => new NullConnectionSource());
+  static createNull(options: { close?: unknown[] } = {}): WebSocketWrapper {
+    return new WebSocketWrapper(() => new NullConnectionSource(options));
   }
 
   async start(): Promise<void> {
@@ -73,6 +74,7 @@ export class WebSocketWrapper implements WebSocketInterface {
 
   async close(): Promise<void> {
     await this.source.close();
+    this.emitter.emit(CLOSE_EVENT);
   }
 
   get clientCount(): number {
@@ -148,6 +150,10 @@ export class WebSocketWrapper implements WebSocketInterface {
 
   trackMessages(): OutputTracker {
     return new OutputTracker(this.emitter, MESSAGE_EVENT);
+  }
+
+  trackClose(): OutputTracker {
+    return new OutputTracker(this.emitter, CLOSE_EVENT);
   }
 
   private receiveMessage(clientId: string, message: unknown): void {
@@ -322,12 +328,22 @@ class NullServerSocket implements ServerSocketLike {
 
 class NullConnectionSource implements ConnectionSource {
   private listenersList: ((socket: ServerSocketLike) => string)[] = [];
+  private readonly closeResponses?: ConfigurableResponse;
+
+  constructor(options: { close?: unknown[] } = {}) {
+    if (options.close) {
+      this.closeResponses = new ConfigurableResponse(options.close);
+    }
+  }
 
   onConnection(cb: (socket: ServerSocketLike) => string): void {
     this.listenersList.push(cb);
   }
 
   async close(): Promise<void> {
+    if (this.closeResponses) {
+      this.closeResponses.next();
+    }
     return Promise.resolve();
   }
   simulateConnection(): StubbedClient {

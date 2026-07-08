@@ -40,6 +40,7 @@ interface NullConfig {
   scriptResponses?: ScriptResponses;
   findResponses?: StoredFile[][];
   countCScript?: string;
+  mongo?: MongoWrapper;
   ws?: WebSocketWrapper;
 }
 
@@ -83,9 +84,11 @@ export class App {
   }
 
   static createNull(nullConfig: NullConfig = {}): App {
-    const mongo = nullConfig.findResponses
-      ? MongoWrapper.createNull({ find: nullConfig.findResponses })
-      : MongoWrapper.createNull();
+    const mongo =
+      nullConfig.mongo ??
+      (nullConfig.findResponses
+        ? MongoWrapper.createNull({ find: nullConfig.findResponses })
+        : MongoWrapper.createNull());
 
     return new App({
       mongo,
