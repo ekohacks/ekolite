@@ -15,6 +15,16 @@
   "type": "module",
   "main": "dist/server/index.js",
   "types": "dist/server/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js"
+    },
+    "./shared": {
+      "types": "./dist/shared/protocol.d.ts",
+      "import": "./dist/shared/protocol.js"
+    }
+  },
   "files": [
     "dist",
     "README.md",
