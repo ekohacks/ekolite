@@ -12,6 +12,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const TSC = join(REPO, 'node_modules', '.bin', 'tsc');
 
 function run(cmd, args, opts = {}) {
   try {
@@ -85,9 +86,43 @@ function main() {
       throw new Error(`shipped declarations import .ts files not in the package:\n${detail}`);
     }
 
+    // 6. Types resolve from a real TS consumer: import App from the package root and a
+    //    protocol type from the ekolite/shared entry, use them, and compile. This proves
+    //    the exports map and the declarations line up, not just that the repo builds.
+    writeFileSync(
+      join(dir, 'types-consumer.ts'),
+      [
+        "import { App } from 'ekolite';",
+        "import type { ReadyMsg } from 'ekolite/shared';",
+        '',
+        'const app = App.createNull();',
+        "const ready: ReadyMsg = { type: 'ready', id: 'sub-1', collection: 'files' };",
+        '',
+        'void app;',
+        'void ready;',
+        '',
+      ].join('\n'),
+    );
+    writeFileSync(
+      join(dir, 'tsconfig.json'),
+      JSON.stringify({
+        compilerOptions: {
+          module: 'NodeNext',
+          moduleResolution: 'NodeNext',
+          target: 'ES2022',
+          strict: true,
+          skipLibCheck: true,
+          noEmit: true,
+        },
+        files: ['types-consumer.ts'],
+      }),
+    );
+    run(TSC, ['--noEmit', '-p', 'tsconfig.json'], { cwd: dir });
+
     console.log('package smoke: PASS');
     console.log(`  consumer said: ${out}`);
     console.log('  declarations resolve to shipped files only');
+    console.log('  a TS consumer compiles against ekolite and ekolite/shared');
   } finally {
     rmSync(dir, { recursive: true, force: true });
     rmSync(tarball, { force: true });
