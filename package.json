@@ -48,6 +48,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "husky",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build",
     "test:changed": "vitest run --changed origin/main"
   },
   "lint-staged": {
