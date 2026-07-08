@@ -28,17 +28,24 @@ export class Shutdown {
     });
   }
 
+  private exitOnce(code: number): void {
+    if (this.exited) {
+      return;
+    }
+    this.exited = true;
+    this.proc.exit(code);
+  }
+
   private handleShutdownSignal(): void {
     // A second signal means it: exit hard, no second goodbye.
     if (this.shuttingDown) {
-      this.proc.exit(1);
+      this.exitOnce(1);
       return;
     }
     this.shuttingDown = true;
     const cancelDeadline = this.proc.startTimer(this.graceMs, () => {
       console.error('shutdown timed out, exiting hard');
-      this.exited = true;
-      this.proc.exit(1);
+      this.exitOnce(1);
     });
     void this.closable.close().then(
       () => {
