@@ -23,8 +23,28 @@ function run(cmd, args, opts = {}) {
 }
 
 function main() {
-  // 1. Build and pack the library from the repo.
+  // 1. Build the library from the repo.
   run('npm', ['run', 'build'], { cwd: REPO });
+
+  // 2. Tarball hygiene: a consumer should receive the built package and nothing else,
+  //    not the tests, docs, demo source or CI config that make up the repo.
+  const packed = JSON.parse(run('npm', ['pack', '--dry-run', '--json'], { cwd: REPO }));
+  const shipped = packed[0].files.map((file) => file.path);
+  const strays = shipped.filter(
+    (path) =>
+      path !== 'package.json' &&
+      path !== 'README.md' &&
+      path !== 'LICENSE' &&
+      !path.startsWith('dist/'),
+  );
+  if (strays.length > 0) {
+    const sample = strays.slice(0, 8).join('\n  ');
+    throw new Error(
+      `tarball carries ${strays.length} files outside the allowlist (dist, README, LICENSE), e.g.:\n  ${sample}`,
+    );
+  }
+
+  // 3. Pack for real and install it.
   const packLines = run('npm', ['pack'], { cwd: REPO }).trim().split('\n');
   const tarball = join(REPO, packLines[packLines.length - 1].trim());
 
