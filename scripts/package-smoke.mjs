@@ -6,7 +6,7 @@
 // Red until the package actually emits a loadable server entry and exports App. Run it
 // with `node scripts/package-smoke.mjs`.
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -51,8 +51,23 @@ function main() {
       throw new Error(`unexpected consumer output:\n${out}`);
     }
 
+    // 5. The shipped types must resolve from the consumer side: every declaration file
+    //    may only import files that are actually in the package. A relative `.ts`
+    //    specifier points at a source file the tarball never carried, so a TS consumer
+    //    resolving these types would land on nothing.
+    const distDir = join(dir, 'node_modules', 'ekolite', 'dist');
+    const danglingTypes = readdirSync(distDir, { recursive: true })
+      .filter((name) => typeof name === 'string' && name.endsWith('.d.ts'))
+      .map((name) => ({ name, hits: readFileSync(join(distDir, name), 'utf8').match(/['"]\.\.?\/[^'"]*\.ts['"]/g) }))
+      .filter((file) => file.hits);
+    if (danglingTypes.length > 0) {
+      const detail = danglingTypes.map((f) => `  ${f.name}: ${f.hits.join(', ')}`).join('\n');
+      throw new Error(`shipped declarations import .ts files not in the package:\n${detail}`);
+    }
+
     console.log('package smoke: PASS');
     console.log(`  consumer said: ${out}`);
+    console.log('  declarations resolve to shipped files only');
   } finally {
     rmSync(dir, { recursive: true, force: true });
     rmSync(tarball, { force: true });
