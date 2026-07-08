@@ -10,6 +10,10 @@ import { type RpcHandler } from './logic/rpcHandler.ts';
 import { type ClientMessage } from '../shared/protocol.ts';
 import { RpcError, toEkoLiteError } from '../shared/types.ts';
 
+// Public package surface for the `ekolite` entry: the app graph and its config sit
+// alongside createServer, so a consumer imports the whole server framework from one place.
+export { App, type AppConfig } from './app.ts';
+
 export interface ServerOptions {
   ws: WebSocketWrapper;
   publications?: Publications;

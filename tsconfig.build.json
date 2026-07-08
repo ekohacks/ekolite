@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "allowImportingTsExtensions": false,
+    "rewriteRelativeImportExtensions": true,
+    "outDir": "dist",
+    "rootDir": "."
+  },
+  "include": ["server", "shared"],
+  "exclude": ["node_modules", "dist", "tests", "**/*.test.ts", "**/*.integration.test.ts"]
+}
