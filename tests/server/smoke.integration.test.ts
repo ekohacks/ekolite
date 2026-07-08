@@ -12,6 +12,10 @@ import { READY_MESSAGE } from '../../shared/serverMessages.ts';
 // Integration only: it needs a real port and a real MongoDB (see AGENTS.md), so it
 // lives in the integration config and runs under `npm run test:integration`.
 
+// The home page is served from dist/client, so this asserts the built client is wired
+// to `/`. The marker lives in client/index.html and survives the vite build.
+const HOME_PAGE_MARKER = '<!-- ekolite home page -->';
+
 // A fresh ephemeral port per run, so the smoke test never collides with the default
 // 3001 that `npm run dev:server` binds.
 function freePort(): Promise<number> {
@@ -39,7 +43,7 @@ describe('EkoLite boots end to end', () => {
     await server.stopAsync();
   });
 
-  it('spawns start.ts and announces it is ready on stdout', async () => {
+  it('spawns the real entry point and serves the home page', async () => {
     const port = await freePort();
     server = new ServerProcess({
       readyString: READY_MESSAGE,
@@ -50,7 +54,10 @@ describe('EkoLite boots end to end', () => {
     });
 
     await server.startAsync();
-
     expect(server.stdout).toContain(READY_MESSAGE);
+
+    const response = await fetch(`http://localhost:${String(port)}/`);
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain(HOME_PAGE_MARKER);
   });
 });
