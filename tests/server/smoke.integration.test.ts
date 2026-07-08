@@ -16,6 +16,10 @@ import { READY_MESSAGE } from '../../shared/serverMessages.ts';
 // to `/`. The marker lives in client/index.html and survives the vite build.
 const HOME_PAGE_MARKER = '<!-- ekolite home page -->';
 
+// Lines the runtime may print to stderr that are noise, not a wiring fault. Empty in
+// practice today; this is the seam to widen if a future node or tsx prints a warning.
+const BENIGN_STDERR: RegExp[] = [/ExperimentalWarning/, /--trace-warnings/];
+
 // A fresh ephemeral port per run, so the smoke test never collides with the default
 // 3001 that `npm run dev:server` binds.
 function freePort(): Promise<number> {
@@ -43,7 +47,7 @@ describe('EkoLite boots end to end', () => {
     await server.stopAsync();
   });
 
-  it('spawns the real entry point and serves the home page', async () => {
+  it('spawns the real entry point, serves the home page, and shuts down cleanly', async () => {
     const port = await freePort();
     server = new ServerProcess({
       readyString: READY_MESSAGE,
@@ -59,5 +63,15 @@ describe('EkoLite boots end to end', () => {
     const response = await fetch(`http://localhost:${String(port)}/`);
     expect(response.status).toBe(200);
     expect(await response.text()).toContain(HOME_PAGE_MARKER);
+
+    const result = await server.stopAsync();
+    expect(result).toEqual({ exitCode: 0, signal: null });
+
+    const noise = server.stderr
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .filter((line) => !BENIGN_STDERR.some((pattern) => pattern.test(line)));
+    expect(noise).toEqual([]);
   });
 });
