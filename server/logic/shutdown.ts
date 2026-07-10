@@ -6,9 +6,13 @@ interface Closable {
 
 const DEFAULT_GRACE_MS = 5000;
 
-// The shutdown policy, out of the boot shell so it can be tested: on a signal,
-// arm the deadline, then close the app. A clean close exits 0; a close still
+// The shutdown policy, out of the boot shell so it can be tested: on a request to
+// stop, arm the deadline, then close the app. A clean close exits 0; a close still
 // pending when the deadline fires exits 1 rather than waiting for SIGKILL.
+//
+// The policy does not care which door the request came through. A SIGTERM from Docker,
+// a Ctrl+C from a keyboard and a shutdown message from a supervisor all mean the same
+// thing here, which is why the handler ignores its argument.
 export class Shutdown {
   private readonly closable: Closable;
   private readonly proc: ProcessWrapper;
@@ -23,8 +27,8 @@ export class Shutdown {
   }
 
   arm(): void {
-    this.proc.onSignal(() => {
-      this.handleShutdownSignal();
+    this.proc.onShutdownRequest(() => {
+      this.handleShutdownRequest();
     });
   }
 
@@ -36,8 +40,8 @@ export class Shutdown {
     this.proc.exit(code);
   }
 
-  private handleShutdownSignal(): void {
-    // A second signal means it: exit hard, no second goodbye.
+  private handleShutdownRequest(): void {
+    // A second request means it: exit hard, no second goodbye.
     if (this.shuttingDown) {
       this.exitOnce(1);
       return;
