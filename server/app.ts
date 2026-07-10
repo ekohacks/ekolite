@@ -104,9 +104,8 @@ export class App {
   // then drop the database, so it never closes with a change stream open underneath.
   async close(): Promise<void> {
     const stack = new AsyncDisposableStack();
-    // Register the disposals in reverse order of what we want to happen
-    //because AsyncDisposableStack operated in LIFO order.
-    // The last registered is the first to be disposed.
+    // Disposal runs in reverse registration order, so register the teardown backwards:
+    // ws closes first, mongo last.
     stack.defer(() => this.mongo.close());
     stack.defer(() => this.publications.stopAll());
     stack.defer(() => this.ws.close());
