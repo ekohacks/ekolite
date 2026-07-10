@@ -36,6 +36,25 @@ export class Shutdown {
     this.proc.exit(code);
   }
 
+  private logSuppressedError(err: SuppressedError): void {
+    console.error('shutdown failed:', err.error);
+
+    if (err.suppressed instanceof SuppressedError) {
+      this.logSuppressedError(err.suppressed);
+    } else {
+      console.error('suppressed during shutdown:', err.suppressed);
+    }
+  }
+
+  private logShutdowError(err: unknown): void {
+    if (err instanceof SuppressedError) {
+      this.logSuppressedError(err);
+      return;
+    }
+
+    console.error('shutdown failed:', err);
+  }
+
   private handleShutdownSignal(): void {
     // A second signal means it: exit hard, no second goodbye.
     if (this.shuttingDown) {
@@ -64,7 +83,7 @@ export class Shutdown {
 
         cancelDeadline();
         this.exited = true;
-        console.error('shutdown failed:', err);
+        this.logShutdowError(err);
         this.proc.exit(1);
       },
     );
