@@ -84,7 +84,7 @@ ST 6  File validation            → Bad files rejected?
 ST 7  End-to-end pipeline        → Full workflow works end-to-end
 ```
 
-When Smoke Test 7 passes, the framework does everything Meteor did for our app.
+When Smoke Test 7 passes, the framework does everything Meteor did for a real-time, data-driven app.
 
 ---
 
@@ -92,13 +92,10 @@ When Smoke Test 7 passes, the framework does everything Meteor did for our app.
 
 Read these when you need detail on a specific topic:
 
-| Doc                        | What's in it                                                                                                         |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `ekolite-system-design.md` | How Meteor works, concept-by-concept mapping to EkoLite                                                              |
-| `ekolite-adrs.md`          | Architecture decisions and why we made them                                                                          |
-| `ekolite-epics.md`         | What the app does, user flows, migration plan                                                                        |
-| Linear                     | Every smoke test, story, and sub-story (the original written backlog is archived at `../archive/ekolite-backlog.md`) |
-| `ekolite-tdd-training.md`  | Red-green-refactor tutorial with worked examples                                                                     |
-| `ekolite-tdd.md`           | Nullable code reference, test pyramid, test structure                                                                |
-| `ekolite-customer.md`      | User stories and acceptance criteria                                                                                 |
-| `ekolite-spec.md`          | API signatures and type definitions                                                                                  |
+| Doc                        | What's in it                                            |
+| -------------------------- | ------------------------------------------------------- |
+| `ekolite-system-design.md` | How Meteor works, concept-by-concept mapping to EkoLite |
+| `ekolite-adrs.md`          | Architecture decisions and why we made them             |
+| `ekolite-tdd-training.md`  | Red-green-refactor tutorial with worked examples        |
+| `ekolite-tdd.md`           | Nullable code reference, test pyramid, test structure   |
+| `ekolite-spec.md`          | API signatures and type definitions                     |
