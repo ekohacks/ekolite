@@ -6,7 +6,7 @@ EkoLite is a public, work in progress rebuild of Meteor's core ideas with delibe
 
 ## Status
 
-Work in progress. Not on npm yet: the first `0.x` release is imminent, an early publish to claim the name and share the shape while the public API settles. Expect changes between `0.x` releases, so pin a version once it lands. Not recommended for production yet.
+Work in progress, published early at `0.x` (currently `0.1.0`) to claim the name and share the shape. The public API is still settling and can change between `0.x` releases, so pin a version and read the notes before upgrading. Not recommended for production yet.
 
 ## Install
 
