@@ -47,6 +47,7 @@
     "test:watch": "vitest --watch",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:coverage": "vitest run --coverage",
+    "test:package": "node scripts/package-smoke.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
