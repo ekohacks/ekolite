@@ -6,7 +6,7 @@ EkoLite is a public, work in progress rebuild of Meteor's core ideas with delibe
 
 ## Status
 
-Work in progress, published early at `0.x` to claim the name and share the shape. The public API is still settling and can change between `0.x` releases, so pin a version and read the notes before upgrading. Not recommended for production yet.
+Work in progress. Not on npm yet: the first `0.x` release is imminent, an early publish to claim the name and share the shape while the public API settles. Expect changes between `0.x` releases, so pin a version once it lands. Not recommended for production yet.
 
 ## Install
 
@@ -25,6 +25,8 @@ const app = App.createNull();
 app.methods.define('greet', (name) => `hello ${String(name)}`);
 await app.methods.call('greet', ['world']); // 'hello world'
 ```
+
+Verify the packaged shape from a consumer's point of view with `npm run test:package`: it builds, packs, installs the tarball into a throwaway project outside this repo, and imports from all three entries. It does a real `npm install`, so it takes 30 to 60 seconds and runs as a manual gate rather than on every CI push.
 
 ## What works today
 
