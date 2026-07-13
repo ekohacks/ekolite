@@ -41,16 +41,10 @@ export class Shutdown {
     this.proc.exit(code);
   }
 
-  private logShutdowError(err: unknown): void {
-    // If this is a SuppressedError chain, flatten it and log the whole list
-    // under a single heading so it appears as one record in the logs.
-    if (err && typeof err === 'object' && 'suppressed' in err && 'error' in err) {
-      const list = flattenSuppressed(err);
-      console.error('shutdown failed:', list);
-      return;
-    }
-
-    console.error('shutdown failed:', err);
+  private logShutdownError(err: unknown): void {
+    const list = flattenSuppressed(err);
+    console.error('shutdown failed:', list);
+    return;
   }
 
   private handleShutdownRequest(): void {
@@ -81,7 +75,7 @@ export class Shutdown {
 
         cancelDeadline();
         this.exited = true;
-        this.logShutdowError(err);
+        this.logShutdownError(err);
         this.proc.exit(1);
       },
     );
