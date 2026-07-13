@@ -22,18 +22,13 @@ export function hasMongoOperator(obj: unknown): boolean {
   return false;
 }
 
-interface SuppressedErrorLike {
-  error: unknown;
-  suppressed: unknown;
-}
-
 // Follow a SuppressedError chain (non-enumerable `.error` and `.suppressed`) and
 // return a flat list of errors oldest-first. If the value is not a
 // SuppressedError-like object, return it as a single-element array.
 export function flattenSuppressed(err: unknown): unknown[] {
   if (err && typeof err === 'object' && 'suppressed' in err && 'error' in err) {
-    const suppressed = (err as SuppressedErrorLike).suppressed;
-    const error = (err as SuppressedErrorLike).error;
+    const suppressed = err.suppressed;
+    const error = err.error;
     return [...flattenSuppressed(suppressed), error];
   }
 
