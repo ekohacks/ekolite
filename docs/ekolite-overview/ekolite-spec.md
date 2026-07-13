@@ -1,4 +1,4 @@
-# ekolite Specification
+# EkoLite Specification
 
 Start with [ekolite-overview.md](ekolite-overview.md) for the big picture. This is the API and type reference for EkoLite.
 
@@ -55,13 +55,13 @@ definePublication('UserFiles.all', (): FindCursor<UserFile> => {
 > current API.
 
 ```ts
-const sub = MeteorLight.subscribe('UserFiles.all');
+const sub = EkoLite.subscribe('UserFiles.all');
 
 sub.on('ready', () => {
   /* initial data loaded */
 });
 
-const store = MeteorLight.collection<UserFile>('UserFiles');
+const store = EkoLite.collection<UserFile>('UserFiles');
 
 store.on('change', (docs: UserFile[]) => {
   // update DOM, render chart, whatever — framework-agnostic
@@ -91,7 +91,7 @@ defineMethod('runCountC', async (targetPath: string): Promise<string> => {
 #### Client API:
 
 ```ts
-const output: string = await MeteorLight.call<string>('runCountC', '/path/to/uploads');
+const output: string = await EkoLite.call<string>('runCountC', '/path/to/uploads');
 ```
 
 ### 4. MongoDB Wrapper
@@ -152,7 +152,7 @@ defineUploadHandler({
 #### Client API:
 
 ```ts
-const upload = MeteorLight.upload('/api/upload', fileInput.files[0]);
+const upload = EkoLite.upload('/api/upload', fileInput.files[0]);
 
 upload.on('progress', (pct: number) => {
   /* update progress bar */
@@ -160,7 +160,7 @@ upload.on('progress', (pct: number) => {
 upload.on('complete', (file: StoredFile) => {
   /* handle success */
 });
-upload.on('error', (err: MeteorLightError) => {
+upload.on('error', (err: EkoLiteError) => {
   /* handle failure */
 });
 ```
@@ -180,7 +180,7 @@ const scriptPath: string = resolveAsset('scripts/countC.py');
 ## Type Definitions (shared/types.ts)
 
 ```ts
-export interface MeteorLightError {
+export interface EkoLiteError {
   code: number;
   message: string;
   details?: unknown;
@@ -243,7 +243,7 @@ export interface ResultMsg {
 export interface ErrorMsg {
   type: 'error';
   id: string;
-  error: MeteorLightError;
+  error: EkoLiteError;
 }
 
 export type ClientMessage = SubscribeMsg | UnsubscribeMsg | MethodMsg;
