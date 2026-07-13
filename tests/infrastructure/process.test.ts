@@ -1,28 +1,41 @@
 import { describe, expect, it } from 'vitest';
 import { ProcessWrapper } from '../../server/infrastructure/process.ts';
 
-// The process seam: signals in, exit codes out, and the deadline timers that
-// shutdown policy arms. Nulled, signals are simulated by hand, time only moves
+// The process seam: requests to stop in, exit codes out, and the deadline timers that
+// shutdown policy arms. Nulled, requests are simulated by hand, time only moves
 // when a test advances it, and exit() records instead of killing the test runner.
 //
 // Proposed shape, following the other wrappers:
 //   ProcessWrapper.create()            — real process.on / process.exit / setTimeout
 //   ProcessWrapper.createNull()        — everything below
-//   onSignal(handler)                  — handler receives 'SIGINT' | 'SIGTERM'
+//   onShutdownRequest(handler)         — handler receives 'SIGINT' | 'SIGTERM' | 'message'
 //   exit(code)                         — real: never returns; null: records { code }
 //   startTimer(ms, callback)           — returns a cancel function
 //   trackExits()                       — OutputTracker of { code }
-//   simulateSignal(signal)             — null only
+//   simulateShutdownRequest(request)   — null only
 //   advanceTime(ms)                    — null only, fires timers that come due
 describe('ProcessWrapper (null)', () => {
   it('delivers a simulated signal to the handler', () => {
     const proc = ProcessWrapper.createNull();
     const received: string[] = [];
 
-    proc.onSignal((signal) => received.push(signal));
-    proc.simulateSignal('SIGTERM');
+    proc.onShutdownRequest((request) => received.push(request));
+    proc.simulateShutdownRequest('SIGTERM');
 
     expect(received).toEqual(['SIGTERM']);
+  });
+
+  // The door a supervisor reaches on Windows, where it cannot raise a signal at all.
+  // Nulled, it is the same seam: a request arrives, the handler hears it, and the
+  // handler cannot tell from the outside which door it came through.
+  it('delivers a simulated shutdown message to the handler', () => {
+    const proc = ProcessWrapper.createNull();
+    const received: string[] = [];
+
+    proc.onShutdownRequest((request) => received.push(request));
+    proc.simulateShutdownRequest('message');
+
+    expect(received).toEqual(['message']);
   });
 
   it('records exits in an output tracker instead of killing the process', () => {

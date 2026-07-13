@@ -27,13 +27,21 @@ const app = App.create(config);
 const server = await createServer(app);
 await server.listen({ port: config.port, host: '0.0.0.0' });
 
+// Graceful shutdown: stop taking requests, then drop the database connection.
+// The policy (deadline, exit codes, second signal) lives in Shutdown, tested on
+// the nulled process; the shell only wires it to the real one.
+//
+// This must come before the ready line. Whoever reads that line may act on it at once,
+// and a supervisor's first act is often to stop us. Announce first and there is a window
+// where the server is listening and has no SIGTERM handler, so the default action kills
+// it and the exit is (null, 'SIGTERM') rather than a clean 0. The window is microseconds
+// wide and the child usually wins it, which is the worst size for a window to be.
+new Shutdown(app, ProcessWrapper.create()).arm();
+
 // The smoke test waits for this exact line on stdout, so it goes to stdout (not the
 // stderr that console.warn writes to) and carries the port, so a spawned harness can
 // confirm the server bound the one it was handed. Written directly because the lint
 // rule reserves console for warn/error.
+//
+// Ready means ready: bound, serving, and able to be stopped.
 process.stdout.write(`${READY_MESSAGE} http://localhost:${String(config.port)}\n`);
-
-// Graceful shutdown: stop taking requests, then drop the database connection.
-// The policy (deadline, exit codes, second signal) lives in Shutdown, tested on
-// the nulled process; the shell only wires it to the real one.
-new Shutdown(app, ProcessWrapper.create()).arm();
