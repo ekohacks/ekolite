@@ -19,6 +19,7 @@ interface StubbedMongoOptions {
   insert?: unknown[];
   update?: unknown[];
   remove?: unknown[];
+  close?: unknown[];
 }
 
 export class MongoWrapper {
@@ -47,7 +48,10 @@ export class MongoWrapper {
 
   static createNull(options: StubbedMongoOptions = {}): MongoWrapper {
     const stub = new StubbedCollectionFactory(options);
-    return new MongoWrapper((name: string) => stub.collection(name));
+    return new MongoWrapper(
+      (name: string) => stub.collection(name),
+      () => stub.close(),
+    );
   }
 
   // Close the driver connection. Stop every open change stream first: closing the
@@ -198,6 +202,7 @@ class StubbedCollectionFactory {
   private readonly insertResponses?: ConfigurableResponse;
   private readonly updateResponses?: ConfigurableResponse;
   private readonly removeResponses?: ConfigurableResponse;
+  private readonly closeResponses?: ConfigurableResponse;
 
   constructor(options: StubbedMongoOptions) {
     if (options.find) {
@@ -212,6 +217,16 @@ class StubbedCollectionFactory {
     if (options.remove) {
       this.removeResponses = new ConfigurableResponse(options.remove);
     }
+    if (options.close) {
+      this.closeResponses = new ConfigurableResponse(options.close);
+    }
+  }
+
+  async close(): Promise<void> {
+    if (this.closeResponses) {
+      this.closeResponses.next();
+    }
+    return Promise.resolve();
   }
 
   collection(name: string): CollectionLike {

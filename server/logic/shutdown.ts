@@ -1,4 +1,5 @@
 import { ProcessWrapper } from '../infrastructure/process.ts';
+import { flattenSuppressed } from '../../shared/helperFunctions.ts';
 
 interface Closable {
   close(): Promise<void>;
@@ -36,19 +37,12 @@ export class Shutdown {
     this.proc.exit(code);
   }
 
-  private logSuppressedError(err: SuppressedError): void {
-    console.error('shutdown failed:', err.error);
-
-    if (err.suppressed instanceof SuppressedError) {
-      this.logSuppressedError(err.suppressed);
-    } else {
-      console.error('suppressed during shutdown:', err.suppressed);
-    }
-  }
-
   private logShutdowError(err: unknown): void {
-    if (err instanceof SuppressedError) {
-      this.logSuppressedError(err);
+    // If this is a SuppressedError chain, flatten it and log the whole list
+    // under a single heading so it appears as one record in the logs.
+    if (err && typeof err === 'object' && 'suppressed' in err && 'error' in err) {
+      const list = flattenSuppressed(err);
+      console.error('shutdown failed:', list);
       return;
     }
 
