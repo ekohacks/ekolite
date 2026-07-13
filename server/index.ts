@@ -10,6 +10,10 @@ import { type RpcHandler } from './logic/rpcHandler.ts';
 import { type ClientMessage } from '../shared/protocol.ts';
 import { RpcError, toEkoLiteError } from '../shared/types.ts';
 
+// Public package surface for the `ekolite` entry: the app graph and its config sit
+// alongside createServer, so a consumer imports the whole server framework from one place.
+export { App, type AppConfig } from './app.ts';
+
 export interface ServerOptions {
   ws: WebSocketWrapper;
   publications?: Publications;
@@ -29,7 +33,9 @@ export async function createServer(options: ServerOptions) {
   });
 
   await server.register(fastifyStatic, {
-    root: resolve(__dirname, '..', 'dist', 'client'),
+    // The demo page. tsc owns dist/client for the packaged client library, so the vite
+    // demo build lives in dist/demo and this serves from there.
+    root: resolve(__dirname, '..', 'dist', 'demo'),
   });
   await options.ws.attach(server);
 
