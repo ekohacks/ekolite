@@ -114,4 +114,9 @@ describe('App.createNull assembles all parts', () => {
       error: { code: 404, message: 'Unknown publication: no-such-publication' },
     });
   });
+
+  it('rejects a config that sets both mongo and findResponses', () => {
+    const mongo = MongoWrapper.createNull();
+    expect(() => App.createNull({ mongo, findResponses: [[]] })).toThrow(/both|ambiguous/i);
+  });
 });
