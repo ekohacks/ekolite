@@ -6,7 +6,6 @@ import { ConfigurableResponse, EventEmitter, OutputTracker } from './outputTrack
 const CONNECTION_EVENT = 'connection';
 const DISCONNECTION_EVENT = 'disconnection';
 const MESSAGE_EVENT = 'message';
-const CLOSE_EVENT = 'close';
 
 interface ServerSocketLike {
   send(data: string): void;
@@ -74,7 +73,6 @@ export class WebSocketWrapper implements WebSocketInterface {
 
   async close(): Promise<void> {
     await this.source.close();
-    this.emitter.emit(CLOSE_EVENT);
   }
 
   get clientCount(): number {
