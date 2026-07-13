@@ -6,6 +6,7 @@ import { Files } from '../../server/logic/files.ts';
 import { WebSocketWrapper } from '../../server/infrastructure/websocket.ts';
 import { MongoWrapper } from '../../server/infrastructure/mongo.ts';
 import { StoredFile } from '../../shared/types.ts';
+import { flattenSuppressed } from '../../shared/helperFunctions.ts';
 
 // 7.B.1 — App.createNull assembles all parts.
 //
@@ -57,6 +58,23 @@ describe('App.createNull assembles all parts', () => {
     await expect(app.close()).rejects.toThrow('socket close failed');
 
     expect(closeTracker.data).toHaveLength(1);
+  });
+
+  it('rejects with the first failure, so Shutdown can name it', async () => {
+    const mongo = MongoWrapper.createNull({ close: [new Error('mongo close failed')] });
+    const ws = WebSocketWrapper.createNull({ close: [new Error('socket close failed')] });
+    const app = App.createNull({ mongo, ws });
+
+    const closePromise = app.close();
+
+    await expect(closePromise).rejects.toThrow('An error was suppressed during disposal');
+
+    await closePromise.catch((err: unknown) => {
+      expect(flattenSuppressed(err).map((e) => (e as Error).message)).toEqual([
+        'socket close failed',
+        'mongo close failed',
+      ]);
+    });
   });
 
   it('registers runCountC, wired to files and the nulled script runner', async () => {
