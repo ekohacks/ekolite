@@ -19,7 +19,8 @@
     "allowImportingTsExtensions": true,
     "noEmit": true,
     "noFallthroughCasesInSwitch": true,
-    "exactOptionalPropertyTypes": true
+    "exactOptionalPropertyTypes": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable", "ESNext.Disposable"]
   },
   "include": [
     "server",
@@ -31,6 +32,5 @@
     "learning/**/*.ts",
     "docs/api/__examples__/**/*.ts"
   ],
-  "exclude": ["node_modules", "dist"],
-  "lib": ["ES2022", "DOM", "DOM.Iterable", "ESNext.Disposable"]
+  "exclude": ["node_modules", "dist"]
 }
