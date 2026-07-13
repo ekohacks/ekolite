@@ -4,18 +4,44 @@ A lightweight, real time backend framework in the spirit of Meteor. Fastify, Mon
 
 EkoLite is a public, work in progress rebuild of Meteor's core ideas with deliberate differences. The documents in [`docs/ekolite-overview/`](docs/ekolite-overview/) cover the thinking. This README covers what is actually built today.
 
+## Status
+
+Work in progress, published early at `0.x` (currently `0.1.0`) to claim the name and share the shape. The public API is still settling and can change between `0.x` releases, so pin a version and read the notes before upgrading. Not recommended for production yet.
+
+## Install
+
+```bash
+npm install ekolite
+```
+
+Three entry points, everything else stays internal for now:
+
+```ts
+import { App } from 'ekolite'; // the server framework
+import { ConnectionManager } from 'ekolite/client'; // the browser client stack
+import type { ReadyMsg } from 'ekolite/shared'; // the wire protocol types
+
+const app = App.createNull();
+app.methods.define('greet', (name) => `hello ${String(name)}`);
+await app.methods.call('greet', ['world']); // 'hello world'
+```
+
+Verify the packaged shape from a consumer's point of view with `npm run test:package`: it builds, packs, installs the tarball into a throwaway project outside this repo, and imports from all three entries. It does a real `npm install`, so it takes 30 to 60 seconds and runs as a manual gate rather than on every CI push.
+
 ## What works today
 
 - **Nullable infrastructure wrappers**, each with `create()` and `createNull()` factories: MongoDB (`MongoWrapper`), WebSocket server (`WebSocketWrapper`), file storage (`FileStorageWrapper`) and script runner (`ScriptRunnerWrapper`)
+- **App wiring** (`App`): `App.create()` assembles the whole graph (Mongo, websocket, publications, methods, files) and `App.createNull()` returns the same graph in memory, so the assembly that boots in production is the one the tests drive
 - **Pub/sub engine** (`Publications`): define a publication on the server, subscribe over a live socket, receive `ready` and data messages, with reference counted teardown. Wired end to end now: a real browser client subscribes over a real socket and its store fills from Mongo
+- **RPC methods** (`Methods`): register a named server method, call it over the socket, and get a typed result or a structured error back through the `method` / `result` / `error` messages
 - **File storage over HTTP** (`Files`): `POST /api/files` saves the bytes and inserts a document that streams into the live list through pub/sub; `GET /api/files/:id` streams them back
 - **Client stack**: `ClientSocketWrapper` (nullable WebSocket client), `ConnectionManager` (subscription lifecycle) and `ReactiveStore` (client side collection state)
 - **Mini DDP protocol** ([`shared/protocol.ts`](shared/protocol.ts)): six message types, typed end to end
-- **Live boot** (`start.ts`): real Mongo, websocket, publications and file store, with a runnable browser demo at [`client/demo/live.html`](client/demo/live.html)
+- **Graceful shutdown** (`Shutdown`): on a stop signal, or a shutdown message from a supervisor, it stops taking requests, closes the streams, drops the database connection, and exits cleanly
+- **Live boot** (`start.ts`): real Mongo, websocket, publications, methods and file store, with a runnable browser demo at [`client/demo/live.html`](client/demo/live.html)
 
 ## What is planned, not yet built
 
-- A server side method registry (RPC). The `method`, `result` and `error` message types already exist in the protocol; the registry that handles them is the next epic.
 - Reconnect and resubscribe after a dropped socket, and auth on the HTTP routes. Today a closed socket disposes and stays disposed, and the file routes are open.
 
 ## Quick start
@@ -71,7 +97,7 @@ Six message types, against roughly fifteen in full DDP:
 Client → Server:
   { type: 'subscribe', id, name, params? }
   { type: 'unsubscribe', id }
-  { type: 'method', id, name, params }      // handled by the upcoming method registry
+  { type: 'method', id, name, params }      // handled by the method registry
 
 Server → Client:
   { type: 'ready', id, collection }

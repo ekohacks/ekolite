@@ -31,15 +31,15 @@ const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 // 7.B.4 (proposed) — graceful shutdown with a deadline.
 //
-// The policy that used to be three untestable lines in start.ts: on a signal,
+// The policy that used to be three untestable lines in start.ts: on a request to stop,
 // close the app; if the close beats the grace period, exit 0; if it hangs, exit 1
-// rather than wait for SIGKILL. Runs on ProcessWrapper.createNull() so signals,
+// rather than wait for SIGKILL. Runs on ProcessWrapper.createNull() so requests,
 // time, and exits are all in the test's hands. The app side is a recording
 // double: a plain closable whose close() the test can resolve, hang, or reject.
 //
 // Proposed shape:
 //   new Shutdown(closable, proc, { graceMs? })   — graceMs defaults to 5000
-//   shutdown.arm()                               — subscribes to SIGINT and SIGTERM
+//   shutdown.arm()                               — subscribes to every shutdown door
 //
 // These activate one at a time, in order, as the ladder is climbed. Each name is
 // one behaviour from the design conversation; nothing here tests how (no
@@ -51,7 +51,26 @@ describe('Shutdown', () => {
     const exits = proc.trackExits();
     new Shutdown(closable, proc).arm();
 
-    proc.simulateSignal('SIGTERM');
+    proc.simulateShutdownRequest('SIGTERM');
+    expect(closeCalls()).toBe(1);
+
+    resolveClose();
+    await flush();
+
+    expect(exits.data).toEqual([{ code: 0 }]);
+  });
+
+  // The same policy, through the other door. On Windows this is the only door a
+  // supervisor has, so if the message reached ProcessWrapper but stopped short of
+  // Shutdown, EkoLite would still be unstoppable there and every test above would
+  // still be green.
+  it('a shutdown message closes the app, and a clean close exits 0', async () => {
+    const { closable, closeCalls, resolveClose } = closableDouble();
+    const proc = ProcessWrapper.createNull();
+    const exits = proc.trackExits();
+    new Shutdown(closable, proc).arm();
+
+    proc.simulateShutdownRequest('message');
     expect(closeCalls()).toBe(1);
 
     resolveClose();
@@ -66,7 +85,7 @@ describe('Shutdown', () => {
     const exits = proc.trackExits();
     new Shutdown(closable, proc).arm();
 
-    proc.simulateSignal('SIGINT');
+    proc.simulateShutdownRequest('SIGINT');
     proc.advanceTime(5000);
 
     // The close never resolved; the deadline exits anyway. No race needed.
@@ -79,7 +98,7 @@ describe('Shutdown', () => {
     const exits = proc.trackExits();
     new Shutdown(closable, proc).arm();
 
-    proc.simulateSignal('SIGTERM');
+    proc.simulateShutdownRequest('SIGTERM');
     resolveClose();
     await flush();
 
@@ -96,7 +115,7 @@ describe('Shutdown', () => {
     const exits = proc.trackExits();
     new Shutdown(closable, proc, { graceMs: 100 }).arm();
 
-    proc.simulateSignal('SIGTERM');
+    proc.simulateShutdownRequest('SIGTERM');
 
     proc.advanceTime(99);
     expect(exits.data).toEqual([]);
@@ -111,7 +130,7 @@ describe('Shutdown', () => {
     const exits = proc.trackExits();
     new Shutdown(closable, proc).arm();
 
-    proc.simulateSignal('SIGTERM');
+    proc.simulateShutdownRequest('SIGTERM');
 
     proc.advanceTime(4999);
     expect(exits.data).toEqual([]);
@@ -126,8 +145,8 @@ describe('Shutdown', () => {
     const exits = proc.trackExits();
     new Shutdown(closable, proc).arm();
 
-    proc.simulateSignal('SIGINT');
-    proc.simulateSignal('SIGINT');
+    proc.simulateShutdownRequest('SIGINT');
+    proc.simulateShutdownRequest('SIGINT');
 
     expect(exits.data).toEqual([{ code: 1 }]);
     expect(closeCalls()).toBe(1);
@@ -139,7 +158,7 @@ describe('Shutdown', () => {
     const exits = proc.trackExits();
     new Shutdown(closable, proc).arm();
 
-    proc.simulateSignal('SIGTERM');
+    proc.simulateShutdownRequest('SIGTERM');
     rejectClose(new Error('mongo refused to hang up'));
     await flush();
 
@@ -156,7 +175,7 @@ describe('Shutdown', () => {
     const exits = proc.trackExits();
     new Shutdown(closable, proc).arm();
 
-    proc.simulateSignal('SIGTERM');
+    proc.simulateShutdownRequest('SIGTERM');
     proc.advanceTime(5000);
     expect(exits.data).toEqual([{ code: 1 }]);
 
@@ -172,8 +191,8 @@ describe('Shutdown', () => {
     const exits = proc.trackExits();
     new Shutdown(closable, proc).arm();
 
-    proc.simulateSignal('SIGTERM');
-    proc.simulateSignal('SIGTERM');
+    proc.simulateShutdownRequest('SIGTERM');
+    proc.simulateShutdownRequest('SIGTERM');
     expect(exits.data).toEqual([{ code: 1 }]);
 
     resolveClose();

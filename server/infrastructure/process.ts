@@ -1,11 +1,22 @@
+import { SHUTDOWN_MESSAGE } from '../../shared/serverMessages.ts';
 import { EventEmitter, OutputTracker } from './outputTracker.ts';
 
-export type Signal = 'SIGINT' | 'SIGTERM';
+// How the process was asked to stop. Two doors, and they are not interchangeable.
+//
+// SIGINT and SIGTERM are POSIX. On Windows Node will let you register a listener for
+// either, and SIGINT fires when a human presses Ctrl+C in the console, but no parent
+// process can generate one: the call you would need is GenerateConsoleCtrlEvent, and
+// Node does not expose it. SIGTERM never fires there at all.
+//
+// 'message' is the door a supervisor can reach on every platform. It exists whenever
+// the process was spawned with an `ipc` slot in stdio.
+export type ShutdownRequest = 'SIGINT' | 'SIGTERM' | 'message';
 
+const SHUTDOWN_SIGNALS = ['SIGINT', 'SIGTERM'] as const;
 const EXIT_EVENT = 'exit';
 
 interface ProcessLike {
-  onSignal(handler: (signal: Signal) => void): void;
+  onShutdownRequest(handler: (request: ShutdownRequest) => void): void;
   exit(code: number): void;
   startTimer(ms: number, callback: () => void): () => void;
 }
@@ -34,8 +45,8 @@ export class ProcessWrapper {
     return this.proc;
   }
 
-  onSignal(handler: (signal: Signal) => void): void {
-    this.proc.onSignal(handler);
+  onShutdownRequest(handler: (request: ShutdownRequest) => void): void {
+    this.proc.onShutdownRequest(handler);
   }
 
   exit(code: number): void {
@@ -55,18 +66,27 @@ export class ProcessWrapper {
     this.requireStubbedProcess().advanceTime(ms);
   }
 
-  simulateSignal(signal: Signal): void {
-    this.requireStubbedProcess().simulateSignal(signal);
+  simulateShutdownRequest(request: ShutdownRequest): void {
+    this.requireStubbedProcess().simulateShutdownRequest(request);
   }
 }
 
 class RealProcess implements ProcessLike {
-  onSignal(handler: (signal: Signal) => void): void {
-    for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+  onShutdownRequest(handler: (request: ShutdownRequest) => void): void {
+    for (const signal of SHUTDOWN_SIGNALS) {
       process.on(signal, () => {
         handler(signal);
       });
     }
+
+    // Costs nothing when there is no IPC channel: without an `ipc` slot in the parent's
+    // stdio, 'message' never fires. With one, this is how a supervisor stops us on a
+    // platform where it cannot raise a signal.
+    process.on('message', (message) => {
+      if (message === SHUTDOWN_MESSAGE) {
+        handler('message');
+      }
+    });
   }
 
   exit(code: number): void {
@@ -88,11 +108,11 @@ interface StubbedTimer {
 }
 
 class StubbedProcess implements ProcessLike {
-  private readonly handlers: ((signal: Signal) => void)[] = [];
+  private readonly handlers: ((request: ShutdownRequest) => void)[] = [];
   private readonly timers: StubbedTimer[] = [];
   private now = 0;
 
-  onSignal(handler: (signal: Signal) => void): void {
+  onShutdownRequest(handler: (request: ShutdownRequest) => void): void {
     this.handlers.push(handler);
   }
 
@@ -138,9 +158,9 @@ class StubbedProcess implements ProcessLike {
     }
   }
 
-  simulateSignal(signal: Signal): void {
+  simulateShutdownRequest(request: ShutdownRequest): void {
     for (const handler of [...this.handlers]) {
-      handler(signal);
+      handler(request);
     }
   }
 }
