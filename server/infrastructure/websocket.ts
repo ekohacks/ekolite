@@ -152,10 +152,6 @@ export class WebSocketWrapper implements WebSocketInterface {
     return new OutputTracker(this.emitter, MESSAGE_EVENT);
   }
 
-  trackClose(): OutputTracker {
-    return new OutputTracker(this.emitter, CLOSE_EVENT);
-  }
-
   private receiveMessage(clientId: string, message: unknown): void {
     this.emitter.emit(MESSAGE_EVENT, { clientId, message });
   }
