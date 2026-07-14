@@ -98,7 +98,7 @@ const output: string = await EkoLite.call<string>('runCountC', '/path/to/uploads
 
 - Thin wrapper around the official `mongodb` Node.js driver
 - `defineCollection<T>(name)` returns a typed object with `find`, `findOne`, `insert`, `update`, `remove`
-- Server-side only — no Minimongo on the client
+- Server-side only — no client-side database mirror
 - Client gets data through the reactive store (fed by subscriptions)
 - Change streams power the pub/sub system
 

@@ -2,7 +2,7 @@
   "name": "ekolite",
   "version": "0.1.0",
   "description": "A lightweight, real-time backend framework for data-driven apps. Fastify + MongoDB + WebSocket with typed pub/sub, RPC methods, and file uploads.",
-  "homepage": "https://github.com/ekohacks/ekolite#readme",
+  "homepage": "https://ekohacks.github.io/ekolite/",
   "bugs": {
     "url": "https://github.com/ekohacks/ekolite/issues"
   },
@@ -54,7 +54,10 @@
     "format:check": "prettier --check .",
     "prepare": "husky",
     "prepublishOnly": "npm run typecheck && npm test && npm run build",
-    "test:changed": "vitest run --changed origin/main"
+    "test:changed": "vitest run --changed origin/main",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
@@ -99,6 +102,7 @@
     "typescript": "^6.0",
     "typescript-eslint": "^8.59.4",
     "vite": "^8.0",
+    "vitepress": "^1.6.4",
     "vitest": "^4.1"
   }
 }
