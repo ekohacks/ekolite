@@ -44,7 +44,6 @@ export class Shutdown {
   private logShutdownError(err: unknown): void {
     const list = flattenSuppressed(err);
     console.error('shutdown failed:', list);
-    return;
   }
 
   private handleShutdownRequest(): void {
