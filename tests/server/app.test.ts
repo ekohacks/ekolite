@@ -60,21 +60,18 @@ describe('App.createNull assembles all parts', () => {
     expect(closeTracker.data).toHaveLength(1);
   });
 
-  it('rejects with the first failure, so Shutdown can name it', async () => {
+  it('rejects with a SuppressedError carrying every failure, oldest first', async () => {
     const mongo = MongoWrapper.createNull({ close: [new Error('mongo close failed')] });
     const ws = WebSocketWrapper.createNull({ close: [new Error('socket close failed')] });
     const app = App.createNull({ mongo, ws });
 
-    const closePromise = app.close();
+    const err: unknown = await app.close().catch((e: unknown) => e);
 
-    await expect(closePromise).rejects.toThrow('An error was suppressed during disposal');
-
-    await closePromise.catch((err: unknown) => {
-      expect(flattenSuppressed(err).map((e) => (e as Error).message)).toEqual([
-        'socket close failed',
-        'mongo close failed',
-      ]);
-    });
+    expect(err).toBeInstanceOf(SuppressedError);
+    expect(flattenSuppressed(err).map((e) => (e as Error).message)).toEqual([
+      'socket close failed',
+      'mongo close failed',
+    ]);
   });
 
   it('registers runCountC, wired to files and the nulled script runner', async () => {
