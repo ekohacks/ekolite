@@ -1,6 +1,6 @@
 # EkoLite — Overview
 
-A ~820-line real-time backend framework for biotech apps. Built with TypeScript, tested without mocks.
+A small real-time backend framework, around 3,500 lines of TypeScript across server, client and shared. Tested without mocks.
 
 ---
 
@@ -11,7 +11,7 @@ EkoLite is a lightweight real-time backend framework. Five standard tools do the
 | Capability     | How                                             |
 | -------------- | ----------------------------------------------- |
 | HTTP server    | Fastify                                         |
-| Real-time data | WebSocket + Mini-DDP (6 message types)          |
+| Real-time data | WebSocket + Mini-DDP (11 message types)         |
 | Database       | MongoDB driver + change streams                 |
 | Client data    | ReactiveStore (a simple Map that stays in sync) |
 | File uploads   | @fastify/multipart                              |
@@ -44,16 +44,17 @@ This is how we test without mocks. The logic layer doesn't know which one it's t
 
 ## The Protocol
 
-Client and server talk over WebSocket with 6 message types:
+Client and server talk over WebSocket with 11 message types:
 
 ```
 Client → Server:         Server → Client:
   subscribe                ready
   unsubscribe              added / changed / removed
   method                   result / error
+  ping                     pong
 ```
 
-Full DDP has ~15 message types. We use 6.
+Full DDP has ~15 message types. The saving is less in the count than in what is absent: no connect handshake, no session identity, no merge box, no latency compensation.
 
 ---
 
@@ -69,22 +70,22 @@ No `vi.mock()`. No spies. Real code with an off switch.
 
 ---
 
-## The Build Plan
+## Where It Stands
 
-8 smoke tests, built in order. Each one proves a piece of the framework works.
+EkoLite is published early at `0.x` and the public API is still settling. What is built:
 
-```
-ST 0  Infrastructure wrappers    → Can we test without real systems?
-ST 1  Server + static page       → Fastify + Vite work?
-ST 2  WebSocket connection        → Real-time transport works?
-ST 3  Pub/sub + reactive store   → Live data updates work?
-ST 4  RPC methods                → Server calls work?
-ST 5  File upload                → BAM upload works?
-ST 6  File validation            → Bad files rejected?
-ST 7  End-to-end pipeline        → Full workflow works end-to-end
-```
+- **Pub/sub over a live socket.** Define a publication, subscribe from a page, and a reactive store fills from MongoDB change streams and keeps up as the data moves.
+- **RPC methods.** Register a named server method, call it over the socket, get a typed result or a structured error back.
+- **File uploads over HTTP.** The bytes go to storage, the metadata goes to MongoDB, and the change stream pushes the new file into every subscribed client's list.
+- **Nullable infrastructure.** Every wrapper has `create()` and `createNull()`, so the whole graph runs in memory for tests.
+- **App wiring.** `App.create()` assembles the real graph and `App.createNull()` assembles the same one nulled, so the tests drive the assembly that boots in production.
+- **Graceful shutdown.** On a stop signal the server stops taking requests, drains the change streams, closes MongoDB and exits.
+- **A heartbeat**, so a client can tell a silently dead socket from a quiet one.
 
-When Smoke Test 7 passes, the framework covers everything a real-time, data-driven app needs.
+What is not built yet, and matters:
+
+- **Reconnect and resubscribe.** A closed socket disposes and stays disposed. The client does not yet come back on its own.
+- **Auth on the file routes.** `POST /api/files` and `GET /api/files/:id` are open.
 
 ---
 
@@ -92,10 +93,9 @@ When Smoke Test 7 passes, the framework covers everything a real-time, data-driv
 
 Read these when you need detail on a specific topic:
 
-| Doc                        | What's in it                                            |
-| -------------------------- | ------------------------------------------------------- |
-| `ekolite-system-design.md` | How Meteor works, concept-by-concept mapping to EkoLite |
-| `ekolite-adrs.md`          | Architecture decisions and why we made them             |
-| `ekolite-tdd-training.md`  | Red-green-refactor tutorial with worked examples        |
-| `ekolite-tdd.md`           | Nullable code reference, test pyramid, test structure   |
-| `ekolite-spec.md`          | API signatures and type definitions                     |
+| Doc                                                | What's in it                                       |
+| -------------------------------------------------- | -------------------------------------------------- |
+| [System design](ekolite-system-design.md)          | How the framework is put together, and why         |
+| [Architecture decisions](ekolite-adrs.md)          | What was decided, and what it cost                 |
+| [Test-driven development](ekolite-tdd-training.md) | The red, green, refactor loop with worked examples |
+| [Specification](ekolite-spec.md)                   | API signatures and type definitions                |

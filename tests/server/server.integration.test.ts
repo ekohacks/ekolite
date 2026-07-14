@@ -43,4 +43,30 @@ describe('Websocket fastify integration test', () => {
 
     expect(client.readyState).toBe(WebSocket.OPEN);
   });
+
+  // The nullable test proves createServer routes a ping. This proves the whole transport
+  // does it: a real socket, a real frame on the wire, a real pong coming back. It is the
+  // path ClientSocketWrapper's Heartbeat actually takes, and until the server answered it,
+  // a client with the heartbeat switched on closed a healthy connection on its own.
+  it('answers a ping over a real socket with a pong', async () => {
+    const ws = WebSocketWrapper.create();
+    server = await createServer({ ws });
+    await server.listen({ port: 0 });
+    const port = String(server.addresses()[0].port);
+
+    client = new WebSocket(`ws://localhost:${port}/ws`);
+    await new Promise((resolve, reject) => {
+      client.on('open', resolve);
+      client.on('error', reject);
+    });
+
+    const pong = new Promise((resolve) => {
+      client.on('message', (raw: Buffer) => {
+        resolve(JSON.parse(raw.toString()));
+      });
+    });
+    client.send(JSON.stringify({ type: 'ping', id: 'p1' }));
+
+    await expect(pong).resolves.toEqual({ type: 'pong', id: 'p1' });
+  });
 });

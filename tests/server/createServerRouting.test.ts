@@ -44,6 +44,39 @@ describe('createServer routes inbound subscriptions into publications', () => {
     });
   });
 
+  // The heartbeat lives in the transport, not in a feature. A socket with no publications
+  // and no methods on it still has to prove it is alive, so the pong cannot be gated on
+  // either being configured. Red today: createServer only registers an onMessage handler
+  // when publications or an rpcHandler is passed, and its switch drops 'ping' on default.
+  it('answers a ping with a pong, with no publications or methods configured', async () => {
+    const ws = WebSocketWrapper.createNull();
+
+    await createServer({ ws });
+
+    const client = ws.simulateConnection();
+    client.send({ type: 'ping' });
+
+    await vi.waitFor(() => {
+      expect(client.messages).toContainEqual({ type: 'pong' });
+    });
+  });
+
+  // ClientSocketWrapper's Heartbeat sends a bare ping today, but PingMsg carries an
+  // optional id, so a pong has to carry it back or a client that correlates its pings
+  // cannot tell which one came home.
+  it('echoes the ping id back on the pong', async () => {
+    const ws = WebSocketWrapper.createNull();
+
+    await createServer({ ws });
+
+    const client = ws.simulateConnection();
+    client.send({ type: 'ping', id: 'p1' });
+
+    await vi.waitFor(() => {
+      expect(client.messages).toContainEqual({ type: 'pong', id: 'p1' });
+    });
+  });
+
   it('routes method messages to the rpc handler and returns results to the same client', async () => {
     const ws = WebSocketWrapper.createNull();
     const methods = new Methods();

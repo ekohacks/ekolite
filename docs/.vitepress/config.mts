@@ -2,9 +2,9 @@ import { defineConfig } from 'vitepress';
 
 // EkoLite documentation site. Root is docs/, so the page links below are relative to it.
 //
-// Excluded from the build: the internal planning docs (epics, customer), which stay
-// private, and the design docs still being cleaned for public reading (system design,
-// ADRs, the TDD guides). Those ship once that cleanup lands, tracked in EKO-304.
+// Excluded from the build: the internal planning docs. Epics is the roadmap and customer is
+// a stakeholder brief, so neither is a framework document and neither goes public. Everything
+// else in ekolite-overview/ is published.
 export default defineConfig({
   title: 'EkoLite',
   description:
@@ -13,10 +13,7 @@ export default defineConfig({
   srcExclude: [
     'ekolite-overview/ekolite-epics.md',
     'ekolite-overview/ekolite-customer.md',
-    'ekolite-overview/ekolite-system-design.md',
-    'ekolite-overview/ekolite-adrs.md',
     'ekolite-overview/ekolite-tdd.md',
-    'ekolite-overview/ekolite-tdd-training.md',
     'archive/**',
   ],
   themeConfig: {
@@ -36,8 +33,16 @@ export default defineConfig({
         ],
       },
       {
+        text: 'Design',
+        items: [
+          { text: 'System design', link: '/ekolite-overview/ekolite-system-design' },
+          { text: 'Architecture decisions', link: '/ekolite-overview/ekolite-adrs' },
+        ],
+      },
+      {
         text: 'Manual',
         items: [
+          { text: 'Test-driven development', link: '/ekolite-overview/ekolite-tdd-training' },
           {
             text: 'Nullables: how much should the stub know?',
             link: '/manual/nullables-how-much-should-the-stub-know',

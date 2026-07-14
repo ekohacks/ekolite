@@ -25,19 +25,24 @@ A stripped-down version of DDP that keeps only pub/sub and RPC. No merge box, no
 - Client maintains a local **reactive store** (plain TS, framework-agnostic)
 - Store emits events on changes — any UI layer can listen
 
-#### 6 message types (vs ~15 in full DDP):
+#### 11 message types (vs ~15 in full DDP):
 
 ```
 Client → Server:
-  { type: 'subscribe', id, name, params }
+  { type: 'subscribe', id, name, params? }
   { type: 'unsubscribe', id }
   { type: 'method', id, name, params }
+  { type: 'ping', id? }
 
 Server → Client:
-  { type: 'ready', id }
-  { type: 'added' | 'changed' | 'removed', collection, id, fields }
+  { type: 'ready', id, collection }
+  { type: 'added' | 'changed' | 'removed', collection, id, fields? }
   { type: 'result' | 'error', id, result | error }
+  { type: 'pong', id? }
 ```
+
+`ping` and `pong` carry the heartbeat: a TCP connection can be dead while both ends still
+believe it is open, so the client pings and closes the socket if no pong comes back.
 
 #### Server API:
 
