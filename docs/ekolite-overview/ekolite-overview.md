@@ -92,10 +92,10 @@ When Smoke Test 7 passes, the framework covers everything a real-time, data-driv
 
 Read these when you need detail on a specific topic:
 
-| Doc                        | What's in it                                            |
-| -------------------------- | ------------------------------------------------------- |
-| `ekolite-system-design.md` | How Meteor works, concept-by-concept mapping to EkoLite |
-| `ekolite-adrs.md`          | Architecture decisions and why we made them             |
-| `ekolite-tdd-training.md`  | Red-green-refactor tutorial with worked examples        |
-| `ekolite-tdd.md`           | Nullable code reference, test pyramid, test structure   |
-| `ekolite-spec.md`          | API signatures and type definitions                     |
+| Doc                        | What's in it                                          |
+| -------------------------- | ----------------------------------------------------- |
+| `ekolite-system-design.md` | How the framework works, concept by concept           |
+| `ekolite-adrs.md`          | Architecture decisions and why we made them           |
+| `ekolite-tdd-training.md`  | Red-green-refactor tutorial with worked examples      |
+| `ekolite-tdd.md`           | Nullable code reference, test pyramid, test structure |
+| `ekolite-spec.md`          | API signatures and type definitions                   |
