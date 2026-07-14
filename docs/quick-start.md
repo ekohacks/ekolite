@@ -18,7 +18,16 @@ app.methods.define('greet', (name) => `hello ${String(name)}`);
 await app.methods.call('greet', ['world']); // 'hello world'
 ```
 
-`App.createNull()` assembles the whole graph in memory, so you can exercise methods, publications and files without a running MongoDB. Swap it for `App.create(config)` to talk to the real thing.
+`App.createNull()` assembles the whole graph in memory, so you can exercise methods, publications and files without a running MongoDB. Swap it for `App.create({ mongoUri, fileDir, port })` to talk to the real thing.
+
+What comes back is empty. `App` wires the infrastructure and stops, so `app.publications` and `app.methods` hold exactly what you put on them and nothing of EkoLite's own:
+
+```ts
+const app = App.create({ mongoUri, fileDir, port });
+
+app.publications.define('tasks.mine', (p) => ({ collection: 'tasks', query: { owner: p.owner } }));
+app.methods.define('addTask', (title) => createTask(title));
+```
 
 ## Where next
 

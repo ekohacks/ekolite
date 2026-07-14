@@ -1,14 +1,19 @@
 import { createServer } from './index.ts';
 import { App, type AppConfig } from './app.ts';
+import { defineDemo, DEFAULT_COUNTC_SCRIPT } from './demo.ts';
 import { ProcessWrapper } from './infrastructure/process.ts';
 import { Shutdown } from './logic/shutdown.ts';
 import { READY_MESSAGE } from '../shared/serverMessages.ts';
 
 // Real boot. Read config from the environment, let App wire the graph (Mongo, the
-// websocket, the pub/sub engine, the file store, and the standard files.all / echo /
-// runCountC definitions), then serve it over Fastify. The wiring that used to live
-// here now lives in App.create, so the same assembly the end-to-end test drives is
-// the one that boots in production.
+// websocket, the pub/sub engine, the file store and the script runner), define the
+// demo on top of it, then serve it over Fastify. The wiring that used to live here
+// now lives in App.create, so the same assembly the end-to-end test drives is the one
+// that boots in production.
+//
+// The demo definitions are ours, not the framework's, which is why defineDemo is called
+// here rather than baked into App. A consumer who installs ekolite calls App.create and
+// gets an empty stage; this file is what puts EkoLite's own furniture on it.
 //
 // EKOLITE_PORT and EKOLITE_MONGO_DB are the isolation knobs the smoke test sets so a
 // spawned run never collides with `npm run dev:server` on 3001 or its data. A db name
@@ -19,11 +24,11 @@ const config: AppConfig = {
     ? `mongodb://localhost:27017/${mongoDb}?replicaSet=rs0`
     : (process.env.MONGO_URI ?? 'mongodb://localhost:27017/ekolite'),
   fileDir: process.env.FILE_DIR ?? './uploads',
-  countCScript: process.env.COUNTC_SCRIPT ?? 'scripts/countC.py',
   port: Number(process.env.EKOLITE_PORT ?? process.env.PORT ?? 3001),
 };
 
 const app = App.create(config);
+defineDemo(app, { countCScript: process.env.COUNTC_SCRIPT ?? DEFAULT_COUNTC_SCRIPT });
 const server = await createServer(app);
 await server.listen({ port: config.port, host: '0.0.0.0' });
 

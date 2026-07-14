@@ -29,7 +29,7 @@ shared/
   protocol.ts         the wire protocol, typed for both ends
 ```
 
-`App` exposes exactly three things: `publications`, `methods` and `files`.
+What `App` does not do is define anything. It wires infrastructure into logic and stops, so the registries it hands back are empty and whatever you define is all that is on them. EkoLite's own demo definitions live with the demo boot, not in the framework, and a consumer inherits none of them.
 
 ---
 

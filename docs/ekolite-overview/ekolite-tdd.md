@@ -152,7 +152,7 @@ new Shutdown(closable, proc, { graceMs }); // graceful stop
 `server/app.ts` is where the wiring lives, and it is the only place that decides real or nulled.
 
 ```ts
-const app = App.create({ mongoUri, fileDir, countCScript, port });
+const app = App.create({ mongoUri, fileDir, port });
 const app = App.createNull({ findResponses, scriptResponses });
 ```
 

@@ -30,7 +30,6 @@ describe('App.create wires real infrastructure', () => {
     app = App.create({
       mongoUri: 'mongodb://localhost:27017/ekolite-test',
       fileDir: './uploads',
-      countCScript: 'scripts/countC.py',
       port: 0,
     });
 
