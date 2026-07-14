@@ -70,22 +70,22 @@ No `vi.mock()`. No spies. Real code with an off switch.
 
 ---
 
-## The Build Plan
+## Where It Stands
 
-8 smoke tests, built in order. Each one proves a piece of the framework works.
+EkoLite is published early at `0.x` and the public API is still settling. What is built:
 
-```
-ST 0  Infrastructure wrappers    → Can we test without real systems?
-ST 1  Server + static page       → Fastify + Vite work?
-ST 2  WebSocket connection        → Real-time transport works?
-ST 3  Pub/sub + reactive store   → Live data updates work?
-ST 4  RPC methods                → Server calls work?
-ST 5  File upload                → BAM upload works?
-ST 6  File validation            → Bad files rejected?
-ST 7  End-to-end pipeline        → Full workflow works end-to-end
-```
+- **Pub/sub over a live socket.** Define a publication, subscribe from a page, and a reactive store fills from MongoDB change streams and keeps up as the data moves.
+- **RPC methods.** Register a named server method, call it over the socket, get a typed result or a structured error back.
+- **File uploads over HTTP.** The bytes go to storage, the metadata goes to MongoDB, and the change stream pushes the new file into every subscribed client's list.
+- **Nullable infrastructure.** Every wrapper has `create()` and `createNull()`, so the whole graph runs in memory for tests.
+- **App wiring.** `App.create()` assembles the real graph and `App.createNull()` assembles the same one nulled, so the tests drive the assembly that boots in production.
+- **Graceful shutdown.** On a stop signal the server stops taking requests, drains the change streams, closes MongoDB and exits.
+- **A heartbeat**, so a client can tell a silently dead socket from a quiet one.
 
-When Smoke Test 7 passes, the framework covers everything a real-time, data-driven app needs.
+What is not built yet, and matters:
+
+- **Reconnect and resubscribe.** A closed socket disposes and stays disposed. The client does not yet come back on its own.
+- **Auth on the file routes.** `POST /api/files` and `GET /api/files/:id` are open.
 
 ---
 
