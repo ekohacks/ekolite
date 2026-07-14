@@ -101,42 +101,25 @@ describe('App.createNull assembles all parts', () => {
     ]);
   });
 
-  it('registers runCountC, wired to files and the nulled script runner', async () => {
-    const app = App.createNull({
-      scriptResponses: { python3: '7' },
-      findResponses: [[bamFile('f1')]],
-    });
-
-    // locate('f1') finds the seeded document, the runner answers '7', the count
-    // comes back to the caller: proof the scriptResponses reached the Nulled runner.
-    expect(await app.methods.call('runCountC', ['f1'])).toBe(7);
-  });
-
-  it('registers the files.all publication', async () => {
+  // Empty is not the same as broken. The registries start with nothing in them, and
+  // whatever the caller defines works and is all that is there. The demo's own
+  // definitions are asserted in demo.test.ts, where they now live.
+  it('registers what the caller defines, and only that', async () => {
     const app = App.createNull({ findResponses: [[bamFile('f1')]] });
     const client = app.ws.simulateConnection();
+
+    app.publications.define('tasks.mine', () => ({ collection: 'tasks', query: {} }));
+    app.methods.define('addTask', (title) => Promise.resolve(`added: ${String(title)}`));
+
+    expect(await app.methods.call('addTask', ['write the test'])).toBe('added: write the test');
 
     await app.publications.handleMessage(client.id, {
       type: 'subscribe',
       id: 'sub1',
-      name: 'files.all',
+      name: 'tasks.mine',
     });
 
-    // A registered publication runs its query and readies the subscription; an
-    // unknown name comes back as a 404 error instead (the control below).
     expect(client.messages).toContainEqual(expect.objectContaining({ type: 'ready', id: 'sub1' }));
-
-    await app.publications.handleMessage(client.id, {
-      type: 'subscribe',
-      id: 'sub2',
-      name: 'no-such-publication',
-    });
-
-    expect(client.messages).toContainEqual({
-      type: 'error',
-      id: 'sub2',
-      error: { code: 404, message: 'Unknown publication: no-such-publication' },
-    });
   });
 
   it('rejects a config that sets both mongo and findResponses', () => {
