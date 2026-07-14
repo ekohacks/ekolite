@@ -23,5 +23,5 @@ await app.methods.call('greet', ['world']); // 'hello world'
 ## Where next
 
 - [Overview](/ekolite-overview/ekolite-overview) — what EkoLite is and how the pieces fit together.
-- [Specification](/ekolite-overview/ekolite-spec) — the API and type reference.
+- [System design](/ekolite-overview/ekolite-system-design) — how the framework is put together, and the wire protocol.
 - [API reference](/api/connection-manager) — the client `ConnectionManager` and `SubscriptionHandle`.
