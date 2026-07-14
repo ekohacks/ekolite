@@ -6,7 +6,7 @@ A ~820-line real-time backend framework for biotech apps. Built with TypeScript,
 
 ## What It Does
 
-EkoLite is a lightweight replacement for Meteor. Five standard tools instead of 69 packages:
+EkoLite is a lightweight real-time backend framework. Five standard tools do the whole job:
 
 | Capability     | How                                             |
 | -------------- | ----------------------------------------------- |
@@ -53,7 +53,7 @@ Client → Server:         Server → Client:
   method                   result / error
 ```
 
-Meteor's DDP has ~15. We use 6.
+Full DDP has ~15 message types. We use 6.
 
 ---
 
@@ -84,7 +84,7 @@ ST 6  File validation            → Bad files rejected?
 ST 7  End-to-end pipeline        → Full workflow works end-to-end
 ```
 
-When Smoke Test 7 passes, the framework does everything Meteor did for a real-time, data-driven app.
+When Smoke Test 7 passes, the framework covers everything a real-time, data-driven app needs.
 
 ---
 

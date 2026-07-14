@@ -1,8 +1,10 @@
 # EkoLite
 
-A lightweight, real time backend framework in the spirit of Meteor. Fastify, MongoDB and WebSocket with a typed pub/sub protocol, built test first with James Shore's Nullables pattern. No mocks anywhere in the suite.
+A lightweight, real time backend framework. Fastify, MongoDB and WebSocket with a typed pub/sub protocol, built test first with James Shore's Nullables pattern. No mocks anywhere in the suite.
 
-EkoLite is a public, work in progress rebuild of Meteor's core ideas with deliberate differences. The documents in [`docs/ekolite-overview/`](docs/ekolite-overview/) cover the thinking. This README covers what is actually built today.
+EkoLite is a public, work in progress framework for real time, data driven apps, built in the open with deliberate design choices. The documents in [`docs/ekolite-overview/`](docs/ekolite-overview/) cover the thinking. This README covers what is actually built today.
+
+Full docs: <https://ekohacks.github.io/ekolite/>
 
 ## Status
 
