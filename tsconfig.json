@@ -30,7 +30,8 @@
     "*.config.ts",
     "*.config.mts",
     "learning/**/*.ts",
-    "docs/api/__examples__/**/*.ts"
+    "docs/api/__examples__/**/*.ts",
+    "docs/.vitepress/config.mts"
   ],
   "exclude": ["node_modules", "dist"]
 }
