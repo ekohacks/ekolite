@@ -24,13 +24,13 @@ EkoLite is a lightweight real-time backend framework. Five standard tools do the
 Three layers. Logic never touches external systems directly.
 
 ```
-        App (wires everything)
-       /         |         \
-  Publications  Methods  UploadHandler     ← Logic
-       \         |         /
-  MongoWrapper  WebSocket  FileStorage     ← Infrastructure
-       |         |         |
-    MongoDB    Fastify    Node fs          ← External systems
+              App (wires everything)
+           /         |          \
+  Publications    Methods      Files             ← Logic
+           \         |          /
+  MongoWrapper  WebSocketWrapper  FileStorageWrapper   ← Infrastructure
+           |         |          |
+       MongoDB    Fastify    Node fs              ← External systems
 ```
 
 Every infrastructure wrapper has two factories:
@@ -93,9 +93,10 @@ What is not built yet, and matters:
 
 Read these when you need detail on a specific topic:
 
-| Doc                                                | What's in it                                       |
-| -------------------------------------------------- | -------------------------------------------------- |
-| [System design](ekolite-system-design.md)          | How the framework is put together, and why         |
-| [Architecture decisions](ekolite-adrs.md)          | What was decided, and what it cost                 |
-| [Test-driven development](ekolite-tdd-training.md) | The red, green, refactor loop with worked examples |
-| [Specification](ekolite-spec.md)                   | API signatures and type definitions                |
+| Doc                                                | What's in it                                              |
+| -------------------------------------------------- | --------------------------------------------------------- |
+| [System design](ekolite-system-design.md)          | How the framework is put together, and why                |
+| [Architecture decisions](ekolite-adrs.md)          | What was decided, and what it cost                        |
+| [Test-driven development](ekolite-tdd-training.md) | The red, green, refactor loop with worked examples        |
+| [TDD engineering guide](ekolite-tdd.md)            | The wrappers, their signatures, and contract tests        |
+| [API reference](../api/connection-manager.md)      | The client surface: ConnectionManager, SubscriptionHandle |

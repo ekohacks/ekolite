@@ -1,6 +1,6 @@
 # EkoLite, System Design
 
-Start with [ekolite-overview.md](ekolite-overview.md) for the big picture, and [ekolite-spec.md](ekolite-spec.md) for signatures and types. This document explains how the framework is put together and why it is shaped the way it is. The decisions behind it are recorded in [ekolite-adrs.md](ekolite-adrs.md).
+Start with [ekolite-overview.md](ekolite-overview.md) for the big picture, and the [API reference](../api/connection-manager.md) for the client signatures. This document explains how the framework is put together and why it is shaped the way it is. The decisions behind it are recorded in [ekolite-adrs.md](ekolite-adrs.md).
 
 ---
 
