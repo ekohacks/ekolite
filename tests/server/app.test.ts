@@ -43,10 +43,37 @@ describe('App.createNull assembles all parts', () => {
     expect(app.ws).toBeInstanceOf(WebSocketWrapper);
   });
 
-  it('registers echo, callable through the assembled methods', async () => {
+  // 8.E — the framework hands back an empty stage. A consumer's first line is
+  // App.create(...), and what comes back must carry none of EkoLite's own demo:
+  // no files.all, no echo, no runCountC. They belong to the demo boot, not to App.
+  it('defines no methods of its own', async () => {
     const app = App.createNull();
 
-    expect(await app.methods.call('echo', ['ping'])).toBe('echo: ping');
+    await expect(app.methods.call('echo', ['ping'])).rejects.toMatchObject({
+      code: 404,
+      message: 'Method not found: echo',
+    });
+    await expect(app.methods.call('runCountC', ['f1'])).rejects.toMatchObject({
+      code: 404,
+      message: 'Method not found: runCountC',
+    });
+  });
+
+  it('defines no publications of its own', async () => {
+    const app = App.createNull();
+    const client = app.ws.simulateConnection();
+
+    await app.publications.handleMessage(client.id, {
+      type: 'subscribe',
+      id: 'sub1',
+      name: 'files.all',
+    });
+
+    expect(client.messages).toContainEqual({
+      type: 'error',
+      id: 'sub1',
+      error: { code: 404, message: 'Unknown publication: files.all' },
+    });
   });
 
   it('still closes Mongo when the nulled socket close rejects', async () => {
