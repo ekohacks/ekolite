@@ -7,7 +7,6 @@ import { RpcHandler } from './logic/rpcHandler.ts';
 import { Methods } from './logic/methods.ts';
 import { Files } from './logic/files.ts';
 import { defineRunCountC } from './logic/analysis.ts';
-import { closeAll } from '../shared/helperFunctions.ts';
 import { type StoredFile } from '../shared/types.ts';
 
 // Config for the real boot. The same knobs start.ts reads from the environment.
@@ -40,6 +39,7 @@ interface NullConfig {
   scriptResponses?: ScriptResponses;
   findResponses?: StoredFile[][];
   countCScript?: string;
+  mongo?: MongoWrapper;
   ws?: WebSocketWrapper;
 }
 
@@ -83,9 +83,15 @@ export class App {
   }
 
   static createNull(nullConfig: NullConfig = {}): App {
-    const mongo = nullConfig.findResponses
-      ? MongoWrapper.createNull({ find: nullConfig.findResponses })
-      : MongoWrapper.createNull();
+    if (nullConfig.mongo && nullConfig.findResponses) {
+      throw new Error('App.createNull received both mongo and findResponses; use one or the other');
+    }
+
+    const mongo =
+      nullConfig.mongo ??
+      (nullConfig.findResponses
+        ? MongoWrapper.createNull({ find: nullConfig.findResponses })
+        : MongoWrapper.createNull());
 
     return new App({
       mongo,
@@ -101,13 +107,13 @@ export class App {
   // connection goes. Order matters: stop taking requests, stop the streams, and only
   // then drop the database, so it never closes with a change stream open underneath.
   async close(): Promise<void> {
-    // Best-effort: each step runs even if an earlier one rejects, so a failing socket
-    // close never leaves the Mongo connection open. closeAll rethrows the first error
-    // so a hung or broken shutdown still exits non-zero through Shutdown.
-    await closeAll([
-      () => this.ws.close(),
-      () => this.publications.stopAll(),
-      () => this.mongo.close(),
-    ]);
+    const stack = new AsyncDisposableStack();
+    // Disposal runs in reverse registration order, so register the teardown backwards:
+    // ws closes first, mongo last.
+    stack.defer(() => this.mongo.close());
+    stack.defer(() => this.publications.stopAll());
+    stack.defer(() => this.ws.close());
+
+    await stack.disposeAsync();
   }
 }

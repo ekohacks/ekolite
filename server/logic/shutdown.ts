@@ -1,4 +1,5 @@
 import { ProcessWrapper } from '../infrastructure/process.ts';
+import { flattenSuppressed } from '../../shared/helperFunctions.ts';
 
 interface Closable {
   close(): Promise<void>;
@@ -40,6 +41,11 @@ export class Shutdown {
     this.proc.exit(code);
   }
 
+  private logShutdownError(err: unknown): void {
+    const list = flattenSuppressed(err);
+    console.error('shutdown failed:', list);
+  }
+
   private handleShutdownRequest(): void {
     // A second request means it: exit hard, no second goodbye.
     if (this.shuttingDown) {
@@ -68,7 +74,7 @@ export class Shutdown {
 
         cancelDeadline();
         this.exited = true;
-        console.error('shutdown failed:', err);
+        this.logShutdownError(err);
         this.proc.exit(1);
       },
     );

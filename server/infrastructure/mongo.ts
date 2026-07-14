@@ -2,6 +2,8 @@ import { Collection, MongoClient as Driver, ObjectId } from 'mongodb';
 import { ChangeEvent, isChangeEvent } from '../../shared/types.ts';
 import { ConfigurableResponse, EventEmitter, OutputTracker } from './outputTracker.ts';
 
+const CLOSE_EVENT = 'close';
+
 interface CollectionLike {
   find<T>(query: object): Promise<T[]>;
   insertOne(doc: object): Promise<void>;
@@ -17,6 +19,7 @@ interface StubbedMongoOptions {
   insert?: unknown[];
   update?: unknown[];
   remove?: unknown[];
+  close?: unknown[];
 }
 
 export class MongoWrapper {
@@ -45,7 +48,10 @@ export class MongoWrapper {
 
   static createNull(options: StubbedMongoOptions = {}): MongoWrapper {
     const stub = new StubbedCollectionFactory(options);
-    return new MongoWrapper((name: string) => stub.collection(name));
+    return new MongoWrapper(
+      (name: string) => stub.collection(name),
+      () => stub.close(),
+    );
   }
 
   // Close the driver connection. Stop every open change stream first: closing the
@@ -55,6 +61,7 @@ export class MongoWrapper {
   async close(): Promise<void> {
     await this.stopAllWatches();
     await this.closer();
+    this.emitter.emit(CLOSE_EVENT);
   }
 
   // Force every active change stream shut, regardless of remaining subscribers.
@@ -110,6 +117,10 @@ export class MongoWrapper {
     const tracker = new OutputTracker(this.emitter, collection);
     await this.openWatchIfNeeded(collection);
     return tracker;
+  }
+
+  trackClose(): OutputTracker {
+    return new OutputTracker(this.emitter, CLOSE_EVENT);
   }
 
   private openWatchIfNeeded(collection: string): Promise<() => void> {
@@ -191,6 +202,7 @@ class StubbedCollectionFactory {
   private readonly insertResponses?: ConfigurableResponse;
   private readonly updateResponses?: ConfigurableResponse;
   private readonly removeResponses?: ConfigurableResponse;
+  private readonly closeResponses?: ConfigurableResponse;
 
   constructor(options: StubbedMongoOptions) {
     if (options.find) {
@@ -205,6 +217,16 @@ class StubbedCollectionFactory {
     if (options.remove) {
       this.removeResponses = new ConfigurableResponse(options.remove);
     }
+    if (options.close) {
+      this.closeResponses = new ConfigurableResponse(options.close);
+    }
+  }
+
+  async close(): Promise<void> {
+    if (this.closeResponses) {
+      this.closeResponses.next();
+    }
+    return Promise.resolve();
   }
 
   collection(name: string): CollectionLike {

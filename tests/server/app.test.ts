@@ -4,7 +4,9 @@ import { Publications } from '../../server/logic/publications.ts';
 import { Methods } from '../../server/logic/methods.ts';
 import { Files } from '../../server/logic/files.ts';
 import { WebSocketWrapper } from '../../server/infrastructure/websocket.ts';
+import { MongoWrapper } from '../../server/infrastructure/mongo.ts';
 import { StoredFile } from '../../shared/types.ts';
+import { flattenSuppressed } from '../../shared/helperFunctions.ts';
 
 // 7.B.1 — App.createNull assembles all parts.
 //
@@ -47,6 +49,31 @@ describe('App.createNull assembles all parts', () => {
     expect(await app.methods.call('echo', ['ping'])).toBe('echo: ping');
   });
 
+  it('still closes Mongo when the nulled socket close rejects', async () => {
+    const mongo = MongoWrapper.createNull();
+    const closeTracker = mongo.trackClose();
+    const ws = WebSocketWrapper.createNull({ close: [new Error('socket close failed')] });
+    const app = App.createNull({ mongo, ws });
+
+    await expect(app.close()).rejects.toThrow('socket close failed');
+
+    expect(closeTracker.data).toHaveLength(1);
+  });
+
+  it('rejects with a SuppressedError carrying every failure, oldest first', async () => {
+    const mongo = MongoWrapper.createNull({ close: [new Error('mongo close failed')] });
+    const ws = WebSocketWrapper.createNull({ close: [new Error('socket close failed')] });
+    const app = App.createNull({ mongo, ws });
+
+    const err: unknown = await app.close().catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(SuppressedError);
+    expect(flattenSuppressed(err).map((e) => (e as Error).message)).toEqual([
+      'socket close failed',
+      'mongo close failed',
+    ]);
+  });
+
   it('registers runCountC, wired to files and the nulled script runner', async () => {
     const app = App.createNull({
       scriptResponses: { python3: '7' },
@@ -83,5 +110,10 @@ describe('App.createNull assembles all parts', () => {
       id: 'sub2',
       error: { code: 404, message: 'Unknown publication: no-such-publication' },
     });
+  });
+
+  it('rejects a config that sets both mongo and findResponses', () => {
+    const mongo = MongoWrapper.createNull();
+    expect(() => App.createNull({ mongo, findResponses: [[]] })).toThrow(/both|ambiguous/i);
   });
 });

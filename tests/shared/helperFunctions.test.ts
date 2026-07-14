@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { hasMongoOperator } from '../../shared/helperFunctions.ts';
+import { flattenSuppressed, hasMongoOperator } from '../../shared/helperFunctions.ts';
 
 describe('hasMongoOperator', () => {
   it('returns false for primitives and safe nested objects', () => {
@@ -24,5 +24,38 @@ describe('hasMongoOperator', () => {
   it('returns true for mongo operators nested inside arrays', () => {
     expect(hasMongoOperator([1, { $exists: true }, 3])).toBe(true);
     expect(hasMongoOperator({ arr: [1, { nested: { $lt: 10 } }] })).toBe(true);
+  });
+});
+
+describe('flattenSuppressed', () => {
+  it('returns every error in a three deep chain, oldest first using asyncDisposeStack', async () => {
+    const stack = new AsyncDisposableStack();
+    stack.defer(() => Promise.reject(new Error('mongo close failed')));
+    stack.defer(() => Promise.reject(new Error('publications stopAll failed')));
+    stack.defer(() => Promise.reject(new Error('socket close failed')));
+
+    const err: unknown = await stack.disposeAsync().catch((e: unknown) => e);
+
+    expect(flattenSuppressed(err).map((e) => (e as Error).message)).toEqual([
+      'socket close failed',
+      'publications stopAll failed',
+      'mongo close failed',
+    ]);
+  });
+
+  it('returns every error in a suppressed chain, oldest first', () => {
+    const socket = new Error('socket close failed');
+    const mongo = new Error('mongo close failed');
+    const chain = new SuppressedError(mongo, socket);
+
+    expect(flattenSuppressed(chain).map((e) => (e as Error).message)).toEqual([
+      'socket close failed',
+      'mongo close failed',
+    ]);
+  });
+
+  it('returns a lone plain error unchanged', () => {
+    const only = new Error('socket close failed');
+    expect(flattenSuppressed(only)).toEqual([only]);
   });
 });
