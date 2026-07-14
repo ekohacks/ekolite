@@ -7,7 +7,7 @@ import { WebSocketWrapper } from './infrastructure/websocket.ts';
 import { type Publications } from './logic/publications.ts';
 import { type Files } from './logic/files.ts';
 import { type RpcHandler } from './logic/rpcHandler.ts';
-import { type ClientMessage } from '../shared/protocol.ts';
+import { type ClientMessage, type PongMsg } from '../shared/protocol.ts';
 import { RpcError, toEkoLiteError } from '../shared/types.ts';
 
 // Public package surface for the `ekolite` entry: the app graph and its config sit
@@ -47,27 +47,39 @@ export async function createServer(options: ServerOptions) {
   const publications = options.publications;
   const rpcHandler = options.rpcHandler;
 
-  if (publications || rpcHandler) {
-    options.ws.onMessage((clientId, message) => {
-      const clientMessage = message as ClientMessage;
+  // Always registered, never gated on publications or an rpcHandler. The heartbeat belongs
+  // to the transport: a socket has to be able to prove it is alive before anything is
+  // published or called on it, and a client whose ping goes unanswered concludes the
+  // connection is dead and closes it.
+  options.ws.onMessage((clientId, message) => {
+    const clientMessage = message as ClientMessage;
 
-      switch (clientMessage.type) {
-        case 'method':
-          if (rpcHandler) {
-            void rpcHandler.handleMessage(clientId, clientMessage);
-          }
-          break;
-        case 'subscribe':
-        case 'unsubscribe':
-          if (publications) {
-            void publications.handleMessage(clientId, clientMessage);
-          }
-          break;
-        default:
-          break;
-      }
-    });
-  }
+    switch (clientMessage.type) {
+      case 'ping':
+        // exactOptionalPropertyTypes: an absent id and an explicit undefined are different
+        // types, so the id is only carried back when the ping actually sent one.
+        options.ws.send(
+          clientId,
+          clientMessage.id === undefined
+            ? ({ type: 'pong' } satisfies PongMsg)
+            : ({ type: 'pong', id: clientMessage.id } satisfies PongMsg),
+        );
+        break;
+      case 'method':
+        if (rpcHandler) {
+          void rpcHandler.handleMessage(clientId, clientMessage);
+        }
+        break;
+      case 'subscribe':
+      case 'unsubscribe':
+        if (publications) {
+          void publications.handleMessage(clientId, clientMessage);
+        }
+        break;
+      default:
+        break;
+    }
+  });
 
   const files = options.files;
   if (files) {
