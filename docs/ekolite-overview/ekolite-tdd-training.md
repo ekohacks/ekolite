@@ -1,183 +1,119 @@
-# ekolite — TDD Training Guide
+# Test-Driven Development in EkoLite
 
-Start with [ekolite-overview.md](ekolite-overview.md) for the big picture. This document teaches the red-green-refactor loop and how it works with Testing Without Mocks. See `ekolite-tdd.md` for the technical reference.
+Every line of EkoLite was written test first, and there is no mocking library in the project. This walks through how that works in practice, using two pieces of the framework as they were actually built.
 
----
-
-## 1. What Is Red-Green-Refactor
-
-Every piece of production code starts with a failing test. The loop has three phases:
-
-```
-  ┌──────────────────────────────────────────────┐
-  │                                              │
-  │   RED ──────► GREEN ──────► REFACTOR ──┐     │
-  │   write a      write the     improve   │     │
-  │   failing      minimum       structure │     │
-  │   test         code to       without   │     │
-  │                pass          changing   │     │
-  │                              behavior  │     │
-  │                                        │     │
-  │            ◄────────────────────────────┘     │
-  │            next failing test                  │
-  └──────────────────────────────────────────────┘
-```
-
-**Red:** Write a test that describes the behavior you want. Run it. It must fail. If it passes, you either wrote the wrong test or the behavior already exists.
-
-**Green:** Write the simplest, dumbest code that makes the test pass. No cleverness. No "while I'm here" additions. Just make the red go green.
-
-**Refactor:** Now that the test is green, improve the code's structure. Rename variables, extract helpers, remove duplication. The tests stay green throughout. If they go red, you changed behavior — undo and try again.
-
-**Cycle time:** Each red-green-refactor cycle should take **5–20 minutes**. If you've been in "Red" for 30 minutes, your test is too ambitious — write a smaller one.
+Start with [ekolite-overview.md](ekolite-overview.md) if you want the big picture first, and [nullables-how-much-should-the-stub-know.md](../manual/nullables-how-much-should-the-stub-know.md) for the design question that comes up most once you start writing nulled infrastructure of your own.
 
 ---
 
-## 2. How It Works with Nullables (No Mocks)
+## 1. Red, Green, Refactor
 
-This project uses **Testing Without Mocks** (James Shore). There are no `vi.mock()`, no `vi.spyOn()`, no test doubles. Instead:
+Every piece of production code starts with a failing test. The loop has three phases.
 
-**Infrastructure wrappers** have two factories:
+**Red.** Write a test that describes the behaviour you want. Run it. It must fail. If it passes, either you wrote the wrong test or the behaviour already exists, and both are worth knowing before you write any code.
 
-- `create()` — connects to real external systems (MongoDB, file system, WebSocket)
-- `createNull()` — behaves identically but uses in-memory implementations
+**Green.** Write the simplest, dullest code that makes the test pass. No cleverness, no "while I am here" additions. Just make the red go green.
 
-See ADR-008 and ADR-009 for why we made this choice.
+**Refactor.** Now the test is green, improve the structure. Rename, extract, remove duplication. The tests stay green throughout. If they go red you changed behaviour, so undo and try again.
 
-### How Nullables work in each phase
-
-**In the Red phase** for a logic test:
-
-```ts
-// You instantiate real logic with Nulled infrastructure
-const mongo = MongoWrapper.createNull({ files: [{ _id: '1', name: 'a.bam' }] });
-const ws = WebSocketServer.createNull();
-const pubs = new Publications(mongo, ws);
-
-// You write an assertion about output or state
-const tracker = ws.trackMessages();
-// ... trigger behavior ...
-expect(tracker.messagesTo(client.id)).toContainEqual({ type: 'ready', id: 'sub1' });
-```
-
-**In the Green phase:** Implement the logic method. The Null infrastructure handles the external system behavior — you don't need to configure anything beyond seed data.
-
-**In the Refactor phase:** Extract helpers, rename for clarity, simplify the Null configuration. Tests stay green.
-
-### Output Tracking replaces spies
-
-| Traditional                                 | Nullables                                            |
-| ------------------------------------------- | ---------------------------------------------------- |
-| `vi.spyOn(ws, 'send')`                      | `ws.trackMessages()`                                 |
-| `expect(ws.send).toHaveBeenCalledWith(...)` | `expect(tracker.messagesTo(id)).toContainEqual(...)` |
-
-The difference: spies check _whether a function was called_. Output Tracking checks _what was produced_. You test state, not interactions.
-
-### The four kinds of tests in this project
-
-| Test Kind              | What It Tests                                        | Uses Real Systems? | Speed | When to Run    |
-| ---------------------- | ---------------------------------------------------- | ------------------ | ----- | -------------- |
-| **Narrow integration** | Infrastructure wrappers work with real MongoDB/fs/ws | Yes                | Slow  | CI or manually |
-| **Parity**             | Null version behaves same as real version            | Yes (runs both)    | Slow  | CI or manually |
-| **Sociable (logic)**   | Business logic with Nulled infrastructure            | No                 | Fast  | On every save  |
-| **Client-side**        | ReactiveStore, subscribe, call, upload               | No                 | Fast  | On every save  |
-
-See `ekolite-tdd.md` for the full test pyramid and file structure.
+A cycle should take five to twenty minutes. If you have been in red for half an hour, the test is too ambitious. Write a smaller one.
 
 ---
 
-## 3. Common Mistakes to Avoid
+## 2. How This Works Without Mocks
 
-| Mistake                                | Why It's Wrong                                                                                 | What to Do Instead                                              |
-| -------------------------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| Reaching for `vi.mock()`               | Breaks the Nullable contract; hides real behavior                                              | Write a `createNull()` with seed data                           |
-| Writing implementation before the test | You can't know the test is testing the right thing if it never failed                          | Always start with Red                                           |
-| Making the Green step clever           | You'll refactor later — clever code in Green means you're doing two things at once             | Write the dumbest code that passes                              |
-| Skipping Refactor because "it works"   | Technical debt accumulates; the whole point of Green being dumb is that Refactor makes it good | Always take the Refactor step, even if it's "nothing to change" |
+EkoLite follows [Testing Without Mocks](https://www.jamesshore.com/v2/projects/nullables/testing-without-mocks). There is no `vi.mock()` and no `vi.spyOn()` anywhere in the suite.
+
+Every infrastructure wrapper has two factories. `create()` connects to the real thing: MongoDB, the file system, a WebSocket server. `createNull()` returns an in-memory one behind the identical interface. Logic classes take their infrastructure through the constructor and cannot tell which kind they were handed.
+
+So a logic test instantiates the real logic class with nulled infrastructure, and everything that runs is real code. Nothing is stubbed out at the seams.
+
+### Output tracking replaces spies
+
+| Traditional                                 | Nullable                                   |
+| ------------------------------------------- | ------------------------------------------ |
+| `vi.spyOn(ws, 'send')`                      | `ws.trackMessages()`                       |
+| `expect(ws.send).toHaveBeenCalledWith(...)` | `expect(client.messages).toContainEqual()` |
+
+A spy asks whether a function was called. Output tracking asks what was produced. The second question survives a refactor, the first one does not.
+
+### The kinds of test in this project
+
+| Kind               | What it tests                                          | Real systems?  | Speed |
+| ------------------ | ------------------------------------------------------ | -------------- | ----- |
+| Narrow integration | An infrastructure wrapper against real Mongo, fs or ws | Yes            | Slow  |
+| Parity             | The nulled wrapper behaves like the real one           | Yes, runs both | Slow  |
+| Sociable           | Logic against nulled infrastructure                    | No             | Fast  |
+| Client             | ReactiveStore, subscriptions, calls, uploads           | No             | Fast  |
+
+Nullable tests and integration tests live in separate files, so the fast suite never touches the network or the disk.
 
 ---
 
-## 4. Worked Example: Methods.define and Methods.call
+## 3. The Mistakes That Cost the Most Time
 
-This walks through **Developer Story 4.A.1** from the backlog — the simplest logic class in the project. No infrastructure dependencies. Pure TDD.
-
-### Why this example
-
-`Methods` is the best teaching example because:
-
-- Zero infrastructure dependencies (no Mongo, no WebSocket)
-- Two behaviors to implement (define/call + error handling)
-- Two clean red-green-refactor cycles
-- Maps directly to Meteor's `Meteor.methods()` / `Meteor.call()` (see System Design, Concept #8 and #9)
+| Mistake                            | Why it hurts                                                                 | Instead                                                  |
+| ---------------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------- |
+| Reaching for `vi.mock()`           | Breaks the nullable contract and hides the real behaviour                    | Write a `createNull()` with seed data                    |
+| Writing the code before the test   | You cannot know a test tests the right thing if you never saw it fail        | Always start red                                         |
+| Being clever in green              | Green and refactor are two jobs. Doing both at once means doing neither well | Write the dullest code that passes                       |
+| Skipping refactor because it works | The whole reason green is allowed to be dull is that refactor comes next     | Take the step, even if the answer is "nothing to change" |
 
 ---
 
-### Cycle 1: Define and call a method
+## 4. Worked Example: Methods
 
-**RED** — Write the test first (`tests/logic/methods.test.ts`):
+`Methods` is the simplest logic class in the framework and it has no infrastructure at all, which makes it the clearest place to see the loop.
+
+### Cycle 1: define and call
+
+**Red.** The test comes first, in `tests/logic/methods.test.ts`:
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { Methods } from '../../server/logic/methods';
+import { Methods } from '../../server/logic/methods.ts';
 
 describe('Methods', () => {
   it('registers and calls a method', async () => {
     const methods = new Methods();
-    methods.define('echo', async (msg: string) => `echo: ${msg}`);
+    methods.define('echo', (msg) => Promise.resolve(`echo: ${String(msg)}`));
+
     const result = await methods.call('echo', ['hello']);
+
     expect(result).toBe('echo: hello');
   });
 });
 ```
 
-Run it: `vitest tests/logic/methods.test.ts`
+It fails: the module does not exist. That is red, and it is the right kind of red. The test says what we want before anything can possibly provide it.
 
-It fails: `Cannot find module '../../server/logic/methods'`. Good. That's Red.
-
-**What happened:** The module doesn't exist yet. The test describes the behavior we want: define a method by name, call it by name, get the result.
-
-**GREEN** — Write the minimum code (`server/logic/methods.ts`):
+**Green.** The dullest thing that passes:
 
 ```ts
-type MethodFn = (...args: any[]) => Promise<unknown>;
-
 export class Methods {
-  private registry = new Map<string, MethodFn>();
+  private methods = new Map<string, MethodFn>();
 
   define(name: string, fn: MethodFn): void {
-    this.registry.set(name, fn);
+    this.methods.set(name, fn);
   }
 
-  async call(name: string, params: unknown[]): Promise<unknown> {
-    const fn = this.registry.get(name)!;
-    return fn(...params);
+  async call(name: string, args: unknown[]): Promise<unknown> {
+    const method = this.methods.get(name);
+    return method(...args);
   }
 }
 ```
 
-Run the test. It passes. That's Green.
+A map of functions by name. Nothing more.
 
-**What happened:** A Map stores functions by name. `call()` looks up the function and invokes it with the params. Simplest thing that works.
+### Cycle 2: the unknown method
 
-**REFACTOR** — The code is small and clear. Export the `MethodFn` type so other modules can use it:
-
-```ts
-export type MethodFn = (...args: any[]) => Promise<unknown>;
-```
-
-Tests still pass. Done.
-
-**What happened:** We noticed `MethodFn` will be needed by `RpcHandler` later (see Story 4.B). Exporting it now is a small structural improvement.
-
----
-
-### Cycle 2: Error on unknown method
-
-**RED** — Add a second test:
+**Red.** What happens when nobody defined it?
 
 ```ts
 it('throws structured error for unknown method', async () => {
   const methods = new Methods();
+
   await expect(methods.call('nope', [])).rejects.toMatchObject({
     code: 404,
     message: 'Method not found: nope',
@@ -185,198 +121,75 @@ it('throws structured error for unknown method', async () => {
 });
 ```
 
-Run it. It fails: `Cannot read properties of undefined (reading 'apply')` because `registry.get()` returns `undefined` and we call `fn(...params)` on it. That's Red.
+This fails on `method is not a function`, because the map returned `undefined` and we called it anyway. Red again, and note what the test just did: it found a real hole in the code we just wrote, which is exactly what it is for.
 
-**What happened:** We discovered the current code doesn't handle missing methods. The test defines what should happen: a structured error with code 404.
-
-**GREEN** — Add a guard clause:
+**Green.** A guard:
 
 ```ts
-async call(name: string, params: unknown[]): Promise<unknown> {
-  const fn = this.registry.get(name);
-  if (!fn) {
-    throw { code: 404, message: `Method not found: ${name}` };
+async call(name: string, args: unknown[]): Promise<unknown> {
+  const method = this.methods.get(name);
+  if (!method) {
+    throw methodNotFound(name);
   }
-  return fn(...params);
+  return method(...args);
 }
 ```
 
-Test passes. That's Green.
+**Refactor.** `methodNotFound` moves to `shared/types.ts`, next to the error shape it builds, because the client needs to recognise that error too and both ends should agree on it in one place.
 
-**What happened:** One `if` statement. The error shape matches `MeteorLightError` from the spec. No extra framework — just a plain object.
+The class in the repo today is those two cycles plus one more, which refuses to redefine a method that already exists. Three tests, three behaviours, and every one of them failed before it passed.
 
-**REFACTOR** — Extract error creation into a helper:
+---
+
+## 5. Worked Example: Publications, With Nulled Infrastructure
+
+`Publications` depends on MongoDB and a WebSocket server. This is where mocking is the usual reflex, and where nullables earn their keep.
+
+**Red.** No mocks. Real `Publications`, nulled infrastructure with seed data:
 
 ```ts
-function methodNotFound(name: string) {
-  return { code: 404, message: `Method not found: ${name}` };
-}
-```
+import { Publications } from '../../server/logic/publications.ts';
+import { MongoWrapper } from '../../server/infrastructure/mongo.ts';
+import { WebSocketWrapper } from '../../server/infrastructure/websocket.ts';
 
-Tests still pass. Two cycles, two behaviors, clean code. That's the loop.
+it('sends error when subscribing to unknown publication', async () => {
+  const mongo = MongoWrapper.createNull();
+  const ws = WebSocketWrapper.createNull();
+  const client = ws.simulateConnection();
+  const pubs = new Publications(mongo, ws);
 
----
+  await pubs.handleMessage(client.id, {
+    type: 'subscribe',
+    id: 'sub1',
+    name: 'nonexistent',
+  });
 
-### What this connects to
-
-| What we just built                | Meteor equivalent                    | Backlog reference     |
-| --------------------------------- | ------------------------------------ | --------------------- |
-| `Methods.define('echo', fn)`      | `Meteor.methods({ echo() { ... } })` | Developer Story 4.A.1 |
-| `Methods.call('echo', ['hello'])` | `Meteor.call('echo', 'hello')`       | Developer Story 4.A.1 |
-| Structured error `{ code: 404 }`  | `Meteor.Error('not-found', ...)`     | Developer Story 4.A.2 |
-
-Next step in the backlog: Story 4.B wires this to WebSocket via `RpcHandler`, so clients can call methods over the network.
-
----
-
-## 5. Worked Example: Publications with Nulled Infrastructure
-
-This walks through **Developer Story 3.A.2** — the first story that uses Nulled infrastructure. It shows how the Red-Green-Refactor loop works when external systems are involved.
-
-### Why this example
-
-`Publications.handleSubscribe` depends on both `MongoWrapper` and `WebSocketServer`. In traditional testing you'd mock both. Here we use `createNull()` instead.
-
----
-
-### Cycle 1: Send initial documents on subscribe
-
-**RED** — Write the test (`tests/logic/publications.test.ts`):
-
-```ts
-import { describe, it, expect } from 'vitest';
-import { Publications } from '../../server/logic/publications';
-import { MongoWrapper } from '../../server/infrastructure/mongo';
-import { WebSocketServer } from '../../server/infrastructure/websocket';
-
-describe('Publications', () => {
-  it('sends initial documents on subscribe', async () => {
-    // Arrange — Nulled infrastructure with seed data
-    const mongo = MongoWrapper.createNull({
-      files: [{ _id: '1', name: 'existing.bam' }],
-    });
-    const ws = WebSocketServer.createNull();
-    const pubs = new Publications(mongo, ws);
-    const tracker = ws.trackMessages();
-
-    // Define a publication
-    pubs.define('files.all', () => ({ collection: 'files', query: {} }));
-
-    // Act — simulate a client subscribing
-    const client = ws.simulateConnection();
-    ws.simulateMessage(client.id, {
-      type: 'subscribe',
-      id: 'sub1',
-      name: 'files.all',
-    });
-
-    // Assert — client received the document and a ready signal
-    expect(tracker.messagesTo(client.id)).toContainEqual({
-      type: 'added',
-      collection: 'files',
-      id: '1',
-      fields: { name: 'existing.bam' },
-    });
-    expect(tracker.messagesTo(client.id)).toContainEqual({
-      type: 'ready',
-      id: 'sub1',
-    });
+  expect(client.messages).toContainEqual({
+    type: 'error',
+    id: 'sub1',
+    error: { code: 404, message: 'Unknown publication: nonexistent' },
   });
 });
 ```
 
-Run it. Fails because `Publications` class doesn't exist. Red.
+Read what that test is made of. `MongoWrapper.createNull()` is a real MongoWrapper with an in-memory store behind it. `ws.simulateConnection()` hands back a stubbed client that records what was sent to it. `Publications` is the real class, running its real code. The only thing that is not real is the database and the socket, and they are not stubs of MongoWrapper, they are MongoWrapper.
 
-**What's different from the Methods example:**
+The assertion is about what came out, `client.messages`, not about which functions were called on the way. That is the difference that matters. Rename a private method tomorrow, and this test does not notice.
 
-- We create Nulled `MongoWrapper` with seed data — no real MongoDB
-- We create Nulled `WebSocketServer` — no real WebSocket
-- We use `simulateConnection()` and `simulateMessage()` — behavior simulation
-- We use `trackMessages()` — output tracking instead of spies
-- All of this is **real code** running in-memory, not mocks
-
-**GREEN** — Implement Publications:
+For the happy path the nulled Mongo carries seed data:
 
 ```ts
-export class Publications {
-  private definitions = new Map<string, PublicationDef>();
-
-  constructor(
-    private mongo: MongoWrapper,
-    private ws: WebSocketServer,
-  ) {
-    this.ws.onMessage((clientId, msg) => {
-      if (msg.type === 'subscribe') {
-        this.handleSubscribe(clientId, msg.id, msg.name);
-      }
-    });
-  }
-
-  define(name: string, queryFn: () => MongoQuery): void {
-    this.definitions.set(name, queryFn);
-  }
-
-  private async handleSubscribe(clientId: string, subId: string, name: string): Promise<void> {
-    const queryFn = this.definitions.get(name);
-    if (!queryFn) {
-      this.ws.send(clientId, {
-        type: 'error',
-        id: subId,
-        error: { code: 404, message: `Unknown publication: ${name}` },
-      });
-      return;
-    }
-
-    const { collection, query } = queryFn();
-    const docs = await this.mongo.find(collection, query);
-
-    for (const doc of docs) {
-      const { _id, ...fields } = doc;
-      this.ws.send(clientId, { type: 'added', collection, id: _id, fields });
-    }
-
-    this.ws.send(clientId, { type: 'ready', id: subId });
-  }
-}
+const mongo = MongoWrapper.createNull({
+  find: [[{ _id: '1', name: 'existing.bam' }]],
+});
 ```
 
-Test passes. Green.
-
-**REFACTOR** — Extract message builders:
-
-```ts
-function toAddedMsg(collection: string, doc: any): DataMsg {
-  const { _id, ...fields } = doc;
-  return { type: 'added', collection, id: _id, fields };
-}
-
-function toReadyMsg(subId: string): ReadyMsg {
-  return { type: 'ready', id: subId };
-}
-```
-
-Tests still pass. Clean.
-
-**Key insight:** The test is fast (no I/O), readable (Arrange-Act-Assert), and tests real behavior (actual Publications logic running with in-memory infrastructure). No mocks, no spies, no fragility.
+Subscribe, and the client receives an `added` for the document and a `ready` to say the initial set is complete. Same structure, no mocks, and it runs in milliseconds because nothing leaves the process.
 
 ---
 
-## 6. How to Read a Developer Story's Sub-stories
+## 6. Why This Holds Up
 
-Every developer story in the backlog (tracked in Linear; the original written backlog is archived at `../archive/ekolite-backlog.md`) has sub-stories labeled **a**, **b**, **c**:
+The tests in this repository survived a series of refactors that would have destroyed a spy-based suite: infrastructure wrappers rewritten to the nullable pattern one at a time, the shutdown path rebuilt around `AsyncDisposableStack`, the whole graph pulled into an `App` class. Behaviour was asserted, not implementation, so the tests kept telling the truth while the code underneath them moved.
 
-| Sub-story | Phase    | What you do                                                  |
-| --------- | -------- | ------------------------------------------------------------ |
-| **a**     | Red      | Write the failing test. Run it. See it fail.                 |
-| **b**     | Green    | Write the minimum code to make it pass. Run it. See it pass. |
-| **c**     | Refactor | Improve structure. Run tests. Still green.                   |
-
-Example from backlog:
-
-> **Developer Story 0.A.1: Basic CRUD operations**
->
-> - Sub-story 0.A.1a — Red: Write narrow integration test: insert, find, assert length 1
-> - Sub-story 0.A.1b — Green: Implement MongoWrapper with real driver
-> - Sub-story 0.A.1c — Refactor: Extract connection logic, write parity test
-
-Each sub-story is one phase of the loop. You do them in order: a → b → c → move to next developer story.
+That is the return on writing them this way, and it does not show up on the day you write them. It shows up on the day you change your mind.
