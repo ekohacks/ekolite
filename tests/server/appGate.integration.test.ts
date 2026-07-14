@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createServer } from '../../server/index.ts';
 import { App } from '../../server/app.ts';
+import { defineDemo } from '../../server/demo.ts';
 import { WebSocketWrapper } from '../../server/infrastructure/websocket.ts';
 import { ClientSocketWrapper } from '../../client/clientSocket.ts';
 import { ConnectionManager } from '../../client/connectionManager.ts';
@@ -48,6 +49,10 @@ describe('the gate: the full pipeline runs through App over a real socket', () =
       findResponses: [[file], [file]],
       ws: WebSocketWrapper.create(),
     });
+    // The app no longer arrives with files.all and runCountC on it, so the gate asks for
+    // them the same way start.ts does. This is the point of 8.E: what the demo needs, the
+    // demo says.
+    defineDemo(app);
 
     server = await createServer(app);
     await server.listen({ port: 0 });
