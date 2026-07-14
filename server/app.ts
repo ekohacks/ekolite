@@ -87,11 +87,11 @@ export class App {
       throw new Error('App.createNull received both mongo and findResponses; use one or the other');
     }
 
-    const mongo = nullConfig.mongo
-      ? nullConfig.mongo
-      : nullConfig.findResponses
+    const mongo =
+      nullConfig.mongo ??
+      (nullConfig.findResponses
         ? MongoWrapper.createNull({ find: nullConfig.findResponses })
-        : MongoWrapper.createNull();
+        : MongoWrapper.createNull());
 
     return new App({
       mongo,
