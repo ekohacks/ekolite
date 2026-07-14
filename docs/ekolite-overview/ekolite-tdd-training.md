@@ -2,7 +2,7 @@
 
 Every line of EkoLite was written test first, and there is no mocking library in the project. This walks through how that works in practice, using two pieces of the framework as they were actually built.
 
-Start with [ekolite-overview.md](ekolite-overview.md) if you want the big picture first, and [nullables-how-much-should-the-stub-know.md](../manual/nullables-how-much-should-the-stub-know.md) for the design question that comes up most once you start writing nulled infrastructure of your own.
+Start with [ekolite-overview.md](ekolite-overview.md) if you want the big picture first. [The TDD engineering guide](ekolite-tdd.md) is the reference behind this tour: the wrappers, their signatures, and how contract tests keep a nulled wrapper honest. And [nullables-how-much-should-the-stub-know.md](../manual/nullables-how-much-should-the-stub-know.md) takes on the design question that comes up most once you start writing nulled infrastructure of your own.
 
 ---
 

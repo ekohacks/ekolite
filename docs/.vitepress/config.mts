@@ -13,7 +13,6 @@ export default defineConfig({
   srcExclude: [
     'ekolite-overview/ekolite-epics.md',
     'ekolite-overview/ekolite-customer.md',
-    'ekolite-overview/ekolite-tdd.md',
     'archive/**',
   ],
   themeConfig: {
@@ -43,6 +42,7 @@ export default defineConfig({
         text: 'Manual',
         items: [
           { text: 'Test-driven development', link: '/ekolite-overview/ekolite-tdd-training' },
+          { text: 'TDD engineering guide', link: '/ekolite-overview/ekolite-tdd' },
           {
             text: 'Nullables: how much should the stub know?',
             link: '/manual/nullables-how-much-should-the-stub-know',
