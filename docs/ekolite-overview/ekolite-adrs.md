@@ -1,139 +1,97 @@
-# ekolite -- Architecture Decision Records
+# EkoLite, Architecture Decision Records
 
 Start with [ekolite-overview.md](ekolite-overview.md) for the big picture.
 
----
-
-## ADR-001: Replace Meteor with a Custom Lightweight Stack
-
-**Decision:** Build ekolite, a ~820-line replacement using Fastify, MongoDB driver, WebSocket, and Vite.
-**Why:** Meteor installs 69 packages (most unused), has slow rebuilds, and locks us into its ecosystem. Our app only uploads BAM files, runs a Python script, and displays charts -- we don't need accounts, sessions, or optimistic UI.
-**Backlog impact:**
-
-- All 7 epics exist because of this decision.
-- Risk mitigated by keeping the framework small, fully typed, and test-driven.
+Each record states what was decided and why. They are kept as written, so a decision that later moved is corrected in place rather than quietly deleted.
 
 ---
 
-## ADR-002: Fastify as HTTP Server (Not Express)
+## ADR-001: Replace Meteor With a Lightweight Stack
 
-**Decision:** Use Fastify for its speed, first-class plugin architecture, built-in validation, and official WebSocket/multipart plugins.
-**Why:** We need an HTTP server for the client app and file uploads. Fastify is 2-3x faster than Express, has encapsulated plugins instead of sequential middleware, and ships with first-class TypeScript support.
-**Backlog impact:**
+**Decision:** Replace Meteor with EkoLite: roughly 3,500 lines of TypeScript over Fastify, the MongoDB driver, WebSocket and Vite.
 
-- Epic 1 (Story 1.A) sets up Fastify; Epic 2 (Story 2.A) uses @fastify/websocket; Epic 5 (Story 5.C) uses @fastify/multipart.
+**Why:** The application this was built for uploads genomic data files, runs an analysis script over them and displays the results. It needs live data and remote calls. It does not need accounts, sessions, optimistic UI or a client-side query engine. Meteor ships all of that, installs 69 packages to do it, takes its own build system with it, and rebuilds slowly. The cost of owning a small stack turned out to be lower than the cost of carrying a large one.
 
 ---
 
-## ADR-003: Mini-DDP Instead of Full DDP
+## ADR-002: Fastify as HTTP Server, Not Express
 
-**Decision:** Implement Mini-DDP with 6 message types instead of the full ~15-type DDP protocol.
-**Why:** Our app only uses subscribe/unsubscribe, method/result/error, and added/changed/removed/ready. We don't need the connect handshake, ping/pong keepalive, session IDs, or reconnect replay.
-**Backlog impact:**
+**Decision:** Use Fastify for its speed, plugin architecture, built-in validation and official WebSocket and multipart plugins.
 
-- Story 0.B builds the WebSocket wrapper.
-- Stories 3.A.1-3.A.4 implement pub/sub; Stories 4.B.1-4.B.2 implement RPC.
+**Why:** The framework needs an HTTP server for the client application and for file uploads. Fastify is significantly faster than Express, has encapsulated plugins rather than sequential middleware, and ships first-class TypeScript support.
 
 ---
 
-## ADR-004: ReactiveStore Instead of Minimongo
+## ADR-003: Mini DDP Instead of Full DDP
 
-**Decision:** Replace Minimongo with a `Map<string, T>` that responds to added/changed/removed messages and emits a 'change' event.
-**Why:** Our client code does exactly one thing: `UserFiles.find({})` -- get all files with no filter or sort. Minimongo's full MongoDB query API is thousands of lines we don't need. ReactiveStore is ~90 lines.
-**Backlog impact:**
+**Decision:** Implement Mini DDP: eleven message types against roughly fifteen in full DDP, and none of the session machinery.
 
-- Stories 3.B.1-3.B.3 build the ReactiveStore.
+`subscribe`, `unsubscribe`, `method` and `ping` go from client to server. `ready`, `added`, `changed`, `removed`, `result`, `error` and `pong` come back.
+
+**Why:** The saving is not really in the message count, it is in what the protocol refuses to do. There is no connect handshake, no session identity, no merge box reconciling overlapping subscriptions, and no reconnect replay. A client that loses its socket re-subscribes rather than replaying a session log.
+
+**Later correction:** This decision originally dropped `ping` and `pong` too, on the grounds that the WebSocket library keeps the connection alive by itself. That turned out to be wrong. A TCP connection can be dead while both ends still believe it is open, and the library's own keepalive does not tell the application. The heartbeat added `ping` and `pong` at the application level so a client can detect a silently dead socket and close it. The two message types are in the protocol because that problem is real.
+
+---
+
+## ADR-004: ReactiveStore Instead of a Client-Side Database
+
+**Decision:** Give the client a `ReactiveStore`: a `Map<string, T>` that responds to `added`, `changed` and `removed` messages and emits a change event.
+
+**Why:** The client asks one question: give me the documents in this collection. A full query engine mirrored into the browser is thousands of lines to answer a question nobody asked. The store is about ninety lines. Anything that needs filtering or sorting can do it on the server, where the data already lives.
 
 ---
 
 ## ADR-005: MongoDB Change Streams Instead of Oplog Tailing
 
-**Decision:** Use MongoDB change streams to power pub/sub instead of tailing the raw oplog.
-**Why:** Change streams are a documented, supported API (MongoDB 3.6+) that works with the standard driver. Oplog tailing requires Meteor-specific parsing and replica set configuration we don't need to own.
-**Backlog impact:**
+**Decision:** Use MongoDB change streams to power pub/sub rather than tailing the raw oplog.
 
-- Story 0.A.2 implements change stream support in MongoWrapper.
-- Story 3.A.3 wires it to Publications.
+**Why:** Change streams are a documented, supported API that works with the standard driver. Oplog tailing, which is how Meteor did it, means parsing an internal log and owning replica set configuration that the application otherwise has no reason to care about.
 
 ---
 
-## ADR-006: @fastify/multipart Instead of ostrio:files
+## ADR-006: Standard HTTP Multipart Uploads
 
-**Decision:** Use standard HTTP multipart uploads via @fastify/multipart with XHR progress events on the client.
-**Why:** ostrio:files adds DDP chunking, resumable uploads, and its own FilesCollection abstraction -- complexity we don't need for small-to-medium BAM files. Standard HTTP upload works with any client (curl, Postman, not just our app).
-**Backlog impact:**
+**Decision:** Upload files with standard HTTP multipart through `@fastify/multipart`, with progress reported from the browser's own upload events.
 
-- Story 0.C builds FileStorage.
-- Stories 5.A-5.D build the upload pipeline; Stories 5.C.1-5.C.2 build the Fastify route.
+**Why:** Uploading over the WebSocket protocol means chunking, resumption and a bespoke file collection abstraction. Standard HTTP upload is simpler, and it works from anything that speaks HTTP, including curl and Postman, not only from the application's own client.
 
 ---
 
-## ADR-007: Vite Instead of Meteor's Build System
+## ADR-007: Vite Instead of a Bespoke Bundler
 
-**Decision:** Use Vite for client builds, tsx for dev server, and tsc for type checking only.
-**Why:** Meteor's custom bundler transpiles 69 packages via Babel with seconds-long rebuilds and full-page reloads. Vite uses esbuild (100x faster than Babel) and provides true HMR -- sub-100ms updates without page reload.
-**Backlog impact:**
+**Decision:** Use Vite for client builds, tsx for the dev server, and tsc for type checking only.
 
-- Story 1.B sets up Vite config.
-- Story 1.A.1 serves the Vite output.
+**Why:** Meteor's custom bundler transpiled its whole package set through Babel, took seconds to rebuild, and reloaded the entire page on a change. It was the single biggest drag on the development loop. Vite uses esbuild, which is orders of magnitude faster than Babel, and gives true hot module replacement rather than reloading the whole page. Type checking is a separate step on purpose: the dev loop strips types without checking them, so it stays fast, and `tsc --noEmit` is the gate.
 
 ---
 
-## ADR-008: Testing Without Mocks (Nullable Pattern)
+## ADR-008: Testing Without Mocks, the Nullable Pattern
 
-**Decision:** Use James Shore's Nullable pattern -- every infrastructure wrapper has `create()` (real) and `createNull()` (in-memory, same interface), with parity tests ensuring identical behavior.
-**Why:** Traditional mocks drift from reality, spy-based assertions break on refactors, and mock setup is verbose. Nullable infrastructure gives fast, reliable tests that catch real bugs and survive refactoring. Only vitest needed -- no mock libraries.
-**Backlog impact:**
+**Decision:** Use James Shore's Nullable pattern. Every infrastructure wrapper has `create()` for the real thing and `createNull()` for an in-memory one behind the same interface, with parity tests holding the two to identical behaviour.
 
-- All of Smoke Test 0 (Stories 0.A-0.D) builds wrappers with Nullables.
-- Every subsequent story uses them. Training: see `ekolite-tdd-training.md` Section 2.
+**Why:** Mocks drift from reality, spy-based assertions break whenever the code is refactored, and mock setup buries the point of the test. Nullable infrastructure gives fast tests that exercise real logic against substitutable edges, survive refactoring, and need no mocking library. There is vitest, and nothing else.
 
 ---
 
-## ADR-009: A-Frame Architecture (Logic / Infrastructure Separation)
+## ADR-009: A-Frame Architecture, Logic Separated From Infrastructure
 
-**Decision:** Separate infrastructure wrappers (external system access) from logic classes (constructor injection), wired together by an Application layer (`App`).
-**Why:** If logic classes directly import infrastructure they can't be tested without the real database. With A-Frame, `App.create()` wires real wrappers for production and `App.createNull()` wires Null wrappers for tests. Logic classes never know which kind they received.
-**Backlog impact:**
+**Decision:** Separate infrastructure wrappers, which reach outside the process, from logic classes, which receive their collaborators through the constructor. An application layer, `App`, wires the two together.
 
-- Directory structure follows this: `server/infrastructure/`, `server/logic/`.
-- Story 7.B wires it all in `App`.
+**Why:** Logic that imports its own infrastructure cannot be tested without the real database. With the wiring pulled out, `App.create()` assembles real wrappers for production and `App.createNull()` assembles nulled ones for tests, and the logic never learns which kind it was handed. The assembly that boots in production is the assembly the tests drive.
 
 ---
 
-## ADR-010: TypeScript for the Full Stack
+## ADR-010: TypeScript Everywhere
 
-**Decision:** Write ekolite in TypeScript with shared types in `shared/types.ts` used by both server and client.
-**Why:** Catch errors at compile time, self-documenting APIs, full IDE support.
-**Backlog impact:**
+**Decision:** Write EkoLite in TypeScript, with the wire protocol types in `shared/protocol.ts` used by both server and client.
 
-- All code. `tsc --noEmit` checks types; Vite and tsx strip types without checking for fast dev.
+**Why:** The protocol is the contract between the two halves. If it is typed in one place and both ends import it, a message that changes shape breaks the build rather than a user's session.
 
 ---
 
-## ADR-011: Build the Framework (Don't Buy)
+## ADR-011: Build the Framework Rather Than Adopt One
 
-**Decision:** Build ekolite ourselves rather than adopting tRPC, Convex, Socket.IO, or Supabase Realtime.
-**Why:** ekolite serves a dual purpose: a lightweight biotech real-time stack for genomic data apps, and the teaching platform for the ekohacks coding dojo and bootcamp. Building it teaches Testing Without Mocks, TDD, XP practices, WebSocket protocols, and how to build a framework from first principles.
-**Backlog impact:**
+**Decision:** Build EkoLite rather than assemble the same capability from tRPC, Convex, Socket.IO or Supabase Realtime.
 
-- The building process is the product -- smoke tests, TDD training, and worked examples are bootcamp material.
-- ~820 lines is a feature: small enough for a bootcamp student to read and understand the entire framework.
-
----
-
-## ADR Summary -> Backlog Impact
-
-| ADR | Key Decision          | Primary Backlog Impact                                             |
-| :-: | --------------------- | ------------------------------------------------------------------ |
-| 001 | Replace Meteor        | All epics                                                          |
-| 002 | Fastify               | Epic 1 (1.A), Epic 2 (2.A), Epic 5 (5.C)                           |
-| 003 | Mini-DDP              | Story 0.B, Epic 3 (3.A), Epic 4 (4.B)                              |
-| 004 | ReactiveStore         | Epic 3 (3.B)                                                       |
-| 005 | Change streams        | Story 0.A.2, Epic 3 (3.A.3)                                        |
-| 006 | @fastify/multipart    | Story 0.C, Epic 5 (5.A-5.D)                                        |
-| 007 | Vite                  | Epic 1 (1.B)                                                       |
-| 008 | Testing Without Mocks | All of Smoke Test 0, all test code                                 |
-| 009 | A-Frame architecture  | Directory structure, Story 7.B                                     |
-| 010 | TypeScript            | All code                                                           |
-| 011 | Build don't buy       | All -- the framework is the ekohacks product + bootcamp curriculum |
+**Why:** The requirement is narrow and long-lived: live data from MongoDB, remote calls, file uploads, and nothing else. An adopted stack brings its own model of all three, and the parts that do not fit are the parts you end up fighting for years. A framework small enough to read end to end is a framework you can change when the requirement changes. That is the trade being made: more code owned, in exchange for owning it.
