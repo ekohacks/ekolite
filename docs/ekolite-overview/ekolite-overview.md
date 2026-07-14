@@ -1,6 +1,6 @@
 # EkoLite — Overview
 
-A ~820-line real-time backend framework for biotech apps. Built with TypeScript, tested without mocks.
+A small real-time backend framework, around 3,500 lines of TypeScript across server, client and shared. Tested without mocks.
 
 ---
 
@@ -11,7 +11,7 @@ EkoLite is a lightweight real-time backend framework. Five standard tools do the
 | Capability     | How                                             |
 | -------------- | ----------------------------------------------- |
 | HTTP server    | Fastify                                         |
-| Real-time data | WebSocket + Mini-DDP (6 message types)          |
+| Real-time data | WebSocket + Mini-DDP (11 message types)         |
 | Database       | MongoDB driver + change streams                 |
 | Client data    | ReactiveStore (a simple Map that stays in sync) |
 | File uploads   | @fastify/multipart                              |
@@ -44,16 +44,17 @@ This is how we test without mocks. The logic layer doesn't know which one it's t
 
 ## The Protocol
 
-Client and server talk over WebSocket with 6 message types:
+Client and server talk over WebSocket with 11 message types:
 
 ```
 Client → Server:         Server → Client:
   subscribe                ready
   unsubscribe              added / changed / removed
   method                   result / error
+  ping                     pong
 ```
 
-Full DDP has ~15 message types. We use 6.
+Full DDP has ~15 message types. The saving is less in the count than in what is absent: no connect handshake, no session identity, no merge box, no latency compensation.
 
 ---
 
@@ -92,10 +93,9 @@ When Smoke Test 7 passes, the framework covers everything a real-time, data-driv
 
 Read these when you need detail on a specific topic:
 
-| Doc                        | What's in it                                          |
-| -------------------------- | ----------------------------------------------------- |
-| `ekolite-system-design.md` | How the framework works, concept by concept           |
-| `ekolite-adrs.md`          | Architecture decisions and why we made them           |
-| `ekolite-tdd-training.md`  | Red-green-refactor tutorial with worked examples      |
-| `ekolite-tdd.md`           | Nullable code reference, test pyramid, test structure |
-| `ekolite-spec.md`          | API signatures and type definitions                   |
+| Doc                                                | What's in it                                       |
+| -------------------------------------------------- | -------------------------------------------------- |
+| [System design](ekolite-system-design.md)          | How the framework is put together, and why         |
+| [Architecture decisions](ekolite-adrs.md)          | What was decided, and what it cost                 |
+| [Test-driven development](ekolite-tdd-training.md) | The red, green, refactor loop with worked examples |
+| [Specification](ekolite-spec.md)                   | API signatures and type definitions                |

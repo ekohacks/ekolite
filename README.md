@@ -38,7 +38,8 @@ Verify the packaged shape from a consumer's point of view with `npm run test:pac
 - **RPC methods** (`Methods`): register a named server method, call it over the socket, and get a typed result or a structured error back through the `method` / `result` / `error` messages
 - **File storage over HTTP** (`Files`): `POST /api/files` saves the bytes and inserts a document that streams into the live list through pub/sub; `GET /api/files/:id` streams them back
 - **Client stack**: `ClientSocketWrapper` (nullable WebSocket client), `ConnectionManager` (subscription lifecycle) and `ReactiveStore` (client side collection state)
-- **Mini DDP protocol** ([`shared/protocol.ts`](shared/protocol.ts)): six message types, typed end to end
+- **Mini DDP protocol** ([`shared/protocol.ts`](shared/protocol.ts)): eleven message types, typed end to end
+- **Heartbeat** (`ping` / `pong`): a socket can die while both ends still think it is open, so the client pings and closes a connection that stops answering
 - **Graceful shutdown** (`Shutdown`): on a stop signal, or a shutdown message from a supervisor, it stops taking requests, closes the streams, drops the database connection, and exits cleanly
 - **Live boot** (`start.ts`): real Mongo, websocket, publications, methods and file store, with a runnable browser demo at [`client/demo/live.html`](client/demo/live.html)
 
@@ -93,18 +94,20 @@ ekolite/
 
 ## Mini DDP protocol
 
-Six message types, against roughly fifteen in full DDP:
+Eleven message types, against roughly fifteen in full DDP. The saving is less in the count than in what is absent: no connect handshake, no session identity, no merge box, no latency compensation.
 
 ```
 Client → Server:
   { type: 'subscribe', id, name, params? }
   { type: 'unsubscribe', id }
   { type: 'method', id, name, params }      // handled by the method registry
+  { type: 'ping', id? }                     // heartbeat
 
 Server → Client:
   { type: 'ready', id, collection }
   { type: 'added' | 'changed' | 'removed', collection, id, fields? }
   { type: 'result' | 'error', id, ... }
+  { type: 'pong', id? }
 ```
 
 ## Testing
