@@ -55,7 +55,10 @@ function main() {
     run('npm', ['init', '-y'], { cwd: dir });
     run('npm', ['install', tarball], { cwd: dir });
 
-    // 3. A consumer that knows only the published package.
+    // 3. A consumer that knows only the published package. It defines its own surface,
+    //    and it must inherit none of EkoLite's: a fresh app carries no files.all
+    //    publication, no echo and no runCountC. Those belong to the demo, which boots in
+    //    start.ts, not to the framework a consumer installs.
     const consumer = [
       "import { App } from 'ekolite';",
       '',
@@ -63,6 +66,13 @@ function main() {
       "app.methods.define('sum', (a, b) => a + b);",
       "const result = await app.methods.call('sum', [2, 3]);",
       'console.log(`sum(2,3)=${result}`);',
+      '',
+      "for (const inherited of ['echo', 'runCountC']) {",
+      '  const outcome = await app.methods',
+      '    .call(inherited, [])',
+      "    .then(() => 'defined', (err) => (err?.code === 404 ? 'absent' : 'defined'));",
+      '  console.log(`${inherited}=${outcome}`);',
+      '}',
     ].join('\n');
     writeFileSync(join(dir, 'consumer.mjs'), consumer);
 
@@ -70,6 +80,14 @@ function main() {
     const out = run('node', ['consumer.mjs'], { cwd: dir }).trim();
     if (!out.includes('sum(2,3)=5')) {
       throw new Error(`unexpected consumer output:\n${out}`);
+    }
+    for (const inherited of ['echo', 'runCountC']) {
+      if (!out.includes(`${inherited}=absent`)) {
+        throw new Error(
+          `a fresh App.createNull() still carries EkoLite's own '${inherited}' method.\n` +
+            `The framework is shipping its demo as if it were the framework.\n${out}`,
+        );
+      }
     }
 
     // 5. The shipped types must resolve from the consumer side: every declaration file
