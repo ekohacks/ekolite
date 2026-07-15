@@ -51,6 +51,7 @@ function main() {
 
   // 2. Install the tarball into a fresh project that has never seen this repo.
   const dir = mkdtempSync(join(tmpdir(), 'ekolite-consumer-'));
+  let clientDir;
   try {
     run('npm', ['init', '-y'], { cwd: dir });
     run('npm', ['install', tarball], { cwd: dir });
@@ -97,7 +98,10 @@ function main() {
     const distDir = join(dir, 'node_modules', 'ekolite', 'dist');
     const danglingTypes = readdirSync(distDir, { recursive: true })
       .filter((name) => typeof name === 'string' && name.endsWith('.d.ts'))
-      .map((name) => ({ name, hits: readFileSync(join(distDir, name), 'utf8').match(/['"]\.\.?\/[^'"]*\.ts['"]/g) }))
+      .map((name) => ({
+        name,
+        hits: readFileSync(join(distDir, name), 'utf8').match(/['"]\.\.?\/[^'"]*\.ts['"]/g),
+      }))
       .filter((file) => file.hits);
     if (danglingTypes.length > 0) {
       const detail = danglingTypes.map((f) => `  ${f.name}: ${f.hits.join(', ')}`).join('\n');
@@ -139,13 +143,45 @@ function main() {
     );
     run(TSC, ['--noEmit', '-p', 'tsconfig.json'], { cwd: dir });
 
+    // 7. A consumer serves their OWN client through createServer. This is the packaged
+    //    path the App checks above never touch: createServer runs from node_modules/ekolite,
+    //    where the demo root it used to hardcode resolves to a directory that is not there,
+    //    so every static request 404s and the server still looks healthy. Pointed at a
+    //    directory of the consumer's own, it has to return their file. app.ws is the only
+    //    socket a consumer can reach, since the wrapper itself is not exported.
+    clientDir = mkdtempSync(join(tmpdir(), 'ekolite-client-'));
+    writeFileSync(join(clientDir, 'app.html'), '<!-- the consumer app -->');
+    writeFileSync(
+      join(dir, 'serve-consumer.mjs'),
+      [
+        "import { App, createServer } from 'ekolite';",
+        '',
+        'const app = App.createNull();',
+        `const server = await createServer({ ws: app.ws, staticRoot: ${JSON.stringify(clientDir)} });`,
+        "const res = await server.inject({ method: 'GET', url: '/app.html' });",
+        'console.log(`status=${res.statusCode}`);',
+        'console.log(res.body.trim());',
+        'await server.close();',
+      ].join('\n'),
+    );
+    const served = run('node', ['serve-consumer.mjs'], { cwd: dir }).trim();
+    if (!served.includes('status=200') || !served.includes('<!-- the consumer app -->')) {
+      throw new Error(
+        `a consumer could not serve their own client through createServer:\n${served}`,
+      );
+    }
+
     console.log('package smoke: PASS');
     console.log(`  consumer said: ${out}`);
     console.log('  declarations resolve to shipped files only');
     console.log('  a TS consumer compiles against ekolite, ekolite/shared and ekolite/client');
+    console.log('  a consumer serves their own client through createServer');
   } finally {
     rmSync(dir, { recursive: true, force: true });
     rmSync(tarball, { force: true });
+    if (clientDir) {
+      rmSync(clientDir, { recursive: true, force: true });
+    }
   }
 }
 

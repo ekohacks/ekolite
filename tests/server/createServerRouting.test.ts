@@ -1,4 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { createServer } from '../../server/index.ts';
 import { WebSocketWrapper } from '../../server/infrastructure/websocket.ts';
 import { MongoWrapper } from '../../server/infrastructure/mongo.ts';
@@ -95,5 +98,47 @@ describe('createServer routes inbound subscriptions into publications', () => {
         result: 'echo: hello',
       });
     });
+  });
+});
+
+// The static root is the caller's decision, not EkoLite's. createServer used to hardcode
+// its own demo directory, which meant a consumer could only ever serve our demo, and only
+// from the source layout where that path happened to resolve. These pin the two halves of
+// the new contract: a root the caller passes is served, and no root serves nothing rather
+// than silently 404ing while looking configured.
+describe('createServer serves the static root the caller chooses', () => {
+  let server: Awaited<ReturnType<typeof createServer>> | null = null;
+  let clientDir: string;
+
+  beforeEach(() => {
+    clientDir = mkdtempSync(join(tmpdir(), 'ekolite-static-'));
+    writeFileSync(join(clientDir, 'index.html'), '<!-- a consumer page -->');
+  });
+
+  afterEach(async () => {
+    if (server !== null) {
+      await server.close();
+      server = null;
+    }
+    rmSync(clientDir, { recursive: true, force: true });
+  });
+
+  it('serves files from the staticRoot it was given', async () => {
+    const ws = WebSocketWrapper.createNull();
+    server = await createServer({ ws, staticRoot: clientDir });
+
+    const response = await server.inject({ method: 'GET', url: '/' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toContain('<!-- a consumer page -->');
+  });
+
+  it('serves nothing when no staticRoot is configured', async () => {
+    const ws = WebSocketWrapper.createNull();
+    server = await createServer({ ws });
+
+    const response = await server.inject({ method: 'GET', url: '/' });
+
+    expect(response.statusCode).toBe(404);
   });
 });

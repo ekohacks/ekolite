@@ -10,14 +10,18 @@ describe('Server', () => {
     await server.close();
   });
 
-  it('GET / returns 200 text/html', async () => {
+  // A bare createServer, handed no static root, serves nothing. The 200 this line used to
+  // assert came from the demo directory being hardcoded into createServer, which is exactly
+  // the coupling this story removes: the demo serves because start.ts passes its directory,
+  // not because createServer carries one. The demo-at-/ path is proven end to end through
+  // start.ts in smoke.integration.test.ts, so nothing is lost by flipping this.
+  it('GET / returns 404 when no static root is configured', async () => {
     const ws = WebSocketWrapper.createRawWs({ port: 0 });
     server = await createServer({ ws });
 
     const response = await server.inject({ method: 'GET', url: '/' });
 
-    expect(response.statusCode).toBe(200);
-    expect(response.headers['content-type']).toContain('text/html');
+    expect(response.statusCode).toBe(404);
   });
 });
 describe('Websocket fastify integration test', () => {
