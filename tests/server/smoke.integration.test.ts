@@ -5,7 +5,7 @@ import { READY_MESSAGE } from '../../shared/serverMessages.ts';
 
 // The one test that bypasses every Null and drives the real entry point. It spawns
 // server/start.ts as a child process, waits for it to announce readiness on stdout,
-// fetches the home page, and asks it to stop.
+// and asks it to stop.
 //
 // What it covers, and nothing else can: the wiring inside start.ts. App.create building
 // the graph, createServer serving it, listen binding the port, and Shutdown.arm() meeting
@@ -19,10 +19,6 @@ import { READY_MESSAGE } from '../../shared/serverMessages.ts';
 //
 // Integration only: it needs a real port and spawns a real process, so it lives in the
 // integration config and runs under `npm run test:integration`.
-
-// The home page is served from dist/client, so this asserts the built client is wired
-// to `/`. The marker lives in client/index.html and survives the vite build.
-const HOME_PAGE_MARKER = '<!-- ekolite home page -->';
 
 // Lines the runtime may print to stderr that are noise, not a wiring fault. Empty in
 // practice today; this is the seam to widen if a future node or tsx prints a warning.
@@ -73,20 +69,10 @@ describe('EkoLite boots end to end', () => {
     }
   });
 
-  it('spawns the real entry point and serves the home page', async () => {
+  it('spawns the real entry point and announces readiness', async () => {
     const started = await startServerAsync();
 
     expect(started.stdout).toContain(READY_MESSAGE);
-
-    // start.ts binds 0.0.0.0, the IPv4 wildcard, so 127.0.0.1 is the address it is
-    // actually listening on. `localhost` is a name, and what it resolves to is the
-    // resolver's business: on Windows it answers ::1 first, where nothing is bound.
-    // A slow, once-per-run test should not be able to fail over a DNS preference. If we
-    // ever want `localhost` itself to be part of the claim, start.ts should bind `::`
-    // and that is a change to the server, not to this line.
-    const response = await fetch(`http://127.0.0.1:${String(port)}/`);
-    expect(response.status).toBe(200);
-    expect(await response.text()).toContain(HOME_PAGE_MARKER);
   });
 
   // The door a supervisor can always reach. On Windows it is the only one: no parent

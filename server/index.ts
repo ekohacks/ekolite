@@ -22,11 +22,11 @@ export interface ServerOptions {
   publications?: Publications;
   rpcHandler?: RpcHandler;
   files?: Files;
-  // The directory of static files served at /. It is the caller's client, not ours:
-  // start.ts points it at EkoLite's built demo, a consumer points it at their own build.
-  // Left undefined, createServer registers no static handler at all. That is deliberate: an
-  // absent root is an honest 'serves nothing', not a Fastify that looks healthy and 404s
-  // every static request, which is what a root that silently fails to resolve would give.
+  // The directory of static files served at /: the caller's own client. An app passes its
+  // built client here; the bare boot in start.ts passes nothing. Left undefined, createServer
+  // registers no static handler at all. That is deliberate: an absent root is an honest
+  // 'serves nothing', not a Fastify that looks healthy and 404s every static request, which
+  // is what a root that silently fails to resolve would give.
   staticRoot?: string;
 }
 

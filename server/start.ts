@@ -1,20 +1,18 @@
-import { resolve } from 'node:path';
 import { createServer } from './index.ts';
 import { App, type AppConfig } from './app.ts';
-import { defineDemo, DEFAULT_COUNTC_SCRIPT } from './demo.ts';
 import { ProcessWrapper } from './infrastructure/process.ts';
 import { Shutdown } from './logic/shutdown.ts';
 import { READY_MESSAGE } from '../shared/serverMessages.ts';
 
 // Real boot. Read config from the environment, let App wire the graph (Mongo, the
-// websocket, the pub/sub engine, the file store and the script runner), define the
-// demo on top of it, then serve it over Fastify. The wiring that used to live here
-// now lives in App.create, so the same assembly the end-to-end test drives is the one
-// that boots in production.
+// websocket, the pub/sub engine, the file store and the script runner), then serve it
+// over Fastify.
 //
-// The demo definitions are ours, not the framework's, which is why defineDemo is called
-// here rather than baked into App. A consumer who installs ekolite calls App.create and
-// gets an empty stage; this file is what puts EkoLite's own furniture on it.
+// This is EkoLite's runnable entry, and it boots a bare server with no app of its own:
+// no publications, no methods, no client to serve. A developer adds those on top the way
+// they would in any framework, which is the point, the runner runs your app rather than
+// one of ours. If it should serve a client, the app passes its directory to createServer
+// as staticRoot; the framework hardcodes none.
 //
 // EKOLITE_PORT and EKOLITE_MONGO_DB are the isolation knobs the smoke test sets so a
 // spawned run never collides with `npm run dev:server` on 3001 or its data. A db name
@@ -29,22 +27,7 @@ const config: AppConfig = {
 };
 
 const app = App.create(config);
-defineDemo(app, { countCScript: process.env.COUNTC_SCRIPT ?? DEFAULT_COUNTC_SCRIPT });
-
-// EkoLite's own demo home page, the only thing this boot serves statically. vite builds it
-// to dist/demo, resolved against the working directory rather than this file's location.
-// cwd is the anchor because it lands on dist/demo whether start.ts runs from source or as a
-// built dist/server/start.js, where a path relative to this file would not. It is the same
-// project-root-relative convention the countC script above is found by, since that is where
-// this process is booted from.
-const demoRoot = resolve(process.cwd(), 'dist', 'demo');
-const server = await createServer({
-  ws: app.ws,
-  publications: app.publications,
-  rpcHandler: app.rpcHandler,
-  files: app.files,
-  staticRoot: demoRoot,
-});
+const server = await createServer(app);
 await server.listen({ port: config.port, host: '0.0.0.0' });
 
 // Graceful shutdown: stop taking requests, then drop the database connection.

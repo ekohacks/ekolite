@@ -71,9 +71,9 @@ export class Files {
     return { file, data };
   }
 
-  // The lean lookup the analysis method needs: the document for an id, and only the
-  // document. Unlike read it does not pull the bytes off disk; the script opens the
-  // file itself and only the path is wanted.
+  // The lean lookup: the document for an id, and only the document. Unlike read it does
+  // not pull the bytes off disk, for callers that want the metadata or path without the
+  // contents.
   async locate(id: string): Promise<StoredFile | null> {
     const docs = await this.mongo.find<StoredFile>('files', { _id: id });
     return docs[0] ?? null;

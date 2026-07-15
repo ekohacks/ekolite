@@ -39,9 +39,8 @@
   },
   "scripts": {
     "dev:server": "tsx watch server/start.ts",
-    "dev:client": "vite",
-    "build": "tsc -p tsconfig.build.json && node scripts/rewrite-dts.mjs && vite build",
-    "start": "node dist/server/index.js",
+    "build": "tsc -p tsconfig.build.json && node scripts/rewrite-dts.mjs",
+    "start": "node dist/server/start.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest --watch",

@@ -8,13 +8,5 @@
     "rootDir": "."
   },
   "include": ["server", "shared", "client"],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "tests",
-    "client/main.ts",
-    "client/demo",
-    "**/*.test.ts",
-    "**/*.integration.test.ts"
-  ]
+  "exclude": ["node_modules", "dist", "tests", "**/*.test.ts", "**/*.integration.test.ts"]
 }

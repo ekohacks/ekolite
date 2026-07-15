@@ -47,8 +47,8 @@ interface NullConfig {
 //
 // What App does not do is define anything. It wires infrastructure into logic and
 // stops. A consumer's App.create() comes back with empty registries, and whatever they
-// define is all that is on them. EkoLite's own demo definitions live in demo.ts, which
-// start.ts calls; the framework does not carry them.
+// define is all that is on them; the framework carries no publications or methods of its
+// own, the way `meteor run` boots your app rather than one of ours.
 export class App {
   readonly ws: WebSocketWrapper;
   readonly publications: Publications;

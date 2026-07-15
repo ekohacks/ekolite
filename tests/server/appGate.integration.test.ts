@@ -1,21 +1,21 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createServer } from '../../server/index.ts';
 import { App } from '../../server/app.ts';
-import { defineDemo } from '../../server/demo.ts';
 import { WebSocketWrapper } from '../../server/infrastructure/websocket.ts';
-import { ClientSocketWrapper } from '../../client/clientSocket.ts';
-import { ConnectionManager } from '../../client/connectionManager.ts';
+import { ClientSocketWrapper } from '../../client/index.ts';
+import { ConnectionManager } from '../../client/index.ts';
 import { type StoredFile } from '../../shared/types.ts';
 
-// 7.B.2 — the gate. connect -> subscribe -> see the file -> analyse -> get the
-// result, over a real socket, driven off App.createNull.
+// The gate: the full reactive loop runs through App over a real socket. A client
+// subscribes, sees the seeded document, calls a method that mutates it, and the change
+// streams back into the client's store on its own. livePubsub proves the subscribe-and-
+// fill half; this proves the other half, the live update after a method writes.
 //
-// This is the reactive pipeline the framework exists to prove, but assembled by
-// App rather than by hand. The data infrastructure is Nulled (no Mongo, no python)
-// while the socket, server and client are real, so a failure here is an App wiring
-// bug, not a subsystem one. Nulled Mongo answers two finds: the subscribe that
-// fills the store, then runCountC's locate. The HTTP upload half is proven
-// separately in fileUpload.integration.test.ts.
+// The app defines its own publication and method here, the way a developer's app would,
+// since App carries none of its own. The data infrastructure is Nulled (no Mongo) while
+// the socket, server and client are real, so a failure is an App wiring bug, not a
+// subsystem one. Nulled Mongo answers one find, the subscribe that fills the store; the
+// method's $set write streams back through the same files.all publication.
 const waitFor = async (predicate: () => boolean, timeoutMs = 1000): Promise<void> => {
   const start = Date.now();
   while (!predicate()) {
@@ -35,7 +35,7 @@ describe('the gate: the full pipeline runs through App over a real socket', () =
     await server.close();
   });
 
-  it('a client subscribes, calls runCountC, and the count streams back into the store', async () => {
+  it('a client subscribes, calls a method that mutates a doc, and the change streams back', async () => {
     const file: StoredFile = {
       _id: 'f1',
       name: 'reads.bam',
@@ -45,14 +45,15 @@ describe('the gate: the full pipeline runs through App over a real socket', () =
       uploadedAt: new Date(),
     };
     const app = App.createNull({
-      scriptResponses: { python3: '7' },
-      findResponses: [[file], [file]],
+      findResponses: [[file]],
       ws: WebSocketWrapper.create(),
     });
-    // The app no longer arrives with files.all and runCountC on it, so the gate asks for
-    // them the same way start.ts does. This is the point of 8.E: what the demo needs, the
-    // demo says.
-    defineDemo(app);
+    // The app defines its own surface: a publication to subscribe to, and a method that
+    // writes a value back onto the document so it streams to subscribers.
+    app.publications.define('files.all', () => ({ collection: 'files', query: {} }));
+    app.methods.define('recordCount', (fileId, count) =>
+      app.files.recordCountC(fileId as string, count as number).then(() => count),
+    );
 
     server = await createServer(app);
     await server.listen({ port: 0 });
@@ -67,7 +68,7 @@ describe('the gate: the full pipeline runs through App over a real socket', () =
     const store = manager.store('files');
     expect(store.getById('f1')).toMatchObject({ _id: 'f1', name: 'reads.bam' });
 
-    const count = await manager.call('runCountC', 'f1');
+    const count = await manager.call('recordCount', 'f1', 7);
     expect(count).toBe(7);
 
     await waitFor(() => (store.getById('f1') as { countC?: number } | undefined)?.countC === 7);
