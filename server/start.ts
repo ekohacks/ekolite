@@ -1,7 +1,5 @@
 import { createServer } from './index.ts';
 import { App, type AppConfig } from './app.ts';
-import { ProcessWrapper } from './infrastructure/process.ts';
-import { Shutdown } from './logic/shutdown.ts';
 import { READY_MESSAGE } from '../shared/serverMessages.ts';
 
 // Real boot. Read config from the environment, let App wire the graph (Mongo, the
@@ -31,15 +29,16 @@ const server = await createServer(app);
 await server.listen({ port: config.port, host: '0.0.0.0' });
 
 // Graceful shutdown: stop taking requests, then drop the database connection.
-// The policy (deadline, exit codes, second signal) lives in Shutdown, tested on
-// the nulled process; the shell only wires it to the real one.
+// The policy (deadline, exit codes, second signal) lives in Shutdown, tested on the
+// nulled process; App.armShutdown() binds it to the real one, and this boot is just the
+// first consumer of that method, arming it the same way any app would.
 //
 // This must come before the ready line. Whoever reads that line may act on it at once,
 // and a supervisor's first act is often to stop us. Announce first and there is a window
 // where the server is listening and has no SIGTERM handler, so the default action kills
 // it and the exit is (null, 'SIGTERM') rather than a clean 0. The window is microseconds
 // wide and the child usually wins it, which is the worst size for a window to be.
-new Shutdown(app, ProcessWrapper.create()).arm();
+app.armShutdown();
 
 // The smoke test waits for this exact line on stdout, so it goes to stdout (not the
 // stderr that console.warn writes to) and carries the port, so a spawned harness can

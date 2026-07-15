@@ -2,10 +2,12 @@ import { MongoWrapper } from './infrastructure/mongo.ts';
 import { WebSocketWrapper } from './infrastructure/websocket.ts';
 import { FileStorageWrapper } from './infrastructure/fileStorage.ts';
 import { ScriptRunnerWrapper } from './infrastructure/scriptRunner.ts';
+import { ProcessWrapper } from './infrastructure/process.ts';
 import { Publications } from './logic/publications.ts';
 import { RpcHandler } from './logic/rpcHandler.ts';
 import { Methods } from './logic/methods.ts';
 import { Files } from './logic/files.ts';
+import { Shutdown } from './logic/shutdown.ts';
 import { type StoredFile } from '../shared/types.ts';
 
 // Config for the real boot. The same knobs start.ts reads from the environment.
@@ -22,6 +24,7 @@ interface AppParts {
   ws: WebSocketWrapper;
   storage: FileStorageWrapper;
   scriptRunner: ScriptRunnerWrapper;
+  proc: ProcessWrapper;
 }
 
 // Test affordances for createNull. scriptResponses is the stdout the Nulled runner
@@ -37,6 +40,9 @@ interface NullConfig {
   findResponses?: StoredFile[][];
   mongo?: MongoWrapper;
   ws?: WebSocketWrapper;
+  // A Nulled process, injected so a test can drive a shutdown request and watch the exit
+  // that armShutdown ends in. Left out, createNull supplies its own Nulled process.
+  proc?: ProcessWrapper;
 }
 
 // The application layer. One place the subsystems are wired: the socket, the
@@ -59,11 +65,13 @@ export class App {
   // reachable. Which script, and what method calls it, is the caller's business.
   readonly scriptRunner: ScriptRunnerWrapper;
   private readonly mongo: MongoWrapper;
+  private readonly proc: ProcessWrapper;
 
   private constructor(parts: AppParts) {
     this.ws = parts.ws;
     this.mongo = parts.mongo;
     this.scriptRunner = parts.scriptRunner;
+    this.proc = parts.proc;
     this.methods = new Methods();
     this.rpcHandler = new RpcHandler(this.methods, parts.ws);
     this.publications = new Publications(parts.mongo, parts.ws);
@@ -76,6 +84,7 @@ export class App {
       ws: WebSocketWrapper.create(),
       storage: FileStorageWrapper.create(config.fileDir),
       scriptRunner: ScriptRunnerWrapper.create(),
+      proc: ProcessWrapper.create(),
     });
   }
 
@@ -95,7 +104,17 @@ export class App {
       ws: nullConfig.ws ?? WebSocketWrapper.createNull(),
       storage: FileStorageWrapper.createNull(),
       scriptRunner: ScriptRunnerWrapper.createNull(nullConfig.scriptResponses ?? {}),
+      proc: nullConfig.proc ?? ProcessWrapper.createNull(),
     });
+  }
+
+  // Arm graceful shutdown. On a signal, a Ctrl+C, or a supervisor's stop message, close
+  // the app within the grace period and exit: 0 if it drained cleanly, 1 if it did not.
+  // This is the whole surface a consumer needs to stop a long-running server; the Shutdown
+  // policy and the process it binds to stay inside the package. start.ts arms it the same
+  // way, so EkoLite's own boot is just the first consumer of this method.
+  armShutdown(options: { graceMs?: number } = {}): void {
+    new Shutdown(this, this.proc, options).arm();
   }
 
   // Graceful shutdown. Closing the socket also closes the Fastify server it
