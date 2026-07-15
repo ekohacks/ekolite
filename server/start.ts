@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import { createServer } from './index.ts';
 import { App, type AppConfig } from './app.ts';
 import { defineDemo, DEFAULT_COUNTC_SCRIPT } from './demo.ts';
@@ -29,7 +30,21 @@ const config: AppConfig = {
 
 const app = App.create(config);
 defineDemo(app, { countCScript: process.env.COUNTC_SCRIPT ?? DEFAULT_COUNTC_SCRIPT });
-const server = await createServer(app);
+
+// EkoLite's own demo home page, the only thing this boot serves statically. vite builds it
+// to dist/demo, resolved against the working directory rather than this file's location.
+// cwd is the anchor because it lands on dist/demo whether start.ts runs from source or as a
+// built dist/server/start.js, where a path relative to this file would not. It is the same
+// project-root-relative convention the countC script above is found by, since that is where
+// this process is booted from.
+const demoRoot = resolve(process.cwd(), 'dist', 'demo');
+const server = await createServer({
+  ws: app.ws,
+  publications: app.publications,
+  rpcHandler: app.rpcHandler,
+  files: app.files,
+  staticRoot: demoRoot,
+});
 await server.listen({ port: config.port, host: '0.0.0.0' });
 
 // Graceful shutdown: stop taking requests, then drop the database connection.

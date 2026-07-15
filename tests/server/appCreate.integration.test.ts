@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { resolve } from 'node:path';
 import WebSocket from 'ws';
 import { createServer } from '../../server/index.ts';
 import { App } from '../../server/app.ts';
@@ -7,10 +8,12 @@ import { App } from '../../server/app.ts';
 //
 // The live boot, behind the class. App.create(config) builds the real Mongo, socket,
 // storage and script runner, and createServer turns that into a Fastify server that
-// serves the built client and speaks the websocket protocol. GET / and /ws touch
-// neither Mongo nor python, so this runs without a database. app.close() is the
-// graceful shutdown: it closes the socket (and with it the Fastify server) and the
-// Mongo connection.
+// speaks the websocket protocol and serves whatever static root it is handed. The client
+// directory is the caller's to choose now, so this passes the demo build the same way
+// start.ts does. GET / and /ws touch neither Mongo nor python, so this runs without a
+// database. app.close() is the graceful shutdown: it closes the socket (and with it the
+// Fastify server) and the Mongo connection.
+const DEMO_ROOT = resolve(process.cwd(), 'dist', 'demo');
 describe('App.create wires real infrastructure', () => {
   let app: App | undefined;
   let server: Awaited<ReturnType<typeof createServer>>;
@@ -33,7 +36,13 @@ describe('App.create wires real infrastructure', () => {
       port: 0,
     });
 
-    server = await createServer(app);
+    server = await createServer({
+      ws: app.ws,
+      publications: app.publications,
+      rpcHandler: app.rpcHandler,
+      files: app.files,
+      staticRoot: DEMO_ROOT,
+    });
     await server.listen({ port: 0 });
     const port = String(server.addresses()[0].port);
 

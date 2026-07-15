@@ -1,8 +1,6 @@
 import fastifyMultipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import Fastify from 'fastify';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { WebSocketWrapper } from './infrastructure/websocket.ts';
 import { type Publications } from './logic/publications.ts';
 import { type Files } from './logic/files.ts';
@@ -24,9 +22,13 @@ export interface ServerOptions {
   publications?: Publications;
   rpcHandler?: RpcHandler;
   files?: Files;
+  // The directory of static files served at /. It is the caller's client, not ours:
+  // start.ts points it at EkoLite's built demo, a consumer points it at their own build.
+  // Left undefined, createServer registers no static handler at all. That is deliberate: an
+  // absent root is an honest 'serves nothing', not a Fastify that looks healthy and 404s
+  // every static request, which is what a root that silently fails to resolve would give.
+  staticRoot?: string;
 }
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export async function createServer(options: ServerOptions) {
   const server = Fastify();
@@ -37,11 +39,9 @@ export async function createServer(options: ServerOptions) {
     reply.status(error.code).send(error);
   });
 
-  await server.register(fastifyStatic, {
-    // The demo page. tsc owns dist/client for the packaged client library, so the vite
-    // demo build lives in dist/demo and this serves from there.
-    root: resolve(__dirname, '..', 'dist', 'demo'),
-  });
+  if (options.staticRoot !== undefined) {
+    await server.register(fastifyStatic, { root: options.staticRoot });
+  }
   await options.ws.attach(server);
 
   const publications = options.publications;
