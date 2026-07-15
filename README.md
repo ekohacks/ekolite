@@ -41,7 +41,7 @@ Verify the packaged shape from a consumer's point of view with `npm run test:pac
 - **Mini DDP protocol** ([`shared/protocol.ts`](shared/protocol.ts)): eleven message types, typed end to end
 - **Heartbeat** (`ping` / `pong`): a socket can die while both ends still think it is open, so the client pings and closes a connection that stops answering
 - **Graceful shutdown** (`Shutdown`): on a stop signal, or a shutdown message from a supervisor, it stops taking requests, closes the streams, drops the database connection, and exits cleanly
-- **Live boot** (`start.ts`): real Mongo, websocket, publications, methods and file store, with a runnable browser demo at [`client/demo/live.html`](client/demo/live.html)
+- **Runnable boot** (`start.ts`): wires real Mongo, websocket, publications, methods and file store through `App.create` and serves it over Fastify. It boots a bare server with nothing defined on it; a developer adds their own publications, methods and client on top, the way `meteor run` boots your app rather than one of ours
 
 ## What is planned, not yet built
 
@@ -52,9 +52,8 @@ Verify the packaged shape from a consumer's point of view with `npm run test:pac
 ```bash
 npm install
 
-# Development (two terminals)
+# Development
 npm run dev:server   # Fastify on port 3001, auto restart
-npm run dev:client   # Vite with HMR
 
 # Checks
 npm run typecheck
@@ -66,8 +65,8 @@ npm test
 ```
 ekolite/
 ├── server/
-│   ├── index.ts                  # createServer: Fastify, static, websocket, pub/sub + file routes
-│   ├── start.ts                  # Entry point: real Mongo, ws, publications, file store
+│   ├── index.ts                  # createServer: Fastify, optional static, websocket, pub/sub + file routes
+│   ├── start.ts                  # Runnable entry: boots App.create over Fastify
 │   ├── infrastructure/
 │   │   ├── mongo.ts              # MongoWrapper, create() / createNull()
 │   │   ├── websocket.ts          # WebSocketWrapper, create() / createNull()
@@ -78,10 +77,10 @@ ekolite/
 │       ├── publications.ts       # Pub/sub engine
 │       └── files.ts              # Files: upload and read over storage + Mongo
 ├── client/
+│   ├── index.ts                  # Public client surface (ekolite/client)
 │   ├── clientSocket.ts           # ClientSocketWrapper, nullable WebSocket client
 │   ├── connectionManager.ts      # Subscriptions and lifecycle
-│   ├── reactiveStore.ts          # Client side collection state
-│   └── main.ts                   # Browser entry point
+│   └── reactiveStore.ts          # Client side collection state
 ├── shared/
 │   ├── protocol.ts               # Mini DDP message types
 │   └── types.ts                  # Shared type definitions
@@ -129,8 +128,8 @@ Strict TDD, red then green then refactor, with commit messages that show the loo
 ## Production build
 
 ```bash
-npm run build   # tsc + vite build
-npm start       # node dist/server/index.js
+npm run build   # tsc + declaration rewrite
+npm start       # node dist/server/start.js
 ```
 
 ## License

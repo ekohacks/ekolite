@@ -61,12 +61,12 @@ export class Files {
     return stored;
   }
 
-  async read(id: string): Promise<{ file: StoredFile; data: Buffer } | null> {
+  async read(id: string): Promise<{ file: StoredFile; data: Buffer } | undefined> {
     const docs = await this.mongo.find<StoredFile>('files', { _id: id });
     if (docs.length === 0) {
-      return null;
+      return;
     }
-    const file = docs[0];
+    const [file] = docs;
     const data = await this.storage.read(file.name);
     return { file, data };
   }
@@ -74,9 +74,9 @@ export class Files {
   // The lean lookup: the document for an id, and only the document. Unlike read it does
   // not pull the bytes off disk, for callers that want the metadata or path without the
   // contents.
-  async locate(id: string): Promise<StoredFile | null> {
-    const docs = await this.mongo.find<StoredFile>('files', { _id: id });
-    return docs[0] ?? null;
+  async locate(id: string): Promise<StoredFile | undefined> {
+    const [docs] = await this.mongo.find<StoredFile>('files', { _id: id });
+    return docs;
   }
 
   // Write a computed count back onto the file's own document. A $set keyed by id so

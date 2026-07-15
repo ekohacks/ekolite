@@ -62,7 +62,7 @@ describe('Files.read', () => {
     const storage = FileStorageWrapper.createNull();
     const files = new Files(mongo, storage);
 
-    expect(await files.read('nope')).toBeNull();
+    expect(await files.read('nope')).toBeUndefined();
   });
 
   it('validates files by the extension', () => {
@@ -175,11 +175,11 @@ describe('Files.locate', () => {
     expect(file).toMatchObject({ _id: 'known', name: 'reads.bam', path: '/data/reads.bam' });
   });
 
-  it('returns null when the id is unknown', async () => {
+  it('returns undefined when the id is unknown', async () => {
     const mongo = MongoWrapper.createNull();
     const storage = FileStorageWrapper.createNull();
     const files = new Files(mongo, storage);
 
-    expect(await files.locate('nope')).toBeNull();
+    expect(await files.locate('nope')).toBeUndefined();
   });
 });
