@@ -80,3 +80,102 @@ describe('ClientSocketWrapper - the socket comes back', () => {
     expect(socket.isConnected).toBe(false);
   });
 });
+
+describe('ClientSocketWrapper - reconnect backs off', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('doubles the wait between failed attempts', async () => {
+    vi.useFakeTimers();
+    const socket = ClientSocketWrapper.createNull(
+      { reconnectBaseMs: 1000, reconnectMaxMs: 60_000, reconnectRandom: () => 0.5 },
+      { failReconnects: 3 },
+    );
+    await socket.connect();
+
+    socket.simulateServer().simulateClose();
+    await vi.advanceTimersByTimeAsync(0); // retry 1 is instant, fails
+    await vi.advanceTimersByTimeAsync(1000); // retry 2 fails
+    await vi.advanceTimersByTimeAsync(2000); // retry 3 fails
+    await vi.advanceTimersByTimeAsync(3999); // retry 4 is due 4000 after retry 3
+    expect(socket.isConnected).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(socket.isConnected).toBe(true);
+  });
+
+  it('stops doubling at the cap', async () => {
+    vi.useFakeTimers();
+    const socket = ClientSocketWrapper.createNull(
+      { reconnectBaseMs: 1000, reconnectMaxMs: 2000, reconnectRandom: () => 0.5 },
+      { failReconnects: 3 },
+    );
+    await socket.connect();
+
+    socket.simulateServer().simulateClose();
+    await vi.advanceTimersByTimeAsync(0); // retry 1 is instant, fails
+    await vi.advanceTimersByTimeAsync(1000); // retry 2 fails
+    await vi.advanceTimersByTimeAsync(2000); // retry 3 fails, capped
+    await vi.advanceTimersByTimeAsync(1999); // retry 4 is capped at 2000, not 4000
+    expect(socket.isConnected).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(socket.isConnected).toBe(true);
+  });
+
+  it('spreads the wait with jitter so a fleet of clients cannot stampede', async () => {
+    vi.useFakeTimers();
+    // random() = 1 pushes the wait to 1.25x, the top of the jitter window
+    const socket = ClientSocketWrapper.createNull(
+      { reconnectBaseMs: 1000, reconnectMaxMs: 60_000, reconnectRandom: () => 1 },
+      { failReconnects: 1 },
+    );
+    await socket.connect();
+
+    socket.simulateServer().simulateClose();
+    await vi.advanceTimersByTimeAsync(0); // retry 1 is instant, fails
+    await vi.advanceTimersByTimeAsync(1249); // retry 2 is due at 1250, not 1000
+    expect(socket.isConnected).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(socket.isConnected).toBe(true);
+  });
+
+  it('never gives up, however long the server stays away', async () => {
+    vi.useFakeTimers();
+    const socket = ClientSocketWrapper.createNull(
+      { reconnectBaseMs: 1000, reconnectMaxMs: 1000, reconnectRandom: () => 0.5 },
+      { failReconnects: 30 },
+    );
+    await socket.connect();
+
+    socket.simulateServer().simulateClose();
+    for (let i = 0; i <= 30; i++) {
+      await vi.advanceTimersByTimeAsync(1000);
+    }
+
+    expect(socket.isConnected).toBe(true);
+  });
+
+  it('a successful connection resets the backoff', async () => {
+    vi.useFakeTimers();
+    const socket = ClientSocketWrapper.createNull(
+      { reconnectBaseMs: 1000, reconnectMaxMs: 60_000, reconnectRandom: () => 0.5 },
+      { failReconnects: 2 },
+    );
+    await socket.connect();
+
+    socket.simulateServer().simulateClose();
+    await vi.advanceTimersByTimeAsync(0); // retry 1 is instant, fails
+    await vi.advanceTimersByTimeAsync(1000); // retry 2 fails
+    await vi.advanceTimersByTimeAsync(2000); // retry 3 succeeds
+    expect(socket.isConnected).toBe(true);
+
+    // the next drop starts the schedule from the top: instant, not 4000
+    socket.simulateServer().simulateClose();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(socket.isConnected).toBe(true);
+  });
+});
