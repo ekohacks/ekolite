@@ -16,6 +16,9 @@ export interface SubscriptionHandle {
 }
 
 interface SubscriptionState {
+  // Kept so the subscription can be replayed verbatim over a reopened socket.
+  name: string;
+  params?: Record<string, unknown> | undefined;
   readyResolver: () => void;
   readyRejector: (error: unknown) => void;
   // Learned from the server: ready.collection when present, otherwise inferred
@@ -54,6 +57,7 @@ export class ConnectionManager {
   private readonly subscriptions = new Map<string, SubscriptionState>();
   private readonly teardownMessageListener: () => void;
   private readonly teardownCloseListener: () => void;
+  private readonly teardownOpenListener: () => void;
   private disposed = false;
   // Initial `added` documents that arrive before their subscription has learned
   // its collection. Held here until the matching `ready` binds the collection,
@@ -81,6 +85,26 @@ export class ConnectionManager {
       // for it. Calls cannot: their results died with the connection.
       this.rejectPendingCalls();
     });
+    this.teardownOpenListener = this.socket.onOpen(() => {
+      this.resubscribeAll();
+    });
+  }
+
+  // The reopened socket is a blank slate for the server: replay every live
+  // subscription with its original id and params, so the same ready comes
+  // back and the stores can catch up.
+  private resubscribeAll(): void {
+    for (const [id, subscription] of this.subscriptions) {
+      const message: SubscribeMsg = {
+        type: 'subscribe',
+        id,
+        name: subscription.name,
+        ...(subscription.params ? { params: subscription.params } : {}),
+      };
+      this.socket.send(message).catch((error: unknown) => {
+        console.error('Failed to resubscribe:', error);
+      });
+    }
   }
 
   call(name: string, ...args: unknown[]): Promise<unknown> {
@@ -119,6 +143,8 @@ export class ConnectionManager {
     });
 
     this.subscriptions.set(id, {
+      name,
+      params,
       readyResolver: resolveReady,
       readyRejector: rejectReady,
     });
@@ -173,6 +199,7 @@ export class ConnectionManager {
     this.disposed = true;
     this.teardownMessageListener();
     this.teardownCloseListener();
+    this.teardownOpenListener();
 
     for (const id of Array.from(this.subscriptions.keys())) {
       this.stopSubscription(id);

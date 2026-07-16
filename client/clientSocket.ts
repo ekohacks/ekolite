@@ -3,6 +3,7 @@ import { ClientMessage, ServerMessage } from '../shared/protocol.ts';
 
 const EVENT_OUTBOUND = 'outbound';
 const EVENT_INBOUND = 'inbound';
+const EVENT_OPEN = 'open';
 const CLIENT_DISCONNECTION_EVENT = 'disconnection';
 
 // The switch is mostly permissive and validates only fields we read.
@@ -365,6 +366,10 @@ export class ClientSocketWrapper {
 
         this.heartbeat.start();
 
+        // Fires on every open, first connection and reconnects alike, so a
+        // listener can restore whatever the previous socket was carrying.
+        this.emitter.emit(EVENT_OPEN);
+
         if (!settled) {
           settled = true;
           resolve();
@@ -417,6 +422,13 @@ export class ClientSocketWrapper {
     this.emitter.on(EVENT_INBOUND, handler);
     return () => {
       this.emitter.off(EVENT_INBOUND, handler);
+    };
+  }
+
+  onOpen(listener: () => void): () => void {
+    this.emitter.on(EVENT_OPEN, listener);
+    return () => {
+      this.emitter.off(EVENT_OPEN, listener);
     };
   }
 
