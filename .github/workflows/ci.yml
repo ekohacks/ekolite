@@ -100,3 +100,6 @@ jobs:
         with:
           name: timings-${{ matrix.os }}
           path: .timings/
+          # .timings is a dot-directory, and upload-artifact silently drops hidden
+          # paths by default. Without this the artefact uploads nothing at all.
+          include-hidden-files: true
