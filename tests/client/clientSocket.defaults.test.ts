@@ -30,6 +30,7 @@ describe('ClientSocketWrapper - the heartbeat is on out of the box', () => {
 
     // the ping at 15s goes unanswered, so the pong window shuts at 25s
     await vi.advanceTimersByTimeAsync(25_000);
+    await vi.advanceTimersByTimeAsync(50); // the instant retry lands just after
 
     expect(closes).toEqual([{ deliberate: false }]);
     expect(socket.isConnected).toBe(true); // and it is already back
