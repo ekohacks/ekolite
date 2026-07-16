@@ -176,7 +176,11 @@ describe('ClientSocketWrapper (null)', () => {
     await socket.connect();
     vi.advanceTimersByTime(0);
 
-    const closed = new Promise<void>((resolve) => socket.onClose(resolve));
+    const closed = new Promise<void>((resolve) =>
+      socket.onClose(() => {
+        resolve();
+      }),
+    );
 
     vi.advanceTimersByTime(2000);
 

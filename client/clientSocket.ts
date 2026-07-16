@@ -45,6 +45,10 @@ interface ClientSocketOptions {
   pongTimeoutMs?: number;
 }
 
+export interface SocketCloseEvent {
+  deliberate: boolean;
+}
+
 type HeartbeatSender = () => void;
 type HeartbeatCloser = () => void;
 
@@ -196,6 +200,9 @@ export class ClientSocketWrapper {
   private readonly socket: WebSocketLike;
   private readonly emitter = new EventEmitter();
   private heartbeat?: Heartbeat;
+  // Set only by the public close() path. The heartbeat also closes this socket
+  // when a pong never arrives, but that is a detected failure, not a goodbye.
+  private deliberateClose = false;
 
   private constructor(
     url: string,
@@ -222,7 +229,9 @@ export class ClientSocketWrapper {
     };
     this.socket.onclose = () => {
       this.heartbeat?.stop();
-      this.emitter.emit(CLIENT_DISCONNECTION_EVENT);
+      this.emitter.emit(CLIENT_DISCONNECTION_EVENT, {
+        deliberate: this.deliberateClose,
+      } satisfies SocketCloseEvent);
     };
   }
 
@@ -297,6 +306,7 @@ export class ClientSocketWrapper {
         resolve();
         return;
       }
+      this.deliberateClose = true;
       const teardown = this.onClose(() => {
         teardown();
         resolve();
@@ -321,10 +331,13 @@ export class ClientSocketWrapper {
     };
   }
 
-  onClose(listener: () => void): () => void {
-    this.emitter.on(CLIENT_DISCONNECTION_EVENT, listener);
+  onClose(listener: (event: SocketCloseEvent) => void): () => void {
+    const handler = (data: unknown) => {
+      listener(data as SocketCloseEvent);
+    };
+    this.emitter.on(CLIENT_DISCONNECTION_EVENT, handler);
     return () => {
-      this.emitter.off(CLIENT_DISCONNECTION_EVENT, listener);
+      this.emitter.off(CLIENT_DISCONNECTION_EVENT, handler);
     };
   }
 
