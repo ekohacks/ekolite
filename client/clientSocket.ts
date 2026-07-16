@@ -6,6 +6,12 @@ const EVENT_INBOUND = 'inbound';
 const EVENT_OPEN = 'open';
 const CLIENT_DISCONNECTION_EVENT = 'disconnection';
 
+// Meteor's neighbourhood: pings comfortably inside common proxy idle
+// timeouts, with the pong window shorter than the interval so at most one
+// ping is ever in flight. Zero switches the heartbeat off.
+const DEFAULT_PING_INTERVAL_MS = 15_000;
+const DEFAULT_PONG_TIMEOUT_MS = 10_000;
+
 // The switch is mostly permissive and validates only fields we read.
 // Some cases intentionally reject contradictory payload shapes.
 export function isServerMessage(data: unknown): data is ServerMessage {
@@ -359,8 +365,8 @@ export class ClientSocketWrapper {
             this.socket.close();
           },
           {
-            pingIntervalMs: this.clientOptions?.pingIntervalMs ?? 0,
-            pongTimeoutMs: this.clientOptions?.pongTimeoutMs ?? 0,
+            pingIntervalMs: this.clientOptions?.pingIntervalMs ?? DEFAULT_PING_INTERVAL_MS,
+            pongTimeoutMs: this.clientOptions?.pongTimeoutMs ?? DEFAULT_PONG_TIMEOUT_MS,
           },
         );
 
