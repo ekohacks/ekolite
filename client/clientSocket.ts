@@ -44,6 +44,10 @@ interface ClientSocketOptions {
   pingIntervalMs?: number;
   pongTimeoutMs?: number;
   reconnect?: boolean;
+  reconnectBaseMs?: number;
+  reconnectMaxMs?: number;
+  // Seam for deterministic jitter in tests. Defaults to Math.random.
+  reconnectRandom?: () => number;
 }
 
 export interface SocketCloseEvent {
@@ -157,12 +161,20 @@ class NullWebSocket implements WebSocketLike {
   onclose: WebSocketLike['onclose'] = null;
   readyState = NullWebSocket.CONNECTING;
 
-  constructor(_url: string) {
+  constructor(_url: string, options?: { failToOpen?: boolean }) {
     queueMicrotask(() => {
-      if (this.readyState === NullWebSocket.CONNECTING) {
-        this.readyState = NullWebSocket.OPEN;
-        this.onopen?.({});
+      if (this.readyState !== NullWebSocket.CONNECTING) {
+        return;
       }
+      if (options?.failToOpen) {
+        // A refused connection, as a real socket reports it: error, then close.
+        this.readyState = NullWebSocket.CLOSED;
+        this.onerror?.({});
+        this.onclose?.({});
+        return;
+      }
+      this.readyState = NullWebSocket.OPEN;
+      this.onopen?.({});
     });
   }
 
@@ -207,6 +219,7 @@ export class ClientSocketWrapper {
   // when a pong never arrives, but that is a detected failure, not a goodbye.
   private deliberateClose = false;
   private retryTimer?: ReturnType<typeof setTimeout> | undefined;
+  private reconnectAttempts = 0;
 
   private constructor(
     url: string,
@@ -257,13 +270,29 @@ export class ClientSocketWrapper {
     if (this.retryTimer) {
       return; // one pending attempt at a time
     }
+    const delay = this.nextRetryDelay();
+    this.reconnectAttempts += 1;
     this.retryTimer = setTimeout(() => {
       this.retryTimer = undefined;
       this.socket = this.openSocket();
       this.connect().catch(() => {
         // the failed socket's close event schedules the next attempt
       });
-    }, 0);
+    }, delay);
+  }
+
+  // The first retry is instant, catching blips. From there the wait doubles
+  // from reconnectBaseMs up to reconnectMaxMs, spread by jitter so a fleet of
+  // clients does not stampede a recovering server.
+  private nextRetryDelay(): number {
+    if (this.reconnectAttempts === 0) {
+      return 0;
+    }
+    const base = this.clientOptions?.reconnectBaseMs ?? 1000;
+    const max = this.clientOptions?.reconnectMaxMs ?? 30_000;
+    const random = this.clientOptions?.reconnectRandom ?? Math.random;
+    const doubled = Math.min(base * 2 ** (this.reconnectAttempts - 1), max);
+    return doubled * (0.75 + 0.5 * random());
   }
 
   static create(
@@ -281,8 +310,26 @@ export class ClientSocketWrapper {
     return new ClientSocketWrapper(parsed.toString(), (u) => new RealWebSocket(u), clientOptions);
   }
 
-  static createNull(clientOptions?: ClientSocketOptions): ClientSocketWrapper {
-    return new ClientSocketWrapper('wss://null', (u) => new NullWebSocket(u), clientOptions);
+  // The initial socket always opens; failReconnects makes the next n
+  // reconnect attempts fail, so the backoff schedule is observable.
+  static createNull(
+    clientOptions?: ClientSocketOptions,
+    nullOptions?: { failReconnects?: number },
+  ): ClientSocketWrapper {
+    let socketsCreated = 0;
+    let failuresLeft = nullOptions?.failReconnects ?? 0;
+    return new ClientSocketWrapper(
+      'wss://null',
+      (u) => {
+        socketsCreated += 1;
+        if (socketsCreated > 1 && failuresLeft > 0) {
+          failuresLeft -= 1;
+          return new NullWebSocket(u, { failToOpen: true });
+        }
+        return new NullWebSocket(u);
+      },
+      clientOptions,
+    );
   }
 
   get isConnected(): boolean {
@@ -302,6 +349,7 @@ export class ClientSocketWrapper {
 
       let settled = false;
       this.socket.onopen = () => {
+        this.reconnectAttempts = 0; // a live connection restarts the schedule
         this.heartbeat = new Heartbeat(
           () => {
             void this.send({ type: 'ping' });
