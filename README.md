@@ -39,13 +39,13 @@ Verify the packaged shape from a consumer's point of view with `npm run test:pac
 - **File storage over HTTP** (`Files`): `POST /api/files` saves the bytes and inserts a document that streams into the live list through pub/sub; `GET /api/files/:id` streams them back
 - **Client stack**: `ClientSocketWrapper` (nullable WebSocket client), `ConnectionManager` (subscription lifecycle) and `ReactiveStore` (client side collection state)
 - **Mini DDP protocol** ([`shared/protocol.ts`](shared/protocol.ts)): eleven message types, typed end to end
-- **Heartbeat** (`ping` / `pong`): a socket can die while both ends still think it is open, so the client pings and closes a connection that stops answering
+- **Heartbeat and reconnect** (`ping` / `pong`): a socket can die while both ends still think it is open, so the client pings and closes a connection that stops answering, then reopens it: instant first retry, exponential backoff with jitter, capped, forever. Subscriptions replay with their original ids and each store swaps to the fresh documents in one move, so the page never renders empty in between. On by default with 15 second pings and a 10 second pong window; `reconnect: false` or a zero interval opts out, and `status` reports connecting / connected / reconnecting / closed
 - **Graceful shutdown** (`Shutdown`): on a stop signal, or a shutdown message from a supervisor, it stops taking requests, closes the streams, drops the database connection, and exits cleanly
 - **Runnable boot** (`start.ts`): wires real Mongo, websocket, publications, methods and file store through `App.create` and serves it over Fastify. It boots a bare server with nothing defined on it; a developer adds their own publications, methods and client on top, the way `meteor run` boots your app rather than one of ours
 
 ## What is planned, not yet built
 
-- Reconnect and resubscribe after a dropped socket, and auth on the HTTP routes. Today a closed socket disposes and stays disposed, and the file routes are open.
+- Auth on the HTTP routes. The file routes are open today.
 
 ## Quick start
 

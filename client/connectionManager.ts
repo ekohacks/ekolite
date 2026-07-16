@@ -16,11 +16,17 @@ export interface SubscriptionHandle {
 }
 
 interface SubscriptionState {
+  // Kept so the subscription can be replayed verbatim over a reopened socket.
+  name: string;
+  params?: Record<string, unknown> | undefined;
   readyResolver: () => void;
   readyRejector: (error: unknown) => void;
   // Learned from the server: ready.collection when present, otherwise inferred
   // from the initial data buffered before ready. Undefined until then.
   collection?: string;
+  // Set when the socket dies unexpectedly. A reviving subscription buffers its
+  // incoming initial documents, and its next ready swaps them into the store.
+  reviving?: boolean;
 }
 
 class SubscriptionHandleImpl implements SubscriptionHandle {
@@ -54,6 +60,7 @@ export class ConnectionManager {
   private readonly subscriptions = new Map<string, SubscriptionState>();
   private readonly teardownMessageListener: () => void;
   private readonly teardownCloseListener: () => void;
+  private readonly teardownOpenListener: () => void;
   private disposed = false;
   // Initial `added` documents that arrive before their subscription has learned
   // its collection. Held here until the matching `ready` binds the collection,
@@ -72,9 +79,38 @@ export class ConnectionManager {
         this.handleServerMessage(message);
       }
     });
-    this.teardownCloseListener = this.socket.onClose(() => {
-      this.dispose();
+    this.teardownCloseListener = this.socket.onClose((event) => {
+      if (event.deliberate) {
+        this.dispose();
+        return;
+      }
+      // The socket comes back on its own, so subscriptions and stores wait
+      // for it. Calls cannot: their results died with the connection.
+      this.rejectPendingCalls();
+      for (const subscription of this.subscriptions.values()) {
+        subscription.reviving = true;
+      }
     });
+    this.teardownOpenListener = this.socket.onOpen(() => {
+      this.resubscribeAll();
+    });
+  }
+
+  // The reopened socket is a blank slate for the server: replay every live
+  // subscription with its original id and params, so the same ready comes
+  // back and the stores can catch up.
+  private resubscribeAll(): void {
+    for (const [id, subscription] of this.subscriptions) {
+      const message: SubscribeMsg = {
+        type: 'subscribe',
+        id,
+        name: subscription.name,
+        ...(subscription.params ? { params: subscription.params } : {}),
+      };
+      this.socket.send(message).catch((error: unknown) => {
+        console.error('Failed to resubscribe:', error);
+      });
+    }
   }
 
   call(name: string, ...args: unknown[]): Promise<unknown> {
@@ -113,6 +149,8 @@ export class ConnectionManager {
     });
 
     this.subscriptions.set(id, {
+      name,
+      params,
       readyResolver: resolveReady,
       readyRejector: rejectReady,
     });
@@ -167,22 +205,27 @@ export class ConnectionManager {
     this.disposed = true;
     this.teardownMessageListener();
     this.teardownCloseListener();
+    this.teardownOpenListener();
 
     for (const id of Array.from(this.subscriptions.keys())) {
       this.stopSubscription(id);
     }
 
-    // No result can arrive over a closed connection, so settle every call still
-    // waiting as a rejection the caller can catch, rather than leaving its
-    // promise pending forever.
+    this.rejectPendingCalls();
+
+    this.subscriptions.clear();
+    this.stores.clear();
+    this.pendingData = [];
+  }
+
+  // No result can arrive over a closed connection, so settle every call still
+  // waiting as a rejection the caller can catch, rather than leaving its
+  // promise pending forever.
+  private rejectPendingCalls(): void {
     for (const { reject } of this.pendingRequests.values()) {
       reject(new Error('connection closed'));
     }
-
-    this.subscriptions.clear();
     this.pendingRequests.clear();
-    this.stores.clear();
-    this.pendingData = [];
   }
 
   // Test seam: exposes internal state so tests can assert teardown happened.
@@ -194,6 +237,15 @@ export class ConnectionManager {
     if (this.disposed) {
       throw new Error('ConnectionManager is disposed');
     }
+  }
+
+  private isCollectionReviving(collection: string): boolean {
+    for (const sub of this.subscriptions.values()) {
+      if (sub.collection === collection && sub.reviving) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private isCollectionLive(collection: string): boolean {
@@ -232,10 +284,31 @@ export class ConnectionManager {
     this.pendingData = remaining;
   }
 
+  // The replacement ready swaps the store's contents for the buffered initial
+  // documents in one move: a document deleted while offline disappears, and
+  // no observer ever sees the store empty in between.
+  private replaceFromPending(collection: string): void {
+    const replacement: DataMsg[] = [];
+    const remaining: DataMsg[] = [];
+    for (const message of this.pendingData) {
+      if (message.collection === collection) {
+        replacement.push(message);
+      } else {
+        remaining.push(message);
+      }
+    }
+    this.pendingData = remaining;
+    this.store(collection).replaceAll(replacement);
+  }
+
   private handleServerMessage(message: ServerMessage): void {
     switch (message.type) {
       case 'added': {
-        if (this.isCollectionLive(message.collection)) {
+        if (this.isCollectionReviving(message.collection)) {
+          // Initial documents of a resubscribe. Hold them so the stale view
+          // stays on screen until the ready swaps it wholesale.
+          this.pendingData.push(message);
+        } else if (this.isCollectionLive(message.collection)) {
           this.store(message.collection).handleMessage(message);
         } else if (this.hasUnboundSubscription()) {
           // Initial data for a subscription that has not learned its collection
@@ -260,7 +333,12 @@ export class ConnectionManager {
           // The server names the collection on ready, so bind the subscription
           // to it and flush any initial data buffered before it arrived.
           subscription.collection = message.collection;
-          this.flushPending(message.collection);
+          if (subscription.reviving) {
+            subscription.reviving = false;
+            this.replaceFromPending(message.collection);
+          } else {
+            this.flushPending(message.collection);
+          }
           subscription.readyResolver();
         }
         break;

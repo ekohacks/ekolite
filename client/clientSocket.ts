@@ -3,7 +3,14 @@ import { ClientMessage, ServerMessage } from '../shared/protocol.ts';
 
 const EVENT_OUTBOUND = 'outbound';
 const EVENT_INBOUND = 'inbound';
+const EVENT_OPEN = 'open';
 const CLIENT_DISCONNECTION_EVENT = 'disconnection';
+
+// Meteor's neighbourhood: pings comfortably inside common proxy idle
+// timeouts, with the pong window shorter than the interval so at most one
+// ping is ever in flight. Zero switches the heartbeat off.
+const DEFAULT_PING_INTERVAL_MS = 15_000;
+const DEFAULT_PONG_TIMEOUT_MS = 10_000;
 
 // The switch is mostly permissive and validates only fields we read.
 // Some cases intentionally reject contradictory payload shapes.
@@ -43,7 +50,18 @@ export function isServerMessage(data: unknown): data is ServerMessage {
 interface ClientSocketOptions {
   pingIntervalMs?: number;
   pongTimeoutMs?: number;
+  reconnect?: boolean;
+  reconnectBaseMs?: number;
+  reconnectMaxMs?: number;
+  // Seam for deterministic jitter in tests. Defaults to Math.random.
+  reconnectRandom?: () => number;
 }
+
+export interface SocketCloseEvent {
+  deliberate: boolean;
+}
+
+export type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'closed';
 
 type HeartbeatSender = () => void;
 type HeartbeatCloser = () => void;
@@ -152,12 +170,20 @@ class NullWebSocket implements WebSocketLike {
   onclose: WebSocketLike['onclose'] = null;
   readyState = NullWebSocket.CONNECTING;
 
-  constructor(_url: string) {
+  constructor(_url: string, options?: { failToOpen?: boolean }) {
     queueMicrotask(() => {
-      if (this.readyState === NullWebSocket.CONNECTING) {
-        this.readyState = NullWebSocket.OPEN;
-        this.onopen?.({});
+      if (this.readyState !== NullWebSocket.CONNECTING) {
+        return;
       }
+      if (options?.failToOpen) {
+        // A refused connection, as a real socket reports it: error, then close.
+        this.readyState = NullWebSocket.CLOSED;
+        this.onerror?.({});
+        this.onclose?.({});
+        return;
+      }
+      this.readyState = NullWebSocket.OPEN;
+      this.onopen?.({});
     });
   }
 
@@ -193,17 +219,32 @@ export class StubbedServer {
 }
 
 export class ClientSocketWrapper {
-  private readonly socket: WebSocketLike;
+  private socket: WebSocketLike;
+  private readonly url: string;
+  private readonly createSocket: WebSocketFactory;
   private readonly emitter = new EventEmitter();
   private heartbeat?: Heartbeat;
+  // Set only by the public close() path. The heartbeat also closes this socket
+  // when a pong never arrives, but that is a detected failure, not a goodbye.
+  private deliberateClose = false;
+  private retryTimer?: ReturnType<typeof setTimeout> | undefined;
+  private reconnectAttempts = 0;
 
   private constructor(
     url: string,
     create: WebSocketFactory,
     private readonly clientOptions?: ClientSocketOptions,
   ) {
-    this.socket = create(url);
-    this.socket.onmessage = (event) => {
+    this.url = url;
+    this.createSocket = create;
+    this.socket = this.openSocket();
+  }
+
+  // One socket per attempt: every close retires its socket, and reconnect
+  // builds a fresh one through the same factory.
+  private openSocket(): WebSocketLike {
+    const socket = this.createSocket(this.url);
+    socket.onmessage = (event) => {
       try {
         const raw: unknown = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
         if (!isServerMessage(raw)) {
@@ -220,10 +261,47 @@ export class ClientSocketWrapper {
         console.error('Failed to parse server message', error);
       }
     };
-    this.socket.onclose = () => {
+    socket.onclose = () => {
       this.heartbeat?.stop();
-      this.emitter.emit(CLIENT_DISCONNECTION_EVENT);
+      this.emitter.emit(CLIENT_DISCONNECTION_EVENT, {
+        deliberate: this.deliberateClose,
+      } satisfies SocketCloseEvent);
+      if (!this.deliberateClose && (this.clientOptions?.reconnect ?? true)) {
+        this.scheduleReconnect();
+      }
     };
+    return socket;
+  }
+
+  // An unexpected close reopens the connection. The first retry is instant;
+  // a failed attempt closes its own socket, which lands back here.
+  private scheduleReconnect(): void {
+    if (this.retryTimer) {
+      return; // one pending attempt at a time
+    }
+    const delay = this.nextRetryDelay();
+    this.reconnectAttempts += 1;
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = undefined;
+      this.socket = this.openSocket();
+      this.connect().catch(() => {
+        // the failed socket's close event schedules the next attempt
+      });
+    }, delay);
+  }
+
+  // The first retry is instant, catching blips. From there the wait doubles
+  // from reconnectBaseMs up to reconnectMaxMs, spread by jitter so a fleet of
+  // clients does not stampede a recovering server.
+  private nextRetryDelay(): number {
+    if (this.reconnectAttempts === 0) {
+      return 0;
+    }
+    const base = this.clientOptions?.reconnectBaseMs ?? 1000;
+    const max = this.clientOptions?.reconnectMaxMs ?? 30_000;
+    const random = this.clientOptions?.reconnectRandom ?? Math.random;
+    const doubled = Math.min(base * 2 ** (this.reconnectAttempts - 1), max);
+    return doubled * (0.75 + 0.5 * random());
   }
 
   static create(
@@ -241,12 +319,48 @@ export class ClientSocketWrapper {
     return new ClientSocketWrapper(parsed.toString(), (u) => new RealWebSocket(u), clientOptions);
   }
 
-  static createNull(clientOptions?: ClientSocketOptions): ClientSocketWrapper {
-    return new ClientSocketWrapper('wss://null', (u) => new NullWebSocket(u), clientOptions);
+  // The initial socket always opens; failReconnects makes the next n
+  // reconnect attempts fail, so the backoff schedule is observable.
+  static createNull(
+    clientOptions?: ClientSocketOptions,
+    nullOptions?: { failReconnects?: number },
+  ): ClientSocketWrapper {
+    let socketsCreated = 0;
+    let failuresLeft = nullOptions?.failReconnects ?? 0;
+    return new ClientSocketWrapper(
+      'wss://null',
+      (u) => {
+        socketsCreated += 1;
+        if (socketsCreated > 1 && failuresLeft > 0) {
+          failuresLeft -= 1;
+          return new NullWebSocket(u, { failToOpen: true });
+        }
+        return new NullWebSocket(u);
+      },
+      clientOptions,
+    );
   }
 
   get isConnected(): boolean {
     return this.socket.readyState === WebSocket.OPEN;
+  }
+
+  // What a page should render right now. 'reconnecting' covers the whole
+  // outage: the retry gap and the attempts alike, until a socket opens.
+  get status(): ConnectionStatus {
+    if (this.deliberateClose) {
+      return 'closed';
+    }
+    if (this.socket.readyState === WebSocket.OPEN) {
+      return 'connected';
+    }
+    if (this.retryTimer || this.reconnectAttempts > 0) {
+      return 'reconnecting';
+    }
+    if (this.socket.readyState === WebSocket.CONNECTING) {
+      return 'connecting';
+    }
+    return 'closed'; // died with reconnect off: nothing is coming back
   }
 
   connect(): Promise<void> {
@@ -262,6 +376,7 @@ export class ClientSocketWrapper {
 
       let settled = false;
       this.socket.onopen = () => {
+        this.reconnectAttempts = 0; // a live connection restarts the schedule
         this.heartbeat = new Heartbeat(
           () => {
             void this.send({ type: 'ping' });
@@ -270,12 +385,16 @@ export class ClientSocketWrapper {
             this.socket.close();
           },
           {
-            pingIntervalMs: this.clientOptions?.pingIntervalMs ?? 0,
-            pongTimeoutMs: this.clientOptions?.pongTimeoutMs ?? 0,
+            pingIntervalMs: this.clientOptions?.pingIntervalMs ?? DEFAULT_PING_INTERVAL_MS,
+            pongTimeoutMs: this.clientOptions?.pongTimeoutMs ?? DEFAULT_PONG_TIMEOUT_MS,
           },
         );
 
         this.heartbeat.start();
+
+        // Fires on every open, first connection and reconnects alike, so a
+        // listener can restore whatever the previous socket was carrying.
+        this.emitter.emit(EVENT_OPEN);
 
         if (!settled) {
           settled = true;
@@ -293,7 +412,18 @@ export class ClientSocketWrapper {
 
   close(): Promise<void> {
     return new Promise((resolve) => {
+      this.deliberateClose = true;
+      if (this.retryTimer) {
+        clearTimeout(this.retryTimer);
+        this.retryTimer = undefined;
+      }
       if (this.socket.readyState === WebSocket.CLOSED) {
+        // The socket is already gone, but the goodbye still has to be heard:
+        // listeners that survived the unexpected close are waiting to be told
+        // that this close is deliberate.
+        this.emitter.emit(CLIENT_DISCONNECTION_EVENT, {
+          deliberate: true,
+        } satisfies SocketCloseEvent);
         resolve();
         return;
       }
@@ -321,10 +451,20 @@ export class ClientSocketWrapper {
     };
   }
 
-  onClose(listener: () => void): () => void {
-    this.emitter.on(CLIENT_DISCONNECTION_EVENT, listener);
+  onOpen(listener: () => void): () => void {
+    this.emitter.on(EVENT_OPEN, listener);
     return () => {
-      this.emitter.off(CLIENT_DISCONNECTION_EVENT, listener);
+      this.emitter.off(EVENT_OPEN, listener);
+    };
+  }
+
+  onClose(listener: (event: SocketCloseEvent) => void): () => void {
+    const handler = (data: unknown) => {
+      listener(data as SocketCloseEvent);
+    };
+    this.emitter.on(CLIENT_DISCONNECTION_EVENT, handler);
+    return () => {
+      this.emitter.off(CLIENT_DISCONNECTION_EVENT, handler);
     };
   }
 

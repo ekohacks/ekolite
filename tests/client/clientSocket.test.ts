@@ -169,14 +169,21 @@ describe('ClientSocketWrapper (null)', () => {
 
   it('closes the socket when no pong arrives within the configured window', async () => {
     vi.useFakeTimers();
+    // Reconnect off: this test pins detection, the comeback is pinned in
+    // clientSocket.reconnect.test.ts.
     const socket = ClientSocketWrapper.createNull({
       pingIntervalMs: 1000,
       pongTimeoutMs: 500,
+      reconnect: false,
     });
     await socket.connect();
     vi.advanceTimersByTime(0);
 
-    const closed = new Promise<void>((resolve) => socket.onClose(resolve));
+    const closed = new Promise<void>((resolve) =>
+      socket.onClose(() => {
+        resolve();
+      }),
+    );
 
     vi.advanceTimersByTime(2000);
 
@@ -184,8 +191,8 @@ describe('ClientSocketWrapper (null)', () => {
     expect(socket.isConnected).toBe(false);
   });
 
-  it('does not close the connection when no heartbeat is configured', async () => {
-    const socket = ClientSocketWrapper.createNull();
+  it('stays open when the heartbeat is switched off', async () => {
+    const socket = ClientSocketWrapper.createNull({ pingIntervalMs: 0 });
     await socket.connect();
 
     await new Promise((resolve) => setTimeout(resolve, 20));
@@ -213,9 +220,12 @@ describe('ClientSocketWrapper (null)', () => {
 
   it('closes when a ping gets no pong within the window', async () => {
     vi.useFakeTimers();
+    // Reconnect off: this test pins detection, the comeback is pinned in
+    // clientSocket.reconnect.test.ts.
     const socket = ClientSocketWrapper.createNull({
       pingIntervalMs: 1000,
       pongTimeoutMs: 500,
+      reconnect: false,
     });
     await socket.connect();
     vi.advanceTimersByTime(0);

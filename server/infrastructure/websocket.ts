@@ -79,6 +79,14 @@ export class WebSocketWrapper implements WebSocketInterface {
     return this.clients.size;
   }
 
+  // Kick every connected client while the server stays up. Each socket's own
+  // close event runs the normal disconnect teardown.
+  dropAllClients(): void {
+    for (const { socket } of this.clients.values()) {
+      socket.close();
+    }
+  }
+
   simulateConnection(): StubbedClient {
     const sourceWithSimulate = this.source as {
       simulateConnection?: () => StubbedClient;
