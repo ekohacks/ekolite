@@ -4,7 +4,7 @@ import { ClientSocketWrapper } from '../../client/clientSocket.ts';
 import { ConnectionManager } from '../../client/connectionManager.ts';
 
 describe('ConnectionManager with a real socket', () => {
-  it('disposes when the server closes the socket', async () => {
+  it('survives the server closing the socket, and disposes on its own deliberate close', async () => {
     const server = new WebSocketServer({ port: 0 });
     const port = (server.address() as { port: number }).port;
 
@@ -24,10 +24,13 @@ describe('ConnectionManager with a real socket', () => {
       client.close();
     }
 
-    await expect(handle.ready).rejects.toThrow('subscription stopped before ready');
-
     await new Promise<void>((resolve) => setTimeout(resolve, 100));
 
+    expect(manager.activeSubscriptionCount()).toBe(1);
+
+    await socket.close();
+
+    await expect(handle.ready).rejects.toThrow('subscription stopped before ready');
     expect(manager.activeSubscriptionCount()).toBe(0);
 
     server.close();
