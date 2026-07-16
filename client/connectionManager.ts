@@ -72,8 +72,14 @@ export class ConnectionManager {
         this.handleServerMessage(message);
       }
     });
-    this.teardownCloseListener = this.socket.onClose(() => {
-      this.dispose();
+    this.teardownCloseListener = this.socket.onClose((event) => {
+      if (event.deliberate) {
+        this.dispose();
+        return;
+      }
+      // The socket comes back on its own, so subscriptions and stores wait
+      // for it. Calls cannot: their results died with the connection.
+      this.rejectPendingCalls();
     });
   }
 
@@ -172,17 +178,21 @@ export class ConnectionManager {
       this.stopSubscription(id);
     }
 
-    // No result can arrive over a closed connection, so settle every call still
-    // waiting as a rejection the caller can catch, rather than leaving its
-    // promise pending forever.
+    this.rejectPendingCalls();
+
+    this.subscriptions.clear();
+    this.stores.clear();
+    this.pendingData = [];
+  }
+
+  // No result can arrive over a closed connection, so settle every call still
+  // waiting as a rejection the caller can catch, rather than leaving its
+  // promise pending forever.
+  private rejectPendingCalls(): void {
     for (const { reject } of this.pendingRequests.values()) {
       reject(new Error('connection closed'));
     }
-
-    this.subscriptions.clear();
     this.pendingRequests.clear();
-    this.stores.clear();
-    this.pendingData = [];
   }
 
   // Test seam: exposes internal state so tests can assert teardown happened.

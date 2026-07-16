@@ -387,6 +387,12 @@ export class ClientSocketWrapper {
         this.retryTimer = undefined;
       }
       if (this.socket.readyState === WebSocket.CLOSED) {
+        // The socket is already gone, but the goodbye still has to be heard:
+        // listeners that survived the unexpected close are waiting to be told
+        // that this close is deliberate.
+        this.emitter.emit(CLIENT_DISCONNECTION_EVENT, {
+          deliberate: true,
+        } satisfies SocketCloseEvent);
         resolve();
         return;
       }

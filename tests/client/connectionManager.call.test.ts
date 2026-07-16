@@ -55,7 +55,7 @@ describe('ClientSocketWrapper call', () => {
     // A call whose reply will never come, because the socket drops first.
     const result = manager.call('slow');
 
-    // Dropping the connection runs dispose() via the onClose listener.
+    // Dropping the connection rejects the call via the onClose listener.
     server.simulateClose();
 
     // The call must settle, not wait forever. Race it against a short timer so
