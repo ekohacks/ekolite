@@ -8,7 +8,11 @@ describe('ConnectionManager with a real socket', () => {
     const server = new WebSocketServer({ port: 0 });
     const port = (server.address() as { port: number }).port;
 
-    const socket = ClientSocketWrapper.create(`ws://localhost:${String(port)}`);
+    // Reconnect off: with it on, the client would reopen against the still
+    // running server and hold the process alive past server.close().
+    const socket = ClientSocketWrapper.create(`ws://localhost:${String(port)}`, undefined, {
+      reconnect: false,
+    });
     await socket.connect();
     const manager = new ConnectionManager(socket);
 

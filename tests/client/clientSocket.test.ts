@@ -169,9 +169,12 @@ describe('ClientSocketWrapper (null)', () => {
 
   it('closes the socket when no pong arrives within the configured window', async () => {
     vi.useFakeTimers();
+    // Reconnect off: this test pins detection, the comeback is pinned in
+    // clientSocket.reconnect.test.ts.
     const socket = ClientSocketWrapper.createNull({
       pingIntervalMs: 1000,
       pongTimeoutMs: 500,
+      reconnect: false,
     });
     await socket.connect();
     vi.advanceTimersByTime(0);
@@ -217,9 +220,12 @@ describe('ClientSocketWrapper (null)', () => {
 
   it('closes when a ping gets no pong within the window', async () => {
     vi.useFakeTimers();
+    // Reconnect off: this test pins detection, the comeback is pinned in
+    // clientSocket.reconnect.test.ts.
     const socket = ClientSocketWrapper.createNull({
       pingIntervalMs: 1000,
       pongTimeoutMs: 500,
+      reconnect: false,
     });
     await socket.connect();
     vi.advanceTimersByTime(0);

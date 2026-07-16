@@ -43,6 +43,7 @@ export function isServerMessage(data: unknown): data is ServerMessage {
 interface ClientSocketOptions {
   pingIntervalMs?: number;
   pongTimeoutMs?: number;
+  reconnect?: boolean;
 }
 
 export interface SocketCloseEvent {
@@ -197,20 +198,31 @@ export class StubbedServer {
 }
 
 export class ClientSocketWrapper {
-  private readonly socket: WebSocketLike;
+  private socket: WebSocketLike;
+  private readonly url: string;
+  private readonly createSocket: WebSocketFactory;
   private readonly emitter = new EventEmitter();
   private heartbeat?: Heartbeat;
   // Set only by the public close() path. The heartbeat also closes this socket
   // when a pong never arrives, but that is a detected failure, not a goodbye.
   private deliberateClose = false;
+  private retryTimer?: ReturnType<typeof setTimeout> | undefined;
 
   private constructor(
     url: string,
     create: WebSocketFactory,
     private readonly clientOptions?: ClientSocketOptions,
   ) {
-    this.socket = create(url);
-    this.socket.onmessage = (event) => {
+    this.url = url;
+    this.createSocket = create;
+    this.socket = this.openSocket();
+  }
+
+  // One socket per attempt: every close retires its socket, and reconnect
+  // builds a fresh one through the same factory.
+  private openSocket(): WebSocketLike {
+    const socket = this.createSocket(this.url);
+    socket.onmessage = (event) => {
       try {
         const raw: unknown = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
         if (!isServerMessage(raw)) {
@@ -227,12 +239,31 @@ export class ClientSocketWrapper {
         console.error('Failed to parse server message', error);
       }
     };
-    this.socket.onclose = () => {
+    socket.onclose = () => {
       this.heartbeat?.stop();
       this.emitter.emit(CLIENT_DISCONNECTION_EVENT, {
         deliberate: this.deliberateClose,
       } satisfies SocketCloseEvent);
+      if (!this.deliberateClose && (this.clientOptions?.reconnect ?? true)) {
+        this.scheduleReconnect();
+      }
     };
+    return socket;
+  }
+
+  // An unexpected close reopens the connection. The first retry is instant;
+  // a failed attempt closes its own socket, which lands back here.
+  private scheduleReconnect(): void {
+    if (this.retryTimer) {
+      return; // one pending attempt at a time
+    }
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = undefined;
+      this.socket = this.openSocket();
+      this.connect().catch(() => {
+        // the failed socket's close event schedules the next attempt
+      });
+    }, 0);
   }
 
   static create(
@@ -302,11 +333,15 @@ export class ClientSocketWrapper {
 
   close(): Promise<void> {
     return new Promise((resolve) => {
+      this.deliberateClose = true;
+      if (this.retryTimer) {
+        clearTimeout(this.retryTimer);
+        this.retryTimer = undefined;
+      }
       if (this.socket.readyState === WebSocket.CLOSED) {
         resolve();
         return;
       }
-      this.deliberateClose = true;
       const teardown = this.onClose(() => {
         teardown();
         resolve();
