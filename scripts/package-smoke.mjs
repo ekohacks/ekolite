@@ -5,7 +5,7 @@
 //
 // Red until the package actually emits a loadable server entry and exports App. Run it
 // with `node scripts/package-smoke.mjs`.
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -23,7 +23,74 @@ function run(cmd, args, opts = {}) {
   }
 }
 
-function main() {
+// Arm graceful shutdown from the consumer side and prove the process exits clean on a
+// signal, rather than being killed. A real consumer boot: App.create holds the real
+// process, so armShutdown binds the OS signal handlers. Mongo connects lazily and nothing
+// here touches it, so no database needs to be running. Resolves on a clean exit 0, rejects
+// on anything else (a non-zero code, or death by signal).
+function assertGracefulShutdown(dir) {
+  writeFileSync(
+    join(dir, 'serve-and-wait.mjs'),
+    [
+      "import { App, createServer } from 'ekolite';",
+      '',
+      'const app = App.create({',
+      "  mongoUri: 'mongodb://localhost:27017/ekolite_smoke_shutdown',",
+      "  fileDir: './uploads',",
+      '  port: 0,',
+      '});',
+      'const server = await createServer({ ws: app.ws });',
+      "await server.listen({ port: 0, host: '127.0.0.1' });",
+      'app.armShutdown();',
+      "process.stdout.write('consumer-ready\\n');",
+    ].join('\n'),
+  );
+
+  return new Promise((resolve, reject) => {
+    const child = spawn('node', ['serve-and-wait.mjs'], {
+      cwd: dir,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let out = '';
+    let err = '';
+    let signalled = false;
+
+    const giveUp = setTimeout(() => {
+      child.kill('SIGKILL');
+      reject(new Error(`consumer never became ready or never exited:\n${out}\n${err}`));
+    }, 20000);
+
+    child.stdout.on('data', (chunk) => {
+      out += chunk;
+      if (!signalled && out.includes('consumer-ready')) {
+        signalled = true;
+        child.kill('SIGTERM');
+      }
+    });
+    child.stderr.on('data', (chunk) => {
+      err += chunk;
+    });
+    child.on('error', (spawnErr) => {
+      clearTimeout(giveUp);
+      reject(spawnErr);
+    });
+    child.on('exit', (code, signal) => {
+      clearTimeout(giveUp);
+      if (code === 0 && signal === null) {
+        resolve();
+        return;
+      }
+      reject(
+        new Error(
+          `a consumer armed shutdown but the process exited (code=${code}, signal=${signal}) ` +
+            `instead of a clean 0:\n${err}`,
+        ),
+      );
+    });
+  });
+}
+
+async function main() {
   // 1. Build the library from the repo.
   run('npm', ['run', 'build'], { cwd: REPO });
 
@@ -154,11 +221,22 @@ function main() {
       );
     }
 
+    // 8. A consumer arms graceful shutdown through the package surface, and the process
+    //    exits clean on a signal rather than being killed. Only asserted on POSIX: Windows
+    //    cannot deliver a signal to a child, the same reason smoke.integration.test.ts
+    //    skips its signal test there.
+    if (process.platform !== 'win32') {
+      await assertGracefulShutdown(dir);
+    }
+
     console.log('package smoke: PASS');
     console.log(`  consumer said: ${out}`);
     console.log('  declarations resolve to shipped files only');
     console.log('  a TS consumer compiles against ekolite, ekolite/shared and ekolite/client');
     console.log('  a consumer serves their own client through createServer');
+    if (process.platform !== 'win32') {
+      console.log('  a consumer arms graceful shutdown and the process exits 0 on a signal');
+    }
   } finally {
     rmSync(dir, { recursive: true, force: true });
     rmSync(tarball, { force: true });
@@ -169,7 +247,7 @@ function main() {
 }
 
 try {
-  main();
+  await main();
 } catch (err) {
   console.error(`package smoke: FAIL\n${err.message}`);
   process.exit(1);

@@ -29,7 +29,7 @@ shared/
   protocol.ts         the wire protocol, typed for both ends
 ```
 
-What `App` does not do is define anything. It wires infrastructure into logic and stops, so the registries it hands back are empty and whatever you define is all that is on them. EkoLite's own demo definitions live with the demo boot, not in the framework, and a consumer inherits none of them.
+What `App` does not do is define anything. It wires infrastructure into logic and stops, so the registries it hands back are empty and whatever you define is all that is on them. The framework carries no publications or methods of its own, the way `meteor run` boots your app rather than one of ours.
 
 ---
 
@@ -101,8 +101,8 @@ Client                                    Server
 
 ```
 Client                                    Server
-  │── method(id:'m1', name:'runCountC',    │
-  │     params:['/uploads/x.bam']) ───────►│
+  │── method(id:'m1', name:'runReport',    │
+  │     params:['/uploads/x.csv']) ───────►│
   │                                          │── ScriptRunner runs the script
   │◄── result(id:'m1', result:'42') ───────│
 ```
@@ -140,7 +140,7 @@ Removals are bookkeeping-aware. The server tracks which documents each client ac
 `Methods` is a registry. A method is a named function on the server:
 
 ```ts
-methods.define('runCountC', async (path) => scriptRunner.exec('python3', [script, path]));
+methods.define('runReport', async (path) => scriptRunner.exec('python3', [script, path]));
 ```
 
 `RpcHandler` routes an inbound `method` message to the registry and sends back `result` or `error`. Failures come back as a structured error with a code and a message, not a stack trace, and the client rejects the pending promise with it.
@@ -168,7 +168,7 @@ The routes are open. There is no auth on them yet, and that is a known gap.
 ```ts
 const handle = connection.subscribe('files.all'); // → SubscriptionHandle
 const store = connection.store('files'); // → ReactiveStore
-const count = await connection.call('runCountC', path);
+const count = await connection.call('runReport', path);
 handle.stop();
 ```
 
