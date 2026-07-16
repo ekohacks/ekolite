@@ -191,8 +191,8 @@ describe('ClientSocketWrapper (null)', () => {
     expect(socket.isConnected).toBe(false);
   });
 
-  it('does not close the connection when no heartbeat is configured', async () => {
-    const socket = ClientSocketWrapper.createNull();
+  it('stays open when the heartbeat is switched off', async () => {
+    const socket = ClientSocketWrapper.createNull({ pingIntervalMs: 0 });
     await socket.connect();
 
     await new Promise((resolve) => setTimeout(resolve, 20));
