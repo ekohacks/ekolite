@@ -34,10 +34,12 @@ jobs:
 
   # The integration suite needs a real MongoDB running as a single-node replica set
   # (change streams demand one). Each runner boots its own throwaway mongod on
-  # localhost: Linux reuses docker-compose.yml exactly as a laptop does; Windows and
-  # macOS cannot run Linux containers, so they download the official archive (pinned
-  # to match the mongo:7 image in docker-compose.yml) and initiate the replica set
-  # via scripts/mongo-replset-init.mjs.
+  # localhost: Linux runs the mongo service from docker-compose.yml, as a laptop does;
+  # Windows and macOS cannot run Linux containers, so they download the official
+  # archive (pinned to match the mongo:7 image in docker-compose.yml). All three then
+  # initiate the replica set via scripts/mongo-replset-init.mjs. Linux deliberately
+  # skips the compose mongo-init container: `up --wait` counts a cleanly exited
+  # one-shot container as a failure on current compose versions.
   #
   # The matrix is the point: 7.B.6 was a Windows-only failure that no ubuntu job
   # could ever have caught. Each leg uploads its timing record as an artefact, so
@@ -66,7 +68,9 @@ jobs:
 
       - name: 'Start MongoDB replica set (Linux)'
         if: runner.os == 'Linux'
-        run: docker compose up -d --wait
+        run: |
+          docker compose up -d --wait mongo
+          node scripts/mongo-replset-init.mjs
 
       - name: 'Start MongoDB replica set (Windows)'
         if: runner.os == 'Windows'
