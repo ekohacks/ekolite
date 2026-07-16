@@ -72,6 +72,13 @@ export class ReactiveStore {
     this.emitter.emit('change');
   }
 
+  // Swaps the whole contents in one move and notifies once, so an observer
+  // never sees the empty store a clear-then-add would expose.
+  replaceAll(docs: { id: string; fields?: Record<string, unknown> | undefined }[]): void {
+    this.docs = new Map(docs.map((doc) => [doc.id, doc.fields ?? {}]));
+    this.emitter.emit('change');
+  }
+
   getAll(): StoredDocWithId[] {
     return Array.from(this.docs.entries()).map(([id, fields]) => withId(id, fields));
   }

@@ -24,6 +24,9 @@ interface SubscriptionState {
   // Learned from the server: ready.collection when present, otherwise inferred
   // from the initial data buffered before ready. Undefined until then.
   collection?: string;
+  // Set when the socket dies unexpectedly. A reviving subscription buffers its
+  // incoming initial documents, and its next ready swaps them into the store.
+  reviving?: boolean;
 }
 
 class SubscriptionHandleImpl implements SubscriptionHandle {
@@ -84,6 +87,9 @@ export class ConnectionManager {
       // The socket comes back on its own, so subscriptions and stores wait
       // for it. Calls cannot: their results died with the connection.
       this.rejectPendingCalls();
+      for (const subscription of this.subscriptions.values()) {
+        subscription.reviving = true;
+      }
     });
     this.teardownOpenListener = this.socket.onOpen(() => {
       this.resubscribeAll();
@@ -233,6 +239,15 @@ export class ConnectionManager {
     }
   }
 
+  private isCollectionReviving(collection: string): boolean {
+    for (const sub of this.subscriptions.values()) {
+      if (sub.collection === collection && sub.reviving) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   private isCollectionLive(collection: string): boolean {
     for (const sub of this.subscriptions.values()) {
       if (sub.collection === collection) {
@@ -269,10 +284,31 @@ export class ConnectionManager {
     this.pendingData = remaining;
   }
 
+  // The replacement ready swaps the store's contents for the buffered initial
+  // documents in one move: a document deleted while offline disappears, and
+  // no observer ever sees the store empty in between.
+  private replaceFromPending(collection: string): void {
+    const replacement: DataMsg[] = [];
+    const remaining: DataMsg[] = [];
+    for (const message of this.pendingData) {
+      if (message.collection === collection) {
+        replacement.push(message);
+      } else {
+        remaining.push(message);
+      }
+    }
+    this.pendingData = remaining;
+    this.store(collection).replaceAll(replacement);
+  }
+
   private handleServerMessage(message: ServerMessage): void {
     switch (message.type) {
       case 'added': {
-        if (this.isCollectionLive(message.collection)) {
+        if (this.isCollectionReviving(message.collection)) {
+          // Initial documents of a resubscribe. Hold them so the stale view
+          // stays on screen until the ready swaps it wholesale.
+          this.pendingData.push(message);
+        } else if (this.isCollectionLive(message.collection)) {
           this.store(message.collection).handleMessage(message);
         } else if (this.hasUnboundSubscription()) {
           // Initial data for a subscription that has not learned its collection
@@ -297,7 +333,12 @@ export class ConnectionManager {
           // The server names the collection on ready, so bind the subscription
           // to it and flush any initial data buffered before it arrived.
           subscription.collection = message.collection;
-          this.flushPending(message.collection);
+          if (subscription.reviving) {
+            subscription.reviving = false;
+            this.replaceFromPending(message.collection);
+          } else {
+            this.flushPending(message.collection);
+          }
           subscription.readyResolver();
         }
         break;
