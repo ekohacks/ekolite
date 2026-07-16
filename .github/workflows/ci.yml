@@ -1,35 +1,105 @@
 name: Continuous Integration
 
 on:
-    push:
-        branches:
-            - main
-    pull_request:
-        branches:
-            - main
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
-    build:
-        runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-latest
 
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
 
-            - name: "Setup Node.js"
-              uses: actions/setup-node@v5
-              with:
-                  node-version: 24
-                  cache: "npm"
-                  cache-dependency-path: package-lock.json
+      - name: 'Setup Node.js'
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
 
-            - name: "Install dependencies"
-              run: npm ci
-            - name: "Type check"
-              run: npm run typecheck
-            - name: "Lint code"
-              run: npm run lint
-            - name: "Run tests"
-              run: npm test
-            - name: "Smoke test (boots the real entry point)"
-              run: npx vitest run --config vitest.integration.config.ts tests/server/smoke.integration.test.ts
+      - name: 'Install dependencies'
+        run: npm ci
+      - name: 'Type check'
+        run: npm run typecheck
+      - name: 'Lint code'
+        run: npm run lint
+      - name: 'Run tests'
+        run: npm test
+
+  # The integration suite needs a real MongoDB running as a single-node replica set
+  # (change streams demand one). Each runner boots its own throwaway mongod on
+  # localhost: Linux runs the mongo service from docker-compose.yml, as a laptop does;
+  # Windows and macOS cannot run Linux containers, so they download the official
+  # archive (pinned to match the mongo:7 image in docker-compose.yml). All three then
+  # initiate the replica set via scripts/mongo-replset-init.mjs. Linux deliberately
+  # skips the compose mongo-init container: `up --wait` counts a cleanly exited
+  # one-shot container as a failure on current compose versions.
+  #
+  # The matrix is the point: 7.B.6 was a Windows-only failure that no ubuntu job
+  # could ever have caught. Each leg uploads its timing record as an artefact, so
+  # every run adds one data point per platform (see scripts/record-timings.mjs).
+  integration:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: 'Setup Node.js'
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: 'Install dependencies'
+        run: npm ci
+
+      - name: 'Start MongoDB replica set (Linux)'
+        if: runner.os == 'Linux'
+        run: |
+          docker compose up -d --wait mongo
+          node scripts/mongo-replset-init.mjs
+
+      - name: 'Start MongoDB replica set (Windows)'
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri https://fastdl.mongodb.org/windows/mongodb-windows-x86_64-7.0.37.zip -OutFile mongodb.zip
+          Expand-Archive mongodb.zip -DestinationPath C:\mongodb
+          New-Item -ItemType Directory -Path C:\mongodb-data | Out-Null
+          $mongod = (Get-ChildItem C:\mongodb -Recurse -Filter mongod.exe | Select-Object -First 1).FullName
+          Start-Process -FilePath $mongod -ArgumentList '--replSet','rs0','--dbpath','C:\mongodb-data','--bind_ip','127.0.0.1'
+          node scripts/mongo-replset-init.mjs
+
+      - name: 'Start MongoDB replica set (macOS)'
+        if: runner.os == 'macOS'
+        run: |
+          curl -sSL https://fastdl.mongodb.org/osx/mongodb-macos-arm64-7.0.37.tgz | tar xz
+          mkdir -p mongodb-data
+          ./mongodb-macos-*/bin/mongod --replSet rs0 --dbpath mongodb-data --bind_ip 127.0.0.1 --fork --logpath mongod.log
+          node scripts/mongo-replset-init.mjs
+
+      - name: 'Integration tests'
+        run: npm run test:integration
+
+      - name: 'Upload timing record'
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: timings-${{ matrix.os }}
+          path: .timings/
+          # .timings is a dot-directory, and upload-artifact silently drops hidden
+          # paths by default. Without this the artefact uploads nothing at all.
+          include-hidden-files: true

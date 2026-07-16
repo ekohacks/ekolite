@@ -31,11 +31,15 @@ async function startAndCaptureErrorAsync(server: ServerProcess): Promise<Error> 
   throw new Error('startAsync resolved; expected it to reject');
 }
 
+// Occupy the exact wildcard start.ts binds (0.0.0.0). A bare listen(0) binds the IPv6
+// wildcard instead, which only collides with the child's IPv4 bind on platforms where
+// v6 sockets are dual-stack by default. Windows keeps them separate (IPV6_V6ONLY is on),
+// so the "occupied" port was free on the v4 side and the child booted happily.
 function listenAsync(): Promise<{ server: net.Server; port: number }> {
   return new Promise((resolve, reject) => {
     const server = net.createServer();
     server.on('error', reject);
-    server.listen(0, () => {
+    server.listen(0, '0.0.0.0', () => {
       const address = server.address();
       if (address === null || typeof address === 'string') {
         reject(new Error('could not occupy a port'));

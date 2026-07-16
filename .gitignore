@@ -148,3 +148,5 @@ vite.config.ts.timestamp-*
 
 #Vim temp backup files
 *.swp
+# Integration test timing records (scripts/record-timings.mjs)
+.timings/
