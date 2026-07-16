@@ -31,4 +31,5 @@ jobs:
               run: npm run lint
             - name: "Run tests"
               run: npm test
-            
+            - name: "Smoke test (boots the real entry point)"
+              run: npx vitest run --config vitest.integration.config.ts tests/server/smoke.integration.test.ts
