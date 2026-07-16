@@ -61,6 +61,8 @@ export interface SocketCloseEvent {
   deliberate: boolean;
 }
 
+export type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'closed';
+
 type HeartbeatSender = () => void;
 type HeartbeatCloser = () => void;
 
@@ -341,6 +343,24 @@ export class ClientSocketWrapper {
 
   get isConnected(): boolean {
     return this.socket.readyState === WebSocket.OPEN;
+  }
+
+  // What a page should render right now. 'reconnecting' covers the whole
+  // outage: the retry gap and the attempts alike, until a socket opens.
+  get status(): ConnectionStatus {
+    if (this.deliberateClose) {
+      return 'closed';
+    }
+    if (this.socket.readyState === WebSocket.OPEN) {
+      return 'connected';
+    }
+    if (this.retryTimer || this.reconnectAttempts > 0) {
+      return 'reconnecting';
+    }
+    if (this.socket.readyState === WebSocket.CONNECTING) {
+      return 'connecting';
+    }
+    return 'closed'; // died with reconnect off: nothing is coming back
   }
 
   connect(): Promise<void> {
