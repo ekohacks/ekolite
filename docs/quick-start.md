@@ -29,7 +29,11 @@ app.publications.define('tasks.mine', (p) => ({ collection: 'tasks', query: { ow
 app.methods.define('addTask', (title) => createTask(title));
 ```
 
+To run your app as a server without writing a boot file, point an `ekolite.config.ts` at your definitions and use the `ekolite run` command. See [Running your app](/running-your-app).
+
 ## Where next
+
+- [Running your app](/running-your-app) — boot your own app with the `ekolite run` command.
 
 - [Overview](/ekolite-overview/ekolite-overview) — what EkoLite is and how the pieces fit together.
 - [System design](/ekolite-overview/ekolite-system-design) — how the framework is put together, and the wire protocol.
