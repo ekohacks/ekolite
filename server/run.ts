@@ -1,7 +1,8 @@
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { type App } from './app.ts';
-import { type ServerOptions } from './index.ts';
+import { App, type AppConfig } from './app.ts';
+import { createServer, type ServerOptions } from './index.ts';
+import { READY_MESSAGE } from '../shared/serverMessages.ts';
 import { type Publications } from './logic/publications.ts';
 import { type Methods } from './logic/methods.ts';
 import { type Files } from './logic/files.ts';
@@ -84,4 +85,29 @@ export function buildServerOptions(app: App, config: EkoConfig, dir: string): Se
     return base;
   }
   return { ...base, staticRoot: resolve(dir, config.clientDir) };
+}
+
+// The full boot `ekolite run` performs, in the developer's project directory: read the
+// config, assemble the App against real infrastructure, apply the app's own definitions,
+// serve it over Fastify with the app's client, arm graceful shutdown, and announce
+// readiness. This is start.ts done from a developer's config rather than by hand; the
+// runtime knobs (mongoUri, port) stay in the environment so a deploy overrides them.
+export async function runApp(dir: string = process.cwd()): Promise<void> {
+  const config = await loadConfig(dir);
+  const entry = await resolveEntry(config, dir);
+
+  const appConfig: AppConfig = {
+    mongoUri: process.env.MONGO_URI ?? 'mongodb://localhost:27017/ekolite',
+    fileDir: config.fileDir ?? process.env.FILE_DIR ?? './uploads',
+    port: Number(process.env.EKOLITE_PORT ?? process.env.PORT ?? 3001),
+  };
+  const app = App.create(appConfig);
+
+  const assetsDir = config.assetsDir === undefined ? undefined : resolve(dir, config.assetsDir);
+  applyAppEntry(app, entry, assetsDir === undefined ? {} : { assetsDir });
+
+  const server = await createServer(buildServerOptions(app, config, dir));
+  await server.listen({ port: appConfig.port, host: '0.0.0.0' });
+  app.armShutdown();
+  process.stdout.write(`${READY_MESSAGE} http://localhost:${String(appConfig.port)}\n`);
 }
