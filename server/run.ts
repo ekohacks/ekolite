@@ -15,6 +15,10 @@ export interface AppContext {
   methods: Methods;
   files: Files;
   scriptRunner: ScriptRunnerWrapper;
+  // Resolve a bundled asset (a script, a fixture) to an absolute path, against the config's
+  // assetsDir. The equivalent of Meteor's Assets.absoluteFilePath: an app ships countC.py
+  // and asks the runner where it landed rather than hardcoding a path.
+  asset: (name: string) => string;
 }
 
 // A developer's app entry: a function the runner calls with the context, where the app
@@ -23,12 +27,19 @@ export type AppEntry = (eko: AppContext) => void;
 
 // Run the app entry against the app the runner assembled, so the entry's definitions land
 // on the registries the runner is about to serve. Wired in the green step.
-export function applyAppEntry(app: App, entry: AppEntry): void {
+export function applyAppEntry(
+  app: App,
+  entry: AppEntry,
+  _options: { assetsDir?: string } = {},
+): void {
   entry({
     publications: app.publications,
     methods: app.methods,
     files: app.files,
     scriptRunner: app.scriptRunner,
+    asset: () => {
+      throw new Error('asset not implemented');
+    },
   });
 }
 

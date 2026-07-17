@@ -30,6 +30,21 @@ describe('ekolite run - applying an app entry', () => {
     });
 
     // Only what you define against, so armShutdown, close, mongo and proc stay the runner's.
-    expect(keys.sort()).toEqual(['files', 'methods', 'publications', 'scriptRunner']);
+    expect(keys.sort()).toEqual(['asset', 'files', 'methods', 'publications', 'scriptRunner']);
+  });
+
+  it('resolves an asset path against the assets directory', () => {
+    const app = App.createNull();
+    let resolved = '';
+
+    applyAppEntry(
+      app,
+      (eko) => {
+        resolved = eko.asset('countC.py');
+      },
+      { assetsDir: '/proj/scripts' },
+    );
+
+    expect(resolved).toBe('/proj/scripts/countC.py');
   });
 });
