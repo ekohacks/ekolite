@@ -1,6 +1,6 @@
 {
   "name": "ekolite",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A lightweight, real-time backend framework for data-driven apps. Fastify + MongoDB + WebSocket with typed pub/sub, RPC methods, and file uploads.",
   "homepage": "https://ekohacks.github.io/ekolite/",
   "bugs": {
