@@ -37,5 +37,6 @@ export default defineConfig(
     '*.mjs',
     'docs/.vitepress/dist/',
     'docs/.vitepress/cache/',
+    'docs/.vitepress/theme/',
   ]),
 );
