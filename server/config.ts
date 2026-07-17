@@ -14,6 +14,6 @@ export interface EkoConfig {
 
 // Identity, but typed: a consumer writes `export default defineConfig({ ... })` and gets
 // autocomplete and a compile error on a wrong or missing key. Wired in the green step.
-export function defineConfig(_config: EkoConfig): EkoConfig {
-  throw new Error('defineConfig not implemented');
+export function defineConfig(config: EkoConfig): EkoConfig {
+  return config;
 }
