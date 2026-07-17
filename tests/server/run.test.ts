@@ -20,4 +20,16 @@ describe('ekolite run - applying an app entry', () => {
 
     await expect(app.methods.call('greet', ['world'])).resolves.toBe('hi world');
   });
+
+  it('gives the entry a narrow context, not the whole app', () => {
+    const app = App.createNull();
+    const keys: string[] = [];
+
+    applyAppEntry(app, (eko) => {
+      keys.push(...Object.keys(eko));
+    });
+
+    // Only what you define against, so armShutdown, close, mongo and proc stay the runner's.
+    expect(keys.sort()).toEqual(['files', 'methods', 'publications', 'scriptRunner']);
+  });
 });
