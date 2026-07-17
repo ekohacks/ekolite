@@ -1,0 +1,37 @@
+name: Publish to npm
+
+# Publishes to npm when a GitHub Release is published. Auth is OIDC trusted publishing, no
+# stored token: npmjs.com is configured to trust this repo, this workflow and the `release`
+# environment. prepublishOnly re-runs typecheck, tests and build as the gate before it ships.
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: release # must match the Environment name set on the npm trusted publisher
+    permissions:
+      contents: read
+      id-token: write # OIDC for trusted publishing and provenance
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: 'Setup Node.js'
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: 'Update npm (trusted publishing needs >= 11.5)'
+        run: npm install -g npm@latest
+
+      - name: 'Install dependencies'
+        run: npm ci
+
+      - name: 'Publish to npm'
+        run: npm publish --provenance --access public
