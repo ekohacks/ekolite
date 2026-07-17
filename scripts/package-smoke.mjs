@@ -6,7 +6,7 @@
 // Red until the package actually emits a loadable server entry and exports App. Run it
 // with `node scripts/package-smoke.mjs`.
 import { execFileSync, spawn } from 'node:child_process';
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -90,6 +90,100 @@ function assertGracefulShutdown(dir) {
   });
 }
 
+// Prove `ekolite run` from the outside: a consumer's project carries only an
+// ekolite.config.ts and its (eko) => void app entry, no start.ts of its own. The installed
+// `ekolite` bin reads the config, applies the app's definitions, and serves the consumer's
+// own client. Their config and entry are TypeScript, imported by Node's native type
+// stripping, so there is no build step between the developer and `ekolite run`.
+function assertRunBootsTheApp(dir) {
+  const READY = 'ekolite: ready on'; // mirrors READY_MESSAGE in shared/serverMessages.ts
+  const port = 3987;
+
+  mkdirSync(join(dir, 'eko-client'), { recursive: true });
+  writeFileSync(join(dir, 'eko-client', 'index.html'), '<!-- served by ekolite run -->\n');
+  writeFileSync(
+    join(dir, 'ekolite.config.ts'),
+    [
+      "import { defineConfig } from 'ekolite/config';",
+      "export default defineConfig({ app: './eko-app.ts', clientDir: './eko-client' });",
+      '',
+    ].join('\n'),
+  );
+  writeFileSync(
+    join(dir, 'eko-app.ts'),
+    [
+      "import type { AppEntry } from 'ekolite/config';",
+      'const app: AppEntry = (eko) => {',
+      "  eko.methods.define('greet', (name) => Promise.resolve(`hi ${String(name)}`));",
+      '};',
+      'export default app;',
+      '',
+    ].join('\n'),
+  );
+
+  const bin = join(dir, 'node_modules', 'ekolite', 'dist', 'server', 'cli.js');
+
+  return new Promise((resolve, reject) => {
+    const child = spawn('node', [bin, 'run'], {
+      cwd: dir,
+      env: { ...process.env, EKOLITE_PORT: String(port) },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let out = '';
+    let err = '';
+    let settled = false;
+
+    const finish = (fn) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(giveUp);
+      fn();
+    };
+
+    const giveUp = setTimeout(() => {
+      child.kill('SIGKILL');
+      finish(() => reject(new Error(`ekolite run never became ready:\n${out}\n${err}`)));
+    }, 20000);
+
+    child.stdout.on('data', (chunk) => {
+      out += chunk;
+      if (!out.includes(READY)) return;
+      // Ready: the consumer's own client is served at /, then stop cleanly.
+      fetch(`http://127.0.0.1:${String(port)}/`)
+        .then(async (res) => ({ status: res.status, body: await res.text() }))
+        .then(({ status, body }) => {
+          if (status !== 200 || !body.includes('served by ekolite run')) {
+            child.kill('SIGKILL');
+            finish(() =>
+              reject(new Error(`ekolite run did not serve the app's client: status=${status}\n${body}`)),
+            );
+            return;
+          }
+          child.kill('SIGTERM');
+        })
+        .catch((fetchErr) => {
+          child.kill('SIGKILL');
+          finish(() => reject(fetchErr));
+        });
+    });
+    child.stderr.on('data', (chunk) => {
+      err += chunk;
+    });
+    child.on('error', (spawnErr) => finish(() => reject(spawnErr)));
+    child.on('exit', (code, signal) => {
+      finish(() => {
+        if (code === 0 && signal === null) {
+          resolve();
+          return;
+        }
+        reject(
+          new Error(`ekolite run exited (code=${code}, signal=${signal}) instead of a clean 0:\n${err}`),
+        );
+      });
+    });
+  });
+}
+
 async function main() {
   // 1. Build the library from the repo.
   run('npm', ['run', 'build'], { cwd: REPO });
@@ -121,6 +215,13 @@ async function main() {
   let clientDir;
   try {
     run('npm', ['init', '-y'], { cwd: dir });
+    // A modern ESM consumer: .ts and .js resolve as ES modules. This is what ekolite run's
+    // native type stripping needs to load an ekolite.config.ts, and EkoLite is ESM anyway.
+    const pkgPath = join(dir, 'package.json');
+    writeFileSync(
+      pkgPath,
+      JSON.stringify({ ...JSON.parse(readFileSync(pkgPath, 'utf8')), type: 'module' }, null, 2),
+    );
     run('npm', ['install', tarball], { cwd: dir });
 
     // 3. A consumer that knows only the published package: import App, define a method on
@@ -229,6 +330,12 @@ async function main() {
       await assertGracefulShutdown(dir);
     }
 
+    // 9. The `ekolite run` bin boots a consumer's app from its ekolite.config.ts and serves
+    //    the consumer's own client, no start.ts of theirs. SIGTERM here, so POSIX only.
+    if (process.platform !== 'win32') {
+      await assertRunBootsTheApp(dir);
+    }
+
     console.log('package smoke: PASS');
     console.log(`  consumer said: ${out}`);
     console.log('  declarations resolve to shipped files only');
@@ -236,6 +343,7 @@ async function main() {
     console.log('  a consumer serves their own client through createServer');
     if (process.platform !== 'win32') {
       console.log('  a consumer arms graceful shutdown and the process exits 0 on a signal');
+      console.log('  a consumer boots their own app with `ekolite run` and it serves their client');
     }
   } finally {
     rmSync(dir, { recursive: true, force: true });
