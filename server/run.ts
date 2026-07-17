@@ -1,3 +1,5 @@
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { type App } from './app.ts';
 import { type Publications } from './logic/publications.ts';
 import { type Methods } from './logic/methods.ts';
@@ -31,13 +33,22 @@ export function applyAppEntry(app: App, entry: AppEntry): void {
 }
 
 // Discovery: the runner finds a developer's app by convention, an `ekolite.config.ts` at
-// the project root, and returns its default-exported config. Wired in the green step.
-export function loadConfig(_dir: string): Promise<EkoConfig> {
-  return Promise.reject(new Error('loadConfig not implemented'));
+// the project root, and returns its default-exported config. The import resolves the file
+// through Node's own module loader, which strips the types (Node 24) or hands off to a
+// registered loader, so no build step stands between the developer and `ekolite run`.
+export async function loadConfig(dir: string): Promise<EkoConfig> {
+  const href = pathToFileURL(resolve(dir, 'ekolite.config.ts')).href;
+  const mod = (await import(href)) as { default: EkoConfig };
+  return mod.default;
 }
 
-// Resolve the config's `app` to the entry function: a path is imported from the project,
-// a function is used as-is. Wired in the green step.
-export function resolveEntry(_config: EkoConfig, _dir: string): Promise<AppEntry> {
-  return Promise.reject(new Error('resolveEntry not implemented'));
+// Resolve the config's `app` to the entry function: a path is imported from the project
+// (relative to the config's directory), a function is used as-is.
+export async function resolveEntry(config: EkoConfig, dir: string): Promise<AppEntry> {
+  if (typeof config.app === 'function') {
+    return config.app;
+  }
+  const href = pathToFileURL(resolve(dir, config.app)).href;
+  const mod = (await import(href)) as { default: AppEntry };
+  return mod.default;
 }
