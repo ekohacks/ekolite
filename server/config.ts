@@ -1,0 +1,19 @@
+import { type AppEntry } from './run.ts';
+
+// The shape of an ekolite.config.ts. `app` is the app entry: a path to the module the
+// runner imports, or the entry function inline. The dirs point the runner at the app's own
+// files: the built client to serve at /, the scripts and assets to resolve at runtime, and
+// where uploads land. mongoUri and port stay env driven, so a deploy overrides them without
+// editing this file.
+export interface EkoConfig {
+  app: string | AppEntry;
+  clientDir?: string;
+  assetsDir?: string;
+  fileDir?: string;
+}
+
+// Identity, but typed: a consumer writes `export default defineConfig({ ... })` and gets
+// autocomplete and a compile error on a wrong or missing key. Wired in the green step.
+export function defineConfig(_config: EkoConfig): EkoConfig {
+  throw new Error('defineConfig not implemented');
+}
