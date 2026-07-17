@@ -33,7 +33,7 @@ To run your app as a server without writing a boot file, point an `ekolite.confi
 
 ## Where next
 
-- [Running your app](/running-your-app) — boot your own app with the `ekolite run` command.
+- [Running your app](/running-your-app). Boot your own app with the `ekolite run` command.
 
 - [Overview](/ekolite-overview/ekolite-overview) — what EkoLite is and how the pieces fit together.
 - [System design](/ekolite-overview/ekolite-system-design) — how the framework is put together, and the wire protocol.

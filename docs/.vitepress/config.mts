@@ -8,8 +8,9 @@ import { defineConfig } from 'vitepress';
 export default defineConfig({
   title: 'EkoLite',
   description:
-    'A lightweight, real-time backend framework: Fastify, MongoDB and WebSocket with typed pub/sub, RPC methods and file uploads.',
+    'A lightweight, real time backend framework: Fastify, MongoDB and WebSocket with typed pub/sub, RPC methods and file uploads.',
   base: '/ekolite/',
+  head: [['link', { rel: 'icon', href: '/ekolite/favicon.ico' }]],
   // Not published. Epics is the roadmap and customer is a stakeholder brief, so neither is a
   // framework document. The spec is the original design target: it documents definePublication,
   // defineMethod and defineUploadHandler, none of which were built. The API that exists is
@@ -22,6 +23,7 @@ export default defineConfig({
     'archive/**',
   ],
   themeConfig: {
+    logo: '/ekohacks-mark.png',
     nav: [
       { text: 'Quick start', link: '/quick-start' },
       { text: 'Run your app', link: '/running-your-app' },
@@ -65,5 +67,9 @@ export default defineConfig({
       },
     ],
     socialLinks: [{ icon: 'github', link: 'https://github.com/ekohacks/ekolite' }],
+    footer: {
+      message: 'Part of <a href="https://ekohacks.com">EkoHacks</a>.',
+      copyright: 'MIT licensed. EkoLite is a work in progress.',
+    },
   },
 });
