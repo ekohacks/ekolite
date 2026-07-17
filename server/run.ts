@@ -20,6 +20,6 @@ export type AppEntry = (eko: AppContext) => void;
 
 // Run the app entry against the app the runner assembled, so the entry's definitions land
 // on the registries the runner is about to serve. Wired in the green step.
-export function applyAppEntry(_app: App, _entry: AppEntry): void {
-  throw new Error('applyAppEntry not implemented');
+export function applyAppEntry(app: App, entry: AppEntry): void {
+  entry(app);
 }
