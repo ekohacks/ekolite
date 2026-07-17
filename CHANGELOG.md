@@ -2,6 +2,12 @@
 
 All notable changes to `ekolite` are recorded here. The project is pre-1.0, so a minor version may carry a breaking change.
 
+## 0.3.0
+
+### Added
+
+- **`ekolite run`.** Boot your own app from an `ekolite.config.ts`, with no `start.ts` to copy. Define your publications and methods in a `(eko) => void` app entry, and the runner assembles `App`, applies them, serves your built client, and arms graceful shutdown. Adds the `ekolite` bin (`ekolite run`) and an `ekolite/config` export (`defineConfig`, plus the `AppEntry` and `AppContext` types). TypeScript entries load through Node 24's native type stripping, so there is no build step and no new dependency. A consumer project must set `"type": "module"`. (#146)
+
 ## 0.2.0
 
 ### Added
