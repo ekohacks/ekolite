@@ -68,9 +68,9 @@ The count is not really the point. The saving is in the machinery that is absent
 | Session identity     | Track a client across reconnects                     | A client that reconnects re-subscribes, which is simpler than replaying a log                         |
 | Merge box            | Reconcile documents across overlapping subscriptions | Subscriptions do not overlap in practice, and the bookkeeping is substantial                          |
 | Latency compensation | Run the method on the client first, reconcile later  | Methods run server-side work, such as an analysis script. There is nothing to simulate optimistically |
-| Reconnect replay     | Resume a dropped session where it left off           | Not built yet. Today a closed socket disposes and stays disposed                                      |
+| Reconnect replay     | Resume a dropped session where it left off           | The client reconnects and resubscribes from scratch (see 6.1), needing no session log to replay from  |
 
-That last row is a gap, not a decision, and it is named as one.
+Reconnect itself is built now (see 6.1): a dropped socket reopens and resubscribes. What these two rows still refuse is a server-side session log to resume from, and full resubscribe is what makes it unnecessary.
 
 ### 2.3 The Heartbeat
 
@@ -78,7 +78,7 @@ That last row is a gap, not a decision, and it is named as one.
 
 `ClientSocketWrapper` runs a `Heartbeat` that sends a `ping` on an interval and expects a `pong` before a deadline. If the deadline passes, the connection is treated as dead and closed, which is the only way the client finds out. The server answers every `ping` with a `pong`, carrying the `id` back when the ping sent one.
 
-The heartbeat is opt-in: `pingIntervalMs` and `pongTimeoutMs` default to zero, which means off.
+In the live client the heartbeat is on by default: `pingIntervalMs` is 15 seconds and `pongTimeoutMs` is 10 seconds (`DEFAULT_PING_INTERVAL_MS` and `DEFAULT_PONG_TIMEOUT_MS` in `client/clientSocket.ts`). Setting either to zero disables it. The silently dead socket the heartbeat catches is the first half of the connection lifecycle in 6.1: the close it forces is what the reconnect path acts on.
 
 ### 2.4 Flows
 
@@ -174,7 +174,41 @@ handle.stop();
 
 `ReactiveStore` is client-side collection state: a `Map` fed by `added`, `changed` and `removed`, with `getAll()`, `getById()` and `onChange()` for the UI to listen to. It is about ninety lines, and it holds no query engine on purpose.
 
-`ConnectionManager.dispose()` stops every subscription and rejects every in-flight call, so a closed connection never leaves a promise hanging forever.
+`ConnectionManager.dispose()` stops every subscription and rejects every in-flight call, so a deliberately closed connection never leaves a promise hanging forever. A network drop is different: the manager survives it and resubscribes rather than disposing, and only a deliberate close tears it down (see 6.1).
+
+### 6.1 The connection lifecycle
+
+A dropped socket is not the end of the client. `ClientSocketWrapper` reopens it and `ConnectionManager` picks its subscriptions back up, so the page recovers on its own. Four rules shape what happens, and each is pinned by a test.
+
+**A close carries intent.** Only the application calling `close()` is deliberate. A heartbeat that times out and a socket that dies on the network are not, and only those trigger reconnect. A deliberate close stays closed. (`deliberateClose` in `client/clientSocket.ts`, pinned by `clientSocket.reconnect.test.ts`.)
+
+**Reconnect backs off and never gives up.** The first retry is instant. After that the wait doubles from 1 second (`reconnectBaseMs`) to a 30 second cap (`reconnectMaxMs`), spread by jitter of up to a quarter so a fleet of clients coming back together does not stampede the server. A live connection resets the schedule to the top, and it retries forever. `reconnect: false` opts out, and a drop then goes straight to closed. (`clientSocket.reconnect.test.ts`.)
+
+**Resubscribe and catch up.** The manager survives the drop rather than disposing. On every reopen it replays each subscription with its original id. While a subscription revives, the documents that arrive buffer, and the `ready` after resubscribe swaps the store's contents in one move. So a document deleted during the outage is gone afterwards, the page keeps its stale view until the swap rather than flashing empty, and live updates resume once the catch up completes. (`connectionManager.catchUp.test.ts`.)
+
+**`status` is what a page renders.** `ClientSocketWrapper.status` is one of `connecting`, `connected`, `reconnecting` or `closed`. `reconnecting` covers the whole outage, from the unexpected close to the socket coming back, so an application can render that state and hold the stale data on screen instead of hiding the failure. (`ConnectionStatus` in `client/clientSocket.ts`, pinned by `clientSocket.status.test.ts`.)
+
+**A drop and recovery:**
+
+```
+Client                                    Server
+  │  connected, subscribed to files.all      │
+  │  store holds doc1, doc2                   │
+  │                                           │
+  │      [network dies, no close event]       │
+  │  heartbeat pong times out → socket closed │
+  │  status: reconnecting                     │
+  │                                           │
+  │  retry: instant, then 1s, 2s, 4s … 30s    │
+  │── (reopened) ────────────────────────────►│
+  │  status: connected                        │
+  │── subscribe(id:'s1', name:'files.all') ──►│  same id as before
+  │◄── added(collection:'files', id:'doc2') ──│  doc1 was deleted while away
+  │◄── added(collection:'files', id:'doc3') ──│  incoming docs buffer
+  │◄── ready(id:'s1', collection:'files') ────│  store swaps whole, doc1 gone
+  │  the stale view is held until this ready,  │
+  │  the store is never observed empty         │
+```
 
 ---
 
