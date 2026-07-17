@@ -30,15 +30,19 @@ export type AppEntry = (eko: AppContext) => void;
 export function applyAppEntry(
   app: App,
   entry: AppEntry,
-  _options: { assetsDir?: string } = {},
+  options: { assetsDir?: string } = {},
 ): void {
+  const { assetsDir } = options;
   entry({
     publications: app.publications,
     methods: app.methods,
     files: app.files,
     scriptRunner: app.scriptRunner,
-    asset: () => {
-      throw new Error('asset not implemented');
+    asset: (name) => {
+      if (assetsDir === undefined) {
+        throw new Error(`Cannot resolve asset "${name}": no assetsDir configured`);
+      }
+      return resolve(assetsDir, name);
     },
   });
 }
