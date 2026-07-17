@@ -73,6 +73,15 @@ export async function resolveEntry(config: EkoConfig, dir: string): Promise<AppE
 // app's own wiring, plus the built client resolved to an absolute staticRoot. No clientDir
 // means no static handler, which createServer reads as an honest "serves nothing". Wired in
 // the green step.
-export function buildServerOptions(_app: App, _config: EkoConfig, _dir: string): ServerOptions {
-  throw new Error('buildServerOptions not implemented');
+export function buildServerOptions(app: App, config: EkoConfig, dir: string): ServerOptions {
+  const base: ServerOptions = {
+    ws: app.ws,
+    publications: app.publications,
+    rpcHandler: app.rpcHandler,
+    files: app.files,
+  };
+  if (config.clientDir === undefined) {
+    return base;
+  }
+  return { ...base, staticRoot: resolve(dir, config.clientDir) };
 }
