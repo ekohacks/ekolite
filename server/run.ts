@@ -3,6 +3,7 @@ import { type Publications } from './logic/publications.ts';
 import { type Methods } from './logic/methods.ts';
 import { type Files } from './logic/files.ts';
 import { type ScriptRunnerWrapper } from './infrastructure/scriptRunner.ts';
+import { type EkoConfig } from './config.ts';
 
 // The narrow surface a developer's app entry defines against. It exposes what you define
 // (publications, methods, files, scriptRunner) and nothing else, so the runner's lifecycle
@@ -27,4 +28,16 @@ export function applyAppEntry(app: App, entry: AppEntry): void {
     files: app.files,
     scriptRunner: app.scriptRunner,
   });
+}
+
+// Discovery: the runner finds a developer's app by convention, an `ekolite.config.ts` at
+// the project root, and returns its default-exported config. Wired in the green step.
+export function loadConfig(_dir: string): Promise<EkoConfig> {
+  return Promise.reject(new Error('loadConfig not implemented'));
+}
+
+// Resolve the config's `app` to the entry function: a path is imported from the project,
+// a function is used as-is. Wired in the green step.
+export function resolveEntry(_config: EkoConfig, _dir: string): Promise<AppEntry> {
+  return Promise.reject(new Error('resolveEntry not implemented'));
 }
