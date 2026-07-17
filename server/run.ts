@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { type App } from './app.ts';
+import { type ServerOptions } from './index.ts';
 import { type Publications } from './logic/publications.ts';
 import { type Methods } from './logic/methods.ts';
 import { type Files } from './logic/files.ts';
@@ -66,4 +67,12 @@ export async function resolveEntry(config: EkoConfig, dir: string): Promise<AppE
   const href = pathToFileURL(resolve(dir, config.app)).href;
   const mod = (await import(href)) as { default: AppEntry };
   return mod.default;
+}
+
+// Turn the assembled app and the project's config into the options createServer wants: the
+// app's own wiring, plus the built client resolved to an absolute staticRoot. No clientDir
+// means no static handler, which createServer reads as an honest "serves nothing". Wired in
+// the green step.
+export function buildServerOptions(_app: App, _config: EkoConfig, _dir: string): ServerOptions {
+  throw new Error('buildServerOptions not implemented');
 }
