@@ -8,7 +8,7 @@ Full docs: <https://ekohacks.github.io/ekolite/>
 
 ## Status
 
-Work in progress, published early at `0.x` (currently `0.1.0`) to claim the name and share the shape. The public API is still settling and can change between `0.x` releases, so pin a version and read the notes before upgrading. Not recommended for production yet.
+Work in progress, published early at `0.x` to claim the name and share the shape. The public API is still settling and can change between `0.x` releases, so pin a version and read the [release notes](https://github.com/ekohacks/ekolite/releases) before upgrading. Not recommended for production yet.
 
 ## Install
 
