@@ -39,4 +39,24 @@ describe('ConnectionManager — subscribing before the socket opens', () => {
 
     expect(manager.store('files').getById('1')).toEqual({ _id: '1', name: 'existing.bam' });
   });
+
+  it('stopping a subscription made before open sends no unsubscribe and cleans up', async () => {
+    const socket = ClientSocketWrapper.createNull();
+    const manager = new ConnectionManager(socket);
+    const messages = socket.trackMessages();
+
+    const handle = manager.subscribe('files.all');
+    handle.stop();
+
+    // The subscription never reached the socket, so there is nothing to
+    // unsubscribe: no frame is sent, and none is pushed at the connecting
+    // socket. ready settles as a rejection and the bookkeeping is released.
+    expect(messages.data).toHaveLength(0);
+    expect(manager.activeSubscriptionCount()).toBe(0);
+    await expect(handle.ready).rejects.toThrow('subscription stopped before ready');
+
+    // When the socket finally opens, the stopped subscription is not replayed.
+    await socket.connect();
+    expect(messages.data).toHaveLength(0);
+  });
 });
