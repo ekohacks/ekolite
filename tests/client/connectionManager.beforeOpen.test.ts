@@ -60,3 +60,36 @@ describe('ConnectionManager — subscribing before the socket opens', () => {
     expect(messages.data).toHaveLength(0);
   });
 });
+
+// A method call is not a subscription: it is not held and replayed on connect,
+// because its result would have died with the connection anyway. So a call made
+// before the socket opens settles as a rejection rather than throwing at the
+// call site or hanging forever waiting for a reply that can never come.
+describe('ConnectionManager — calling before the socket opens', () => {
+  it('rejects a method call made before the socket opens', async () => {
+    const socket = ClientSocketWrapper.createNull();
+    const manager = new ConnectionManager(socket);
+    const messages = socket.trackMessages();
+
+    const pending = manager.call('files.rename', 'a.bam');
+
+    // Race a short timer so a hang fails fast and clearly rather than via the
+    // suite timeout. The rejection handler keeps a correct rejection from going
+    // unhandled.
+    const outcome = await Promise.race([
+      pending.then(
+        () => 'resolved',
+        () => 'rejected',
+      ),
+      new Promise<string>((resolve) => {
+        setTimeout(() => {
+          resolve('pending');
+        }, 50);
+      }),
+    ]);
+
+    expect(outcome).toBe('rejected');
+    // Nothing was pushed at the connecting socket.
+    expect(messages.data).toHaveLength(0);
+  });
+});
