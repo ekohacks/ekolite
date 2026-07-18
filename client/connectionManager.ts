@@ -178,8 +178,6 @@ export class ConnectionManager {
   }
 
   stopSubscription(id: string): void {
-    const unsubscribeMessage: UnsubscribeMsg = { type: 'unsubscribe', id };
-
     const subscription = this.subscriptions.get(id);
 
     if (subscription) {
@@ -188,9 +186,16 @@ export class ConnectionManager {
 
     this.subscriptions.delete(id);
 
-    this.socket.send(unsubscribeMessage).catch((error: unknown) => {
-      console.error('Failed to send unsubscribe message:', error);
-    });
+    // Only unsubscribe from a subscription the socket actually carried. If we
+    // are not connected it was either held before open and never sent, or
+    // already dropped by the disconnect; either way resubscribeAll() no longer
+    // sees it, so there is nothing to take back.
+    if (this.socket.isConnected) {
+      const unsubscribeMessage: UnsubscribeMsg = { type: 'unsubscribe', id };
+      this.socket.send(unsubscribeMessage).catch((error: unknown) => {
+        console.error('Failed to send unsubscribe message:', error);
+      });
+    }
   }
 
   store(collection: string): ReactiveStore {
