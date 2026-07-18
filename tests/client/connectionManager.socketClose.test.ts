@@ -28,6 +28,7 @@ describe('ConnectionManager - after the socket dies unexpectedly', () => {
     const socket = ClientSocketWrapper.createNull();
     const server = socket.simulateServer();
     const manager = new ConnectionManager(socket);
+    await socket.connect();
 
     const pending = manager.call('files.rename', 'a.bam');
     server.simulateClose();

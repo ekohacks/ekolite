@@ -10,6 +10,7 @@ describe('ClientSocketWrapper call', () => {
     const manager = new ConnectionManager(socket);
     const messages = socket.trackMessages();
     const server = socket.simulateServer();
+    await socket.connect();
 
     const result = manager.call('echo', 'hello');
 
@@ -27,6 +28,7 @@ describe('ClientSocketWrapper call', () => {
     const manager = new ConnectionManager(socket);
     const messages = socket.trackMessages();
     const server = socket.simulateServer();
+    await socket.connect();
 
     const result = manager.call('nope');
 
@@ -51,6 +53,7 @@ describe('ClientSocketWrapper call', () => {
     const socket = ClientSocketWrapper.createNull();
     const manager = new ConnectionManager(socket);
     const server = socket.simulateServer();
+    await socket.connect();
 
     // A call whose reply will never come, because the socket drops first.
     const result = manager.call('slow');
@@ -81,6 +84,7 @@ describe('ClientSocketWrapper call', () => {
     const server = socket.simulateServer();
     const manager = new ConnectionManager(socket);
     const messages = socket.trackMessages();
+    await socket.connect();
 
     const call = manager.call('missingMethod');
 

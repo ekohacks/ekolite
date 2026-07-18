@@ -116,6 +116,15 @@ export class ConnectionManager {
   call(name: string, ...args: unknown[]): Promise<unknown> {
     this.assertNotDisposed();
 
+    // A call cannot be sent before the socket is open, and unlike a
+    // subscription it is not held and replayed on connect: its result would
+    // die with any later disconnect anyway. So reject rather than push it at a
+    // connecting socket or leave the caller waiting for a reply that can never
+    // come.
+    if (!this.socket.isConnected) {
+      return Promise.reject(new Error(`cannot call '${name}' before the connection is open`));
+    }
+
     const id = generateSubscriptionId();
 
     const promise = new Promise<unknown>((resolve, reject) => {
