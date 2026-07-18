@@ -10,6 +10,7 @@ describe('ConnectionManager', () => {
     const manager = new ConnectionManager(socket);
     const messages = socket.trackMessages();
     const server = socket.simulateServer();
+    await socket.connect();
 
     const handle = manager.subscribe('files.all');
 
@@ -38,6 +39,7 @@ describe('ConnectionManager', () => {
     const manager = new ConnectionManager(socket);
     const messages = socket.trackMessages();
     const server = socket.simulateServer();
+    await socket.connect();
 
     const handle = manager.subscribe('files.byFolder', { folderId: 'folder-a' });
 
@@ -59,6 +61,7 @@ describe('ConnectionManager', () => {
     const server = socket.simulateServer();
     const manager = new ConnectionManager(socket);
     const messages = socket.trackMessages();
+    await socket.connect();
 
     const handle = manager.subscribe('nope');
     const sent = messages.data[0] as SubscribeMsg;
@@ -77,6 +80,7 @@ describe('ConnectionManager', () => {
     const server = socket.simulateServer();
     const manager = new ConnectionManager(socket);
     const messages = socket.trackMessages();
+    await socket.connect();
 
     const handle = manager.subscribe('nope');
     const sent = messages.data[0] as SubscribeMsg;
@@ -99,6 +103,7 @@ describe('ConnectionManager', () => {
     const server = socket.simulateServer();
     const manager = new ConnectionManager(socket);
     const messages = socket.trackMessages();
+    await socket.connect();
 
     const handle = manager.subscribe('files.all');
     const subId = (messages.data[0] as SubscribeMsg).id;
@@ -136,6 +141,7 @@ describe('ConnectionManager', () => {
     const manager = new ConnectionManager(socket);
     const messages = socket.trackMessages();
     const store = manager.store('files');
+    await socket.connect();
 
     const handle = manager.subscribe('files.all');
     server.send({ type: 'ready', id: (messages.data[0] as SubscribeMsg).id, collection: 'files' });
@@ -160,6 +166,7 @@ describe('ConnectionManager', () => {
     const manager = new ConnectionManager(socket);
     const messages = socket.trackMessages();
     const server = socket.simulateServer();
+    await socket.connect();
 
     const handle = manager.subscribe('files.all');
     const subId = (messages.data[0] as SubscribeMsg).id;
@@ -187,6 +194,7 @@ describe('ConnectionManager', () => {
     const manager = new ConnectionManager(socket);
     const messages = socket.trackMessages();
     const store = manager.store('files');
+    await socket.connect();
 
     const handle = manager.subscribe('files.all');
     const subId = (messages.data[0] as SubscribeMsg).id;
@@ -222,6 +230,7 @@ describe('ConnectionManager', () => {
     const manager = new ConnectionManager(socket);
     const messages = socket.trackMessages();
     const store = manager.store('files');
+    await socket.connect();
 
     const handle = manager.subscribe('files.all');
     const subId = (messages.data[0] as SubscribeMsg).id;

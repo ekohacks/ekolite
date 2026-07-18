@@ -155,17 +155,24 @@ export class ConnectionManager {
       readyRejector: rejectReady,
     });
 
-    const subscribeMessage: SubscribeMsg = {
-      type: 'subscribe',
-      id,
-      name,
-      ...(params ? { params } : {}),
-    };
+    // The frame goes out now only if the socket is open. While it is still
+    // connecting the subscription waits in the map, and resubscribeAll()
+    // replays it when the socket opens. That keeps subscribe() safe to call
+    // before the connection is up, as a React mount effect does at cold load
+    // and during every reconnect gap.
+    if (this.socket.isConnected) {
+      const subscribeMessage: SubscribeMsg = {
+        type: 'subscribe',
+        id,
+        name,
+        ...(params ? { params } : {}),
+      };
 
-    this.socket.send(subscribeMessage).catch((error: unknown) => {
-      this.subscriptions.delete(id);
-      rejectReady(error);
-    });
+      this.socket.send(subscribeMessage).catch((error: unknown) => {
+        this.subscriptions.delete(id);
+        rejectReady(error);
+      });
+    }
 
     return new SubscriptionHandleImpl(this, id, ready);
   }
