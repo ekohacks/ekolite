@@ -16,11 +16,12 @@ Work in progress, published early at `0.x` to claim the name and share the shape
 npm install ekolite
 ```
 
-Three entry points, everything else stays internal for now:
+Four entry points, everything else stays internal for now:
 
 ```ts
 import { App } from 'ekolite'; // the server framework
 import { ConnectionManager } from 'ekolite/client'; // the browser client stack
+import { useSubscription } from 'ekolite/react'; // the React binding (React 18+, optional peer)
 import type { ReadyMsg } from 'ekolite/shared'; // the wire protocol types
 
 const app = App.createNull();
@@ -28,7 +29,7 @@ app.methods.define('greet', (name) => `hello ${String(name)}`);
 await app.methods.call('greet', ['world']); // 'hello world'
 ```
 
-Verify the packaged shape from a consumer's point of view with `npm run test:package`: it builds, packs, installs the tarball into a throwaway project outside this repo, and imports from all three entries. It does a real `npm install`, so it takes 30 to 60 seconds and runs as a manual gate rather than on every CI push.
+Verify the packaged shape from a consumer's point of view with `npm run test:package`: it builds, packs, installs the tarball into a throwaway project outside this repo, and imports from the three framework-agnostic entries. It does a real `npm install`, so it takes 30 to 60 seconds and runs as a manual gate rather than on every CI push.
 
 ## What works today
 
@@ -38,6 +39,7 @@ Verify the packaged shape from a consumer's point of view with `npm run test:pac
 - **RPC methods** (`Methods`): register a named server method, call it over the socket, and get a typed result or a structured error back through the `method` / `result` / `error` messages
 - **File storage over HTTP** (`Files`): `POST /api/files` saves the bytes and inserts a document that streams into the live list through pub/sub; `GET /api/files/:id` streams them back
 - **Client stack**: `ClientSocketWrapper` (nullable WebSocket client), `ConnectionManager` (subscription lifecycle) and `ReactiveStore` (client side collection state)
+- **React binding** (`ekolite/react`): `useSubscription(connection, name, collection)` keeps a component in sync with a live collection through `useSyncExternalStore`, returning `{ data, isLoading }`. React 18+ is an optional peer dependency, so the other entries stay framework agnostic
 - **Mini DDP protocol** ([`shared/protocol.ts`](shared/protocol.ts)): eleven message types, typed end to end
 - **Heartbeat and reconnect** (`ping` / `pong`): a socket can die while both ends still think it is open, so the client pings and closes a connection that stops answering, then reopens it: instant first retry, exponential backoff with jitter, capped, forever. Subscriptions replay with their original ids and each store swaps to the fresh documents in one move, so the page never renders empty in between. On by default with 15 second pings and a 10 second pong window; `reconnect: false` or a zero interval opts out, and `status` reports connecting / connected / reconnecting / closed
 - **Graceful shutdown** (`Shutdown`): on a stop signal, or a shutdown message from a supervisor, it stops taking requests, closes the streams, drops the database connection, and exits cleanly
