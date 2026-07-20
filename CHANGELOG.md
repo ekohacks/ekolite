@@ -2,6 +2,16 @@
 
 All notable changes to `ekolite` are recorded here. The project is pre-1.0, so a minor version may carry a breaking change.
 
+## 0.4.0
+
+### Added
+
+- **`ekolite/react`: a `useSubscription` hook.** `useSubscription(manager, name, collection, params?)` returns `{ data, isLoading }` and keeps a component in sync with a live server collection: it subscribes on mount, streams the collection's live documents through `useSyncExternalStore`, reports `isLoading` until the subscription is ready, and stops on unmount. `react >= 18` is an optional peer dependency; every other entry stays React free. (#114, #153)
+
+### Fixed
+
+- **Subscribing before the socket opens works.** A `subscribe()` made while the socket is still connecting holds its frame and replays it exactly once on open, the same path a reconnect uses. `stopSubscription()` sends an unsubscribe only for a subscription the socket actually carried, and a `call()` before open rejects cleanly instead of throwing at the call site. The null socket now throws `InvalidStateError` on a send before open, exactly as a real WebSocket does, so this class of bug is caught by tests rather than only in a browser. (#152)
+
 ## 0.3.0
 
 ### Added
