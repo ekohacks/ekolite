@@ -12,6 +12,7 @@ describe('ConnectionManager - after the socket dies unexpectedly', () => {
     const server = socket.simulateServer();
     const manager = new ConnectionManager(socket);
     const messages = socket.trackMessages();
+    await socket.connect();
 
     const handle = manager.subscribe('files.all');
     server.send({ type: 'ready', id: (messages.data[0] as SubscribeMsg).id, collection: 'files' });
@@ -27,6 +28,7 @@ describe('ConnectionManager - after the socket dies unexpectedly', () => {
     const socket = ClientSocketWrapper.createNull();
     const server = socket.simulateServer();
     const manager = new ConnectionManager(socket);
+    await socket.connect();
 
     const pending = manager.call('files.rename', 'a.bam');
     server.simulateClose();

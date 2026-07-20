@@ -188,7 +188,18 @@ class NullWebSocket implements WebSocketLike {
   }
 
   send(_data: string): void {
-    // No network. The wrapper has already emitted EVENT_OUTBOUND for tracking.
+    if (this.readyState === NullWebSocket.CONNECTING) {
+      // A real WebSocket throws when asked to send before it opens. The null
+      // mirrors that exactly, so a send-before-open is caught by a test rather
+      // than hiding behind a no-op and only surfacing in a browser.
+      throw new DOMException(
+        "Failed to execute 'send' on 'WebSocket': Still in CONNECTING state.",
+        'InvalidStateError',
+      );
+    }
+    // Open or closed: no network to write to, and a real socket past CONNECTING
+    // does not throw either. The wrapper has already emitted EVENT_OUTBOUND for
+    // tracking.
   }
 
   close(): void {

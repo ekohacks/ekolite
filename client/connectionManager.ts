@@ -116,6 +116,15 @@ export class ConnectionManager {
   call(name: string, ...args: unknown[]): Promise<unknown> {
     this.assertNotDisposed();
 
+    // A call cannot be sent before the socket is open, and unlike a
+    // subscription it is not held and replayed on connect: its result would
+    // die with any later disconnect anyway. So reject rather than push it at a
+    // connecting socket or leave the caller waiting for a reply that can never
+    // come.
+    if (!this.socket.isConnected) {
+      return Promise.reject(new Error(`cannot call '${name}' before the connection is open`));
+    }
+
     const id = generateSubscriptionId();
 
     const promise = new Promise<unknown>((resolve, reject) => {
@@ -155,24 +164,29 @@ export class ConnectionManager {
       readyRejector: rejectReady,
     });
 
-    const subscribeMessage: SubscribeMsg = {
-      type: 'subscribe',
-      id,
-      name,
-      ...(params ? { params } : {}),
-    };
+    // The frame goes out now only if the socket is open. While it is still
+    // connecting the subscription waits in the map, and resubscribeAll()
+    // replays it when the socket opens. That keeps subscribe() safe to call
+    // before the connection is up, as a React mount effect does at cold load
+    // and during every reconnect gap.
+    if (this.socket.isConnected) {
+      const subscribeMessage: SubscribeMsg = {
+        type: 'subscribe',
+        id,
+        name,
+        ...(params ? { params } : {}),
+      };
 
-    this.socket.send(subscribeMessage).catch((error: unknown) => {
-      this.subscriptions.delete(id);
-      rejectReady(error);
-    });
+      this.socket.send(subscribeMessage).catch((error: unknown) => {
+        this.subscriptions.delete(id);
+        rejectReady(error);
+      });
+    }
 
     return new SubscriptionHandleImpl(this, id, ready);
   }
 
   stopSubscription(id: string): void {
-    const unsubscribeMessage: UnsubscribeMsg = { type: 'unsubscribe', id };
-
     const subscription = this.subscriptions.get(id);
 
     if (subscription) {
@@ -181,9 +195,16 @@ export class ConnectionManager {
 
     this.subscriptions.delete(id);
 
-    this.socket.send(unsubscribeMessage).catch((error: unknown) => {
-      console.error('Failed to send unsubscribe message:', error);
-    });
+    // Only unsubscribe from a subscription the socket actually carried. If we
+    // are not connected it was either held before open and never sent, or
+    // already dropped by the disconnect; either way resubscribeAll() no longer
+    // sees it, so there is nothing to take back.
+    if (this.socket.isConnected) {
+      const unsubscribeMessage: UnsubscribeMsg = { type: 'unsubscribe', id };
+      this.socket.send(unsubscribeMessage).catch((error: unknown) => {
+        console.error('Failed to send unsubscribe message:', error);
+      });
+    }
   }
 
   store(collection: string): ReactiveStore {

@@ -1,0 +1,95 @@
+import { describe, expect, it } from 'vitest';
+import { ClientSocketWrapper } from '../../client/clientSocket.ts';
+import { ConnectionManager } from '../../client/connectionManager.ts';
+import { SubscribeMsg } from '../../shared/protocol.ts';
+
+// A React component subscribes from its mount effect, which fires while the
+// socket is still CONNECTING at cold load and during every reconnect gap. So
+// subscribing before the socket is open must be safe: no throw, and the frame
+// waits for the connection rather than being pushed at a socket that cannot
+// take it.
+describe('ConnectionManager — subscribing before the socket opens', () => {
+  it('holds the subscribe frame until the socket opens, then sends it once and delivers', async () => {
+    const socket = ClientSocketWrapper.createNull();
+    const manager = new ConnectionManager(socket);
+    const messages = socket.trackMessages();
+    const server = socket.simulateServer();
+
+    // Subscribing before the connection is up must not throw and must return a
+    // usable handle.
+    const handle = manager.subscribe('files.all');
+    expect(manager.activeSubscriptionCount()).toBe(1);
+
+    // Nothing goes on the wire while the socket is still CONNECTING; the
+    // subscription is held, waiting for the socket to open.
+    expect(messages.data).toHaveLength(0);
+
+    await socket.connect();
+
+    // On open the held subscription is replayed exactly once, with its id and
+    // name intact.
+    expect(messages.data).toHaveLength(1);
+    const sent = messages.data[0] as SubscribeMsg;
+    expect(sent.type).toBe('subscribe');
+    expect(sent.name).toBe('files.all');
+
+    server.send({ type: 'added', collection: 'files', id: '1', fields: { name: 'existing.bam' } });
+    server.send({ type: 'ready', id: sent.id, collection: 'files' });
+    await handle.ready;
+
+    expect(manager.store('files').getById('1')).toEqual({ _id: '1', name: 'existing.bam' });
+  });
+
+  it('stopping a subscription made before open sends no unsubscribe and cleans up', async () => {
+    const socket = ClientSocketWrapper.createNull();
+    const manager = new ConnectionManager(socket);
+    const messages = socket.trackMessages();
+
+    const handle = manager.subscribe('files.all');
+    handle.stop();
+
+    // The subscription never reached the socket, so there is nothing to
+    // unsubscribe: no frame is sent, and none is pushed at the connecting
+    // socket. ready settles as a rejection and the bookkeeping is released.
+    expect(messages.data).toHaveLength(0);
+    expect(manager.activeSubscriptionCount()).toBe(0);
+    await expect(handle.ready).rejects.toThrow('subscription stopped before ready');
+
+    // When the socket finally opens, the stopped subscription is not replayed.
+    await socket.connect();
+    expect(messages.data).toHaveLength(0);
+  });
+});
+
+// A method call is not a subscription: it is not held and replayed on connect,
+// because its result would have died with the connection anyway. So a call made
+// before the socket opens settles as a rejection rather than throwing at the
+// call site or hanging forever waiting for a reply that can never come.
+describe('ConnectionManager — calling before the socket opens', () => {
+  it('rejects a method call made before the socket opens', async () => {
+    const socket = ClientSocketWrapper.createNull();
+    const manager = new ConnectionManager(socket);
+    const messages = socket.trackMessages();
+
+    const pending = manager.call('files.rename', 'a.bam');
+
+    // Race a short timer so a hang fails fast and clearly rather than via the
+    // suite timeout. The rejection handler keeps a correct rejection from going
+    // unhandled.
+    const outcome = await Promise.race([
+      pending.then(
+        () => 'resolved',
+        () => 'rejected',
+      ),
+      new Promise<string>((resolve) => {
+        setTimeout(() => {
+          resolve('pending');
+        }, 50);
+      }),
+    ]);
+
+    expect(outcome).toBe('rejected');
+    // Nothing was pushed at the connecting socket.
+    expect(messages.data).toHaveLength(0);
+  });
+});

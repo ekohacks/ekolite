@@ -16,6 +16,7 @@ describe('ConnectionManager collection gate', () => {
     const manager = new ConnectionManager(socket);
     const messages = socket.trackMessages();
     const store = manager.store('files');
+    await socket.connect();
 
     // A publication named for what it returns, not for its collection. On the
     // server this maps to { collection: 'files', query: {...} }.
@@ -44,6 +45,7 @@ describe('ConnectionManager collection gate', () => {
     const manager = new ConnectionManager(socket);
     const messages = socket.trackMessages();
     const store = manager.store('archive');
+    await socket.connect();
 
     // Dotted name, but the first segment ('files') is not the collection the
     // publication reads from ('archive').
@@ -75,6 +77,7 @@ describe('ConnectionManager collection gate', () => {
     const messages = socket.trackMessages();
     const files = manager.store('files');
     const archive = manager.store('archive');
+    await socket.connect();
 
     // Both subscriptions are outstanding before any server reply, and neither
     // publication name starts with the collection it actually reads from.
@@ -130,6 +133,7 @@ describe('ConnectionManager learns its collection from ready', () => {
     const manager = new ConnectionManager(socket);
     const messages = socket.trackMessages();
     const store = manager.store('files');
+    await socket.connect();
 
     const handle = manager.subscribe('recentFiles');
     const subId = (messages.data[0] as SubscribeMsg).id;
