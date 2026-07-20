@@ -1,5 +1,10 @@
 # EkoLite
 
+[![npm](https://img.shields.io/npm/v/ekolite)](https://www.npmjs.com/package/ekolite)
+[![CI](https://github.com/ekohacks/ekolite/actions/workflows/ci.yml/badge.svg)](https://github.com/ekohacks/ekolite/actions/workflows/ci.yml)
+[![license](https://img.shields.io/npm/l/ekolite)](./LICENSE)
+[![docs](https://img.shields.io/badge/docs-ekohacks.github.io-blue)](https://ekohacks.github.io/ekolite/)
+
 A lightweight, real time backend framework. Fastify, MongoDB and WebSocket with a typed pub/sub protocol, built test first with James Shore's Nullables pattern. No mocks anywhere in the suite.
 
 EkoLite is a public, work in progress framework for real time, data driven apps, built in the open with deliberate design choices. The documents in [`docs/ekolite-overview/`](docs/ekolite-overview/) cover the thinking. This README covers what is actually built today.
