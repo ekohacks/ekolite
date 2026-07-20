@@ -6,11 +6,12 @@
 npm install ekolite
 ```
 
-Three entry points, everything else stays internal for now:
+Four entry points, everything else stays internal for now:
 
 ```ts
 import { App } from 'ekolite'; // the server framework
 import { ConnectionManager } from 'ekolite/client'; // the browser client stack
+import { useSubscription } from 'ekolite/react'; // the React binding (React 18+, optional peer)
 import type { ReadyMsg } from 'ekolite/shared'; // the wire protocol types
 
 const app = App.createNull();
@@ -30,6 +31,28 @@ app.methods.define('addTask', (title) => createTask(title));
 ```
 
 To run your app as a server without writing a boot file, point an `ekolite.config.ts` at your definitions and use the `ekolite run` command. See [Running your app](/running-your-app).
+
+## React
+
+`ekolite/react` ships `useSubscription`, the hook that keeps a component in sync with a live server collection. It subscribes on mount, streams the collection's documents through `useSyncExternalStore`, reports loading, and unsubscribes on unmount:
+
+```tsx
+import { useSubscription } from 'ekolite/react';
+
+function FileList({ connection }) {
+  const { data, isLoading } = useSubscription(connection, 'files.all', 'files');
+  if (isLoading) return <p>Loading</p>;
+  return (
+    <ul>
+      {data.map((file) => (
+        <li key={file._id}>{file.name}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+`connection` is your app's `ConnectionManager`. React 18+ is an optional peer dependency, so the other entries stay framework agnostic.
 
 ## Where next
 
