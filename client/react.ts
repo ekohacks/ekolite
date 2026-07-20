@@ -9,10 +9,10 @@ export interface UseSubscriptionResult {
   isLoading: boolean;
 }
 
-// The React binding — Meteor's useTracker, for EkoLite. Subscribes on mount, streams
-// the collection's live documents through useSyncExternalStore, and reports isLoading
-// until the subscription is ready; stops the subscription on unmount. A thin wrapper
-// over bindStore (the tested subscribe/getSnapshot core) and ConnectionManager.
+// The React binding: keeps a component in sync with a live server collection. Subscribes
+// on mount, streams the collection's live documents through useSyncExternalStore, and
+// reports isLoading until the subscription is ready; stops the subscription on unmount.
+// A thin wrapper over bindStore (the tested subscribe/getSnapshot core) and ConnectionManager.
 //
 // The collection name is passed explicitly rather than derived from the subscription
 // name: the server chooses the collection and it is not exposed on the handle.

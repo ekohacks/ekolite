@@ -222,7 +222,9 @@ async function main() {
       pkgPath,
       JSON.stringify({ ...JSON.parse(readFileSync(pkgPath, 'utf8')), type: 'module' }, null, 2),
     );
-    run('npm', ['install', tarball], { cwd: dir });
+    // react and its types stand in for a React consumer: the hook's entry must resolve
+    // and compile for them, while the other entries stay importable without React.
+    run('npm', ['install', tarball, 'react@^18', '@types/react@^18'], { cwd: dir });
 
     // 3. A consumer that knows only the published package: import App, define a method on
     //    it, and call it. A fresh App carries nothing of its own, so whatever the consumer
@@ -269,6 +271,7 @@ async function main() {
         "import { App } from 'ekolite';",
         "import type { ReadyMsg } from 'ekolite/shared';",
         "import { ConnectionManager } from 'ekolite/client';",
+        "import { useSubscription } from 'ekolite/react';",
         '',
         'const app = App.createNull();',
         "const ready: ReadyMsg = { type: 'ready', id: 'sub-1', collection: 'files' };",
@@ -276,6 +279,7 @@ async function main() {
         'void app;',
         'void ready;',
         'void ConnectionManager;',
+        'void useSubscription;',
         '',
       ].join('\n'),
     );
@@ -339,7 +343,7 @@ async function main() {
     console.log('package smoke: PASS');
     console.log(`  consumer said: ${out}`);
     console.log('  declarations resolve to shipped files only');
-    console.log('  a TS consumer compiles against ekolite, ekolite/shared and ekolite/client');
+    console.log('  a TS consumer compiles against ekolite, ekolite/shared, ekolite/client and ekolite/react');
     console.log('  a consumer serves their own client through createServer');
     if (process.platform !== 'win32') {
       console.log('  a consumer arms graceful shutdown and the process exits 0 on a signal');
