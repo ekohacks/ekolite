@@ -2,6 +2,13 @@
 
 All notable changes to `ekolite` are recorded here. The project is pre-1.0, so a minor version may carry a breaking change.
 
+## 0.4.1
+
+Documentation only, no code changes. 0.4.0 made `ekolite/react` a public entry point, but the README that shipped to npm still described three entries and never mentioned the hook. This release refreshes the npm page.
+
+- **The README and quick start document `ekolite/react`.** `useSubscription` joins the entry point list with a quick start example, and What works today gains a React binding bullet. (#155)
+- **The README carries npm, CI, license and docs badges.** (#156)
+
 ## 0.4.0
 
 ### Added
