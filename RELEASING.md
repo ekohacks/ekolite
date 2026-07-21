@@ -11,6 +11,7 @@ EkoLite ships to npm without a token leaving anyone's machine. A release is two 
 
 ## Before cutting
 
+- `main` matches `origin/main`: `git pull` before anything else. The release branch, the version bump and the PR are all built on whatever the local `main` points at. A stale `main` either stops the cut half-way as a merge conflict on `package.json`, or worse, merges cleanly and ships a release that silently omits work already on `origin/main`.
 - `npm run test:package` passes: the consumer smoke installs the packed tarball into a project outside the repo and proves every export entry from a consumer's side.
 - The lockfile resolves only to `registry.npmjs.org`. A local mirror config can quietly rewrite tarball URLs; `grep npmmirror package-lock.json` should find nothing.
 - The CHANGELOG entry reads like release notes, because it becomes them.
