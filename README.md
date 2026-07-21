@@ -21,12 +21,15 @@ Work in progress, published early at `0.x` to claim the name and share the shape
 npm install ekolite
 ```
 
-Four entry points, everything else stays internal for now:
+Five entry points, everything else stays internal for now:
+
+<!-- ekohacks:entry-points -->
 
 ```ts
 import { App } from 'ekolite'; // the server framework
 import { ConnectionManager } from 'ekolite/client'; // the browser client stack
 import { useSubscription } from 'ekolite/react'; // the React binding (React 18+, optional peer)
+import { defineConfig } from 'ekolite/config'; // the runner's config schema (ekolite.config.ts)
 import type { ReadyMsg } from 'ekolite/shared'; // the wire protocol types
 
 const app = App.createNull();
@@ -34,7 +37,9 @@ app.methods.define('greet', (name) => `hello ${String(name)}`);
 await app.methods.call('greet', ['world']); // 'hello world'
 ```
 
-Verify the packaged shape from a consumer's point of view with `npm run test:package`: it builds, packs, installs the tarball into a throwaway project outside this repo, and imports from the three framework-agnostic entries. It does a real `npm install`, so it takes 30 to 60 seconds and runs as a manual gate rather than on every CI push.
+<!-- /ekohacks:entry-points -->
+
+Verify the packaged shape from a consumer's point of view with `npm run test:package`: it builds, packs, installs the tarball into a throwaway project outside this repo, and imports from the framework-agnostic entries. It does a real `npm install`, so it takes 30 to 60 seconds and runs as a manual gate rather than on every CI push.
 
 ## What works today
 
