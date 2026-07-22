@@ -32,6 +32,32 @@ jobs:
       - name: 'Run tests'
         run: npm test
 
+  # The docs deploy themselves on merge to main (docs.yml), so drifted docs ship
+  # silently — 0.4.0 added an entry point and the site advertised the old surface for
+  # a day before anyone noticed. This gate compares the docs' entry-point claims (the
+  # ekohacks:entry-points blocks and any "N entry points" prose) against the exports
+  # map in package.json, builds the VitePress site, and fails the PR with the drift
+  # named. The version is pinned; bump it deliberately when ekohacks ships.
+  docs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: 'Setup Node.js'
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: 'Install dependencies'
+        run: npm ci
+
+      - name: 'Docs drift gate'
+        run: npx ekohacks@0.2.0 docs check
+
   # The integration suite needs a real MongoDB running as a single-node replica set
   # (change streams demand one). Each runner boots its own throwaway mongod on
   # localhost: Linux runs the mongo service from docker-compose.yml, as a laptop does;
