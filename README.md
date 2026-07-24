@@ -47,7 +47,7 @@ Verify the packaged shape from a consumer's point of view with `npm run test:pac
 - **App wiring** (`App`): `App.create()` assembles the whole graph (Mongo, websocket, publications, methods, files) and `App.createNull()` returns the same graph in memory, so the assembly that boots in production is the one the tests drive
 - **Pub/sub engine** (`Publications`): define a publication on the server, subscribe over a live socket, receive `ready` and data messages, with reference counted teardown. Wired end to end now: a real browser client subscribes over a real socket and its store fills from Mongo
 - **RPC methods** (`Methods`): register a named server method, call it over the socket, and get a typed result or a structured error back through the `method` / `result` / `error` messages
-- **File storage over HTTP** (`Files`): `POST /api/files` saves the bytes and inserts a document that streams into the live list through pub/sub; `GET /api/files/:id` streams them back
+- **File storage over HTTP** (`Files`): `POST /api/files` saves the bytes and inserts a document that streams into the live list through pub/sub; `GET /api/files/:id` streams them back. The accepted extension list is a single hardcoded entry (`.bam`) today and nothing else gets past it, so this is usable now only if that happens to be what you are moving
 - **Client stack**: `ClientSocketWrapper` (nullable WebSocket client), `ConnectionManager` (subscription lifecycle) and `ReactiveStore` (client side collection state)
 - **React binding** (`ekolite/react`): `useSubscription(connection, name, collection)` keeps a component in sync with a live collection through `useSyncExternalStore`, returning `{ data, isLoading }`. React 18+ is an optional peer dependency, so the other entries stay framework agnostic
 - **Mini DDP protocol** ([`shared/protocol.ts`](shared/protocol.ts)): eleven message types, typed end to end
@@ -61,16 +61,62 @@ Verify the packaged shape from a consumer's point of view with `npm run test:pac
 
 ## Quick start
 
-```bash
-npm install
+You need Node 24 or newer, `"type": "module"` in your `package.json`, `moduleResolution` set to `nodenext` in your `tsconfig.json`, and MongoDB running as a replica set. That last one is not optional: publications are built on change streams, and a standalone `mongod` connects fine and then never sends you an update.
 
-# Development
-npm run dev:server   # Fastify on port 3001, auto restart
+Write your publications and methods in an app entry. Reading is EkoLite's job, writing is yours, so bring the `mongodb` driver for the writes:
 
-# Checks
-npm run typecheck
-npm test
+```ts
+// app.ts
+import type { AppEntry } from 'ekolite/config';
+import { MongoClient } from 'mongodb';
+
+const client = new MongoClient(process.env.MONGO_URI ?? 'mongodb://localhost:27017/ekolite');
+const tasks = client.db().collection('tasks');
+
+const app: AppEntry = (eko) => {
+  eko.publications.define('tasks.all', () => ({ collection: 'tasks', query: {} }));
+
+  eko.methods.define('addTask', async (title) => {
+    const result = await tasks.insertOne({ title: String(title) });
+    return result.insertedId.toString();
+  });
+};
+
+export default app;
 ```
+
+Point the runner at it, and run it:
+
+```ts
+// ekolite.config.ts
+import { defineConfig } from 'ekolite/config';
+
+export default defineConfig({ app: './app.ts', clientDir: './public' });
+```
+
+```bash
+npx ekolite run
+# ekolite: ready on http://localhost:3001
+```
+
+Then subscribe from the browser and the store stays in sync on its own:
+
+```ts
+import { ClientSocketWrapper, ConnectionManager } from 'ekolite/client';
+
+const socket = ClientSocketWrapper.create('ws://localhost:3001/ws');
+await socket.connect();
+const connection = new ConnectionManager(socket);
+
+const handle = connection.subscribe('tasks.all');
+await handle.ready;
+
+const tasks = connection.store('tasks');
+render(tasks.getAll());
+tasks.onChange(() => render(tasks.getAll()));
+```
+
+The [full quick start](https://ekohacks.github.io/ekolite/quick-start.html) walks all of this end to end, including getting a replica set up, the React binding, file uploads and wiring the server by hand.
 
 ## Project structure
 
@@ -120,6 +166,21 @@ Server → Client:
   { type: 'result' | 'error', id, ... }
   { type: 'pong', id? }
 ```
+
+## Working on this repo
+
+Cloning EkoLite itself rather than using it:
+
+```bash
+npm install
+
+npm run dev:server   # the repo's bare server on port 3001, auto restart
+
+npm run typecheck
+npm test
+```
+
+`npm run dev:server` boots a server with nothing defined on it, which is what you want when you are working on the framework and not on an app.
 
 ## Testing
 

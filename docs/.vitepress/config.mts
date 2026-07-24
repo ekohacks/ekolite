@@ -26,7 +26,6 @@ export default defineConfig({
     logo: '/ekohacks-mark.png',
     nav: [
       { text: 'Quick start', link: '/quick-start' },
-      { text: 'Run your app', link: '/running-your-app' },
       { text: 'Overview', link: '/ekolite-overview/ekolite-overview' },
       { text: 'API', link: '/api/connection-manager' },
       { text: 'npm', link: 'https://www.npmjs.com/package/ekolite' },
@@ -37,7 +36,6 @@ export default defineConfig({
         items: [
           { text: 'Overview', link: '/ekolite-overview/ekolite-overview' },
           { text: 'Quick start', link: '/quick-start' },
-          { text: 'Running your app', link: '/running-your-app' },
         ],
       },
       {
