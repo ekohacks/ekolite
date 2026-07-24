@@ -87,6 +87,24 @@ export function buildServerOptions(app: App, config: EkoConfig, dir: string): Se
   return { ...base, staticRoot: resolve(dir, config.clientDir) };
 }
 
+// Turn the project's config and the environment into the config App.create wants, the same
+// way buildServerOptions turns them into the options createServer wants. The runtime knobs
+// (mongoUri, port) come from the environment so a deploy overrides them, fileDir is the
+// project's to state with the environment as a fallback, and the upload allowlist is the
+// project's alone: no allowedExtensions means the key stays off, which App reads as "keep
+// the framework default" rather than "allow nothing".
+export function buildAppConfig(config: EkoConfig, env: NodeJS.ProcessEnv): AppConfig {
+  const base: AppConfig = {
+    mongoUri: env.MONGO_URI ?? 'mongodb://localhost:27017/ekolite',
+    fileDir: config.fileDir ?? env.FILE_DIR ?? './uploads',
+    port: Number(env.EKOLITE_PORT ?? env.PORT ?? 3001),
+  };
+  if (config.allowedExtensions === undefined) {
+    return base;
+  }
+  return { ...base, allowedExtensions: config.allowedExtensions };
+}
+
 // The full boot `ekolite run` performs, in the developer's project directory: read the
 // config, assemble the App against real infrastructure, apply the app's own definitions,
 // serve it over Fastify with the app's client, arm graceful shutdown, and announce
@@ -96,11 +114,7 @@ export async function runApp(dir: string = process.cwd()): Promise<void> {
   const config = await loadConfig(dir);
   const entry = await resolveEntry(config, dir);
 
-  const appConfig: AppConfig = {
-    mongoUri: process.env.MONGO_URI ?? 'mongodb://localhost:27017/ekolite',
-    fileDir: config.fileDir ?? process.env.FILE_DIR ?? './uploads',
-    port: Number(process.env.EKOLITE_PORT ?? process.env.PORT ?? 3001),
-  };
+  const appConfig = buildAppConfig(config, process.env);
   const app = App.create(appConfig);
 
   const assetsDir = config.assetsDir === undefined ? undefined : resolve(dir, config.assetsDir);

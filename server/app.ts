@@ -10,11 +10,14 @@ import { Files } from './logic/files.ts';
 import { Shutdown } from './logic/shutdown.ts';
 import { type StoredFile } from '../shared/types.ts';
 
-// Config for the real boot. The same knobs start.ts reads from the environment.
+// Config for the real boot. The same knobs start.ts reads from the environment, plus the
+// upload allowlist, which is the project's own rather than the environment's. Left out, the
+// Files default stands.
 export interface AppConfig {
   mongoUri: string;
   fileDir: string;
   port: number;
+  allowedExtensions?: string[];
 }
 
 // The wrappers App is built from, whether real or Nulled. create() and createNull()
