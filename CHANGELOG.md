@@ -2,6 +2,17 @@
 
 All notable changes to `ekolite` are recorded here. The project is pre-1.0, so a minor version may carry a breaking change.
 
+## 0.4.3
+
+### Added
+
+- **`allowedExtensions`: the upload allowlist belongs to your project.** `POST /api/files` accepted `.bam` and nothing else, hardcoded, with no way to say otherwise. `ekolite.config.ts` now takes `allowedExtensions: ['bam', 'csv']` and the runner carries it down to the file routes. Leaving the key out keeps `.bam` alone, so upgrading cannot quietly start accepting file types a deployment was refusing yesterday. The list replaces the default rather than adding to it, so `['csv']` refuses `.bam` too, and the check reads the extension off the filename: it keeps the obvious wrong file out, it does not prove what the bytes are. `App.create` and `App.createNull` take the same key for anyone wiring the app by hand. (#201)
+
+### Changed
+
+- **The docs no longer say the upload list is fixed.** The quick start and the README both described `.bam` only as a gap you had to live with. They now document `allowedExtensions`, what it replaces, and the one gap that does remain on the file routes: no auth. (#201)
+- **The npm README explains `App.createNull()` and how to test against it.** (e0fccde)
+
 ## 0.4.2
 
 - **`@types/node` ships as a dependency.** EkoLite's public types mention `Buffer` and `node:http`, so a TypeScript consumer who had not installed `@types/node` themselves saw errors inside `node_modules/ekolite` rather than in their own code. It is a dependency now and resolves on its own. (da40a01)
