@@ -2,6 +2,12 @@
 
 All notable changes to `ekolite` are recorded here. The project is pre-1.0, so a minor version may carry a breaking change.
 
+## 0.4.2
+
+- **`@types/node` ships as a dependency.** EkoLite's public types mention `Buffer` and `node:http`, so a TypeScript consumer who had not installed `@types/node` themselves saw errors inside `node_modules/ekolite` rather than in their own code. It is a dependency now and resolves on its own. (da40a01)
+- **The npm README opens with a real quick start.** It used to start with `npm install` and `npm run dev:server`, which boot this repo's own bare server and mean nothing to someone who has just installed the package. It now shows an app entry, `ekolite.config.ts`, `npx ekolite run`, and subscribing from the browser. (da40a01)
+- **The documented quick start runs end to end.** "Running your app" folded into it, so one page carries the prerequisites, MongoDB as a replica set, the app entry, the runner, the browser client and the file routes. It also states two things it previously left out: `eko` hands your methods no database handle, so writes need your own `mongodb` client, and the upload routes accept `.bam` and nothing else. (da40a01)
+
 ## 0.4.1
 
 Documentation only, no code changes. 0.4.0 made `ekolite/react` a public entry point, but the README that shipped to npm still described three entries and never mentioned the hook. This release refreshes the npm page.
