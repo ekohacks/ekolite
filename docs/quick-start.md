@@ -164,6 +164,7 @@ export default defineConfig({
   clientDir: './public', // your built client, served at /
   assetsDir: './scripts', // scripts and fixtures, reached through eko.asset()
   fileDir: './uploads', // where uploaded files land
+  allowedExtensions: ['bam', 'csv'], // what uploads may be, lowercase and without the dot
 });
 ```
 
@@ -266,18 +267,23 @@ curl http://localhost:3001/api/files/<id> -O              # the bytes back
 Uploaded files land in `fileDir`, which is created for you, and are recorded in Mongo, so a
 publication over the `files` collection streams them to the client like anything else.
 
-Read that `.bam` twice, because it is not decoration. The upload route accepts **only** `.bam` files
-today, and nothing else gets in:
+The route only accepts what you have allowed. Say nothing and that is `.bam` alone, left over from
+the genomics work EkoLite grew out of, so anything else comes back refused:
 
 ```bash
 curl -F file=@notes.txt http://localhost:3001/api/files
 # 400 {"code":400,"message":"Unsupported file type: .txt"}
 ```
 
-The allowed list is a single hardcoded entry, left over from the genomics work EkoLite grew out of,
-and `ekolite.config.ts` gives you no way to change it. So the file routes are usable right now if you
-happen to be moving `.bam` files around, and not otherwise. Widening this to a configurable list is
-the obvious next move and it has not been made yet.
+`allowedExtensions` in `ekolite.config.ts` is how you say otherwise. Give it the list your app
+actually moves, lowercase and without the dot, and that list replaces the default rather than adding
+to it: `['csv', 'json']` means `.bam` is refused too. The check is on the extension of the filename
+and nothing more, so treat it as a way to keep the obvious wrong file out, not as proof of what the
+bytes are.
+
+Leaving the key out keeps the `.bam` default, which is deliberate. Upgrading EkoLite should never
+quietly start accepting file types your deployment was refusing yesterday, and that matters more than
+usual while the file routes still have no auth on them.
 
 ## Assets
 
@@ -374,9 +380,9 @@ import type { ReadyMsg } from 'ekolite/shared'; // the wire protocol types
 This first cut of `ekolite run` runs your app, and that is where it stops. Scaffolding
 (`ekolite create`), dev mode reload, and build orchestration are still ahead of us.
 
-Two more gaps you will meet on this page rather than read about elsewhere: uploads accept `.bam` and
-nothing else, and the file routes have no auth on them at all. Neither is a setting you can change
-today.
+One more gap you will meet on this page rather than read about elsewhere: the file routes have no
+auth on them at all. Anyone who can reach the server can upload, and `allowedExtensions` narrows what
+they may send rather than who may send it.
 
 ## Where next
 

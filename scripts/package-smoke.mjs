@@ -105,7 +105,7 @@ function assertRunBootsTheApp(dir) {
     join(dir, 'ekolite.config.ts'),
     [
       "import { defineConfig } from 'ekolite/config';",
-      "export default defineConfig({ app: './eko-app.ts', clientDir: './eko-client' });",
+      "export default defineConfig({ app: './eko-app.ts', clientDir: './eko-client', allowedExtensions: ['csv'] });",
       '',
     ].join('\n'),
   );
@@ -155,7 +155,9 @@ function assertRunBootsTheApp(dir) {
           if (status !== 200 || !body.includes('served by ekolite run')) {
             child.kill('SIGKILL');
             finish(() =>
-              reject(new Error(`ekolite run did not serve the app's client: status=${status}\n${body}`)),
+              reject(
+                new Error(`ekolite run did not serve the app's client: status=${status}\n${body}`),
+              ),
             );
             return;
           }
@@ -177,7 +179,9 @@ function assertRunBootsTheApp(dir) {
           return;
         }
         reject(
-          new Error(`ekolite run exited (code=${code}, signal=${signal}) instead of a clean 0:\n${err}`),
+          new Error(
+            `ekolite run exited (code=${code}, signal=${signal}) instead of a clean 0:\n${err}`,
+          ),
         );
       });
     });
@@ -272,12 +276,18 @@ async function main() {
         "import type { ReadyMsg } from 'ekolite/shared';",
         "import { ConnectionManager } from 'ekolite/client';",
         "import { useSubscription } from 'ekolite/react';",
+        "import { defineConfig } from 'ekolite/config';",
         '',
         'const app = App.createNull();',
         "const ready: ReadyMsg = { type: 'ready', id: 'sub-1', collection: 'files' };",
+        // The config a consumer writes, typed by the shipped declarations. Every optional key
+        // is here on purpose: defineConfig's whole job is the compile error on a wrong one, so
+        // if a key stops resolving from outside the repo this stops compiling.
+        "const config = defineConfig({ app: './app.ts', allowedExtensions: ['bam', 'csv'] });",
         '',
         'void app;',
         'void ready;',
+        'void config;',
         'void ConnectionManager;',
         'void useSubscription;',
         '',
@@ -343,7 +353,9 @@ async function main() {
     console.log('package smoke: PASS');
     console.log(`  consumer said: ${out}`);
     console.log('  declarations resolve to shipped files only');
-    console.log('  a TS consumer compiles against ekolite, ekolite/shared, ekolite/client and ekolite/react');
+    console.log(
+      '  a TS consumer compiles against all five entries, config and its allowlist included',
+    );
     console.log('  a consumer serves their own client through createServer');
     if (process.platform !== 'win32') {
       console.log('  a consumer arms graceful shutdown and the process exits 0 on a signal');

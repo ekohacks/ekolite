@@ -10,11 +10,14 @@ import { Files } from './logic/files.ts';
 import { Shutdown } from './logic/shutdown.ts';
 import { type StoredFile } from '../shared/types.ts';
 
-// Config for the real boot. The same knobs start.ts reads from the environment.
+// Config for the real boot. The same knobs start.ts reads from the environment, plus the
+// upload allowlist, which is the project's own rather than the environment's. Left out, the
+// Files default stands.
 export interface AppConfig {
   mongoUri: string;
   fileDir: string;
   port: number;
+  allowedExtensions?: string[];
 }
 
 // The wrappers App is built from, whether real or Nulled. create() and createNull()
@@ -43,6 +46,23 @@ interface NullConfig {
   // A Nulled process, injected so a test can drive a shutdown request and watch the exit
   // that armShutdown ends in. Left out, createNull supplies its own Nulled process.
   proc?: ProcessWrapper;
+  // The upload allowlist a test boots the app with, so a Nulled app can be asked what it
+  // accepts without a config file or a disk. Same key, same meaning as AppConfig's.
+  allowedExtensions?: string[];
+}
+
+// What App configures rather than wires. Kept apart from AppParts so that stays a list of
+// wrappers, and passed by both factories so a Nulled app honours the same policy a real one
+// does.
+interface AppOptions {
+  allowedExtensions?: string[];
+}
+
+// Omit the key rather than set it to undefined: under exactOptionalPropertyTypes an absent
+// allowlist and an undefined one are different types, and only the absent one lets Files
+// fall through to its own default.
+function appOptions(allowedExtensions?: string[]): AppOptions {
+  return allowedExtensions === undefined ? {} : { allowedExtensions };
 }
 
 // The application layer. One place the subsystems are wired: the socket, the
@@ -67,7 +87,7 @@ export class App {
   private readonly mongo: MongoWrapper;
   private readonly proc: ProcessWrapper;
 
-  private constructor(parts: AppParts) {
+  private constructor(parts: AppParts, options: AppOptions = {}) {
     this.ws = parts.ws;
     this.mongo = parts.mongo;
     this.scriptRunner = parts.scriptRunner;
@@ -75,17 +95,20 @@ export class App {
     this.methods = new Methods();
     this.rpcHandler = new RpcHandler(this.methods, parts.ws);
     this.publications = new Publications(parts.mongo, parts.ws);
-    this.files = new Files(parts.mongo, parts.storage);
+    this.files = new Files(parts.mongo, parts.storage, options);
   }
 
   static create(config: AppConfig): App {
-    return new App({
-      mongo: MongoWrapper.create(config.mongoUri),
-      ws: WebSocketWrapper.create(),
-      storage: FileStorageWrapper.create(config.fileDir),
-      scriptRunner: ScriptRunnerWrapper.create(),
-      proc: ProcessWrapper.create(),
-    });
+    return new App(
+      {
+        mongo: MongoWrapper.create(config.mongoUri),
+        ws: WebSocketWrapper.create(),
+        storage: FileStorageWrapper.create(config.fileDir),
+        scriptRunner: ScriptRunnerWrapper.create(),
+        proc: ProcessWrapper.create(),
+      },
+      appOptions(config.allowedExtensions),
+    );
   }
 
   static createNull(nullConfig: NullConfig = {}): App {
@@ -99,13 +122,16 @@ export class App {
         ? MongoWrapper.createNull({ find: nullConfig.findResponses })
         : MongoWrapper.createNull());
 
-    return new App({
-      mongo,
-      ws: nullConfig.ws ?? WebSocketWrapper.createNull(),
-      storage: FileStorageWrapper.createNull(),
-      scriptRunner: ScriptRunnerWrapper.createNull(nullConfig.scriptResponses ?? {}),
-      proc: nullConfig.proc ?? ProcessWrapper.createNull(),
-    });
+    return new App(
+      {
+        mongo,
+        ws: nullConfig.ws ?? WebSocketWrapper.createNull(),
+        storage: FileStorageWrapper.createNull(),
+        scriptRunner: ScriptRunnerWrapper.createNull(nullConfig.scriptResponses ?? {}),
+        proc: nullConfig.proc ?? ProcessWrapper.createNull(),
+      },
+      appOptions(nullConfig.allowedExtensions),
+    );
   }
 
   // Arm graceful shutdown. On a signal, a Ctrl+C, or a supervisor's stop message, close
