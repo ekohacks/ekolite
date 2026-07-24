@@ -31,15 +31,9 @@ import { ConnectionManager } from 'ekolite/client'; // the browser client stack
 import { useSubscription } from 'ekolite/react'; // the React binding (React 18+, optional peer)
 import { defineConfig } from 'ekolite/config'; // the runner's config schema (ekolite.config.ts)
 import type { ReadyMsg } from 'ekolite/shared'; // the wire protocol types
-
-const app = App.createNull();
-app.methods.define('greet', (name) => `hello ${String(name)}`);
-await app.methods.call('greet', ['world']); // 'hello world'
 ```
 
 <!-- /ekohacks:entry-points -->
-
-Verify the packaged shape from a consumer's point of view with `npm run test:package`: it builds, packs, installs the tarball into a throwaway project outside this repo, and imports from the framework-agnostic entries. It does a real `npm install`, so it takes 30 to 60 seconds and runs as a manual gate rather than on every CI push.
 
 ## What works today
 
@@ -118,6 +112,20 @@ tasks.onChange(() => render(tasks.getAll()));
 
 The [full quick start](https://ekohacks.github.io/ekolite/quick-start.html) walks all of this end to end, including getting a replica set up, the React binding, file uploads and wiring the server by hand.
 
+### Testing your app without MongoDB
+
+`App.createNull()` assembles the whole graph in memory. No Mongo, no socket, no ports, so your tests exercise methods, publications and files at full speed:
+
+```ts
+import { App } from 'ekolite';
+
+const app = App.createNull();
+app.methods.define('greet', async (name) => `hello ${String(name)}`);
+await app.methods.call('greet', ['world']); // 'hello world'
+```
+
+Note that `app.methods.call` takes its arguments as an array on the server, while the client's `connection.call` is variadic.
+
 ## Project structure
 
 ```
@@ -181,6 +189,8 @@ npm test
 ```
 
 `npm run dev:server` boots a server with nothing defined on it, which is what you want when you are working on the framework and not on an app.
+
+`npm run test:package` verifies the packaged shape from a consumer's point of view: it builds, packs, installs the tarball into a throwaway project outside this repo, and imports from the framework-agnostic entries. It does a real `npm install`, so it takes 30 to 60 seconds and runs as a manual gate rather than on every CI push.
 
 ## Testing
 
