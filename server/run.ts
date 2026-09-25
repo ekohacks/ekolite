@@ -21,6 +21,11 @@ export interface AppContext {
   // assetsDir. The equivalent of Meteor's Assets.absoluteFilePath: an app ships countC.py
   // and asks the runner where it landed rather than hardcoding a path.
   asset: (name: string) => string;
+  // Hear a client go. The other half of identity: a method learns who called it through
+  // `this.clientId`, and this tells the app when that client's socket has closed, so it can
+  // remove whatever it kept on their behalf, a presence document for instance. Returns the
+  // function that stops listening.
+  onDisconnect: (cb: (clientId: string) => void) => () => void;
 }
 
 // A developer's app entry: a function the runner calls with the context, where the app
@@ -46,6 +51,7 @@ export function applyAppEntry(
       }
       return resolve(assetsDir, name);
     },
+    onDisconnect: (cb) => app.ws.onDisconnect(cb),
   });
 }
 

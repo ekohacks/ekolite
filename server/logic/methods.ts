@@ -1,4 +1,4 @@
-import { MethodFn, methodNotFound } from '../../shared/types.ts';
+import { MethodContext, MethodFn, methodNotFound, SERVER_CALL } from '../../shared/types.ts';
 
 export class Methods {
   private methods = new Map<string, MethodFn>();
@@ -10,12 +10,16 @@ export class Methods {
     this.methods.set(name, fn);
   }
 
-  async call(name: string, args: unknown[]): Promise<unknown> {
+  async call(
+    name: string,
+    args: unknown[],
+    context: MethodContext = SERVER_CALL,
+  ): Promise<unknown> {
     const method = this.methods.get(name);
     if (!method) {
       throw methodNotFound(name);
     }
 
-    return method(...args);
+    return method.apply(context, args);
   }
 }

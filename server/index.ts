@@ -11,6 +11,7 @@ import { RpcError, toEkoLiteError } from '../shared/types.ts';
 // Public package surface for the `ekolite` entry: the app graph and its config sit
 // alongside createServer, so a consumer imports the whole server framework from one place.
 export { App, type AppConfig } from './app.ts';
+export type { MethodContext, MethodFn } from '../shared/types.ts';
 
 // App.close() rejects with a SuppressedError when more than one closer fails, and that
 // error hides its causes on non-enumerable properties. flattenSuppressed is how they are
