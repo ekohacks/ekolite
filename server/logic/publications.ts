@@ -3,6 +3,7 @@ import { assertNever, hasMongoOperator } from '../../shared/helperFunctions.ts';
 import { MongoWrapper } from '../infrastructure/mongo.ts';
 import { WebSocketWrapper } from '../infrastructure/websocket.ts';
 import { ChangeEvent } from '../../shared/types.ts';
+import { matchesQuery } from './queryMatcher.ts';
 
 // Publication params stay loosely typed at the protocol boundary because
 // client input is unknown
@@ -31,12 +32,6 @@ const changedMessage = (collection: string, doc: Record<string, unknown>) => ({
   id: doc._id,
   fields: Object.fromEntries(Object.entries(doc).filter(([key]) => key !== '_id')),
 });
-
-// Plain equality on top level fields, which is what publications use today. The
-// initial find asks Mongo; the live path asks this instead, per subscription,
-// because one change stream is shared by every subscriber to the collection.
-const matchesQuery = (doc: Record<string, unknown>, query: object): boolean =>
-  Object.entries(query).every(([key, value]) => doc[key] === value);
 
 const readyMessage = (subId: string, collection: string) => ({
   type: 'ready',
