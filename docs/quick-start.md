@@ -152,6 +152,29 @@ publications are not watching.
 Note too that arguments arrive as `unknown`. They came off a socket from a browser, so EkoLite hands
 them to you untrusted rather than pretending to know their shape.
 
+A method can also learn who is calling. Write it as a `function` rather than an arrow, and
+`this.clientId` is the id of the socket the call came in on. It is `null` when the server calls the
+method itself, from a test or from another method. An arrow function never sees `this`, so a method
+that does not care is exactly as before. The other half is `eko.onDisconnect`, which tells you when
+that socket has closed, with the same id. Together they are enough for presence, a document per
+connected client that the app removes when the client goes:
+
+```ts
+const presence = client.db().collection('presence');
+
+eko.methods.define('presence.join', async function (room, name) {
+  await presence.updateOne(
+    { _id: this.clientId },
+    { $set: { room: String(room), name: String(name) } },
+    { upsert: true },
+  );
+});
+
+eko.onDisconnect((clientId) => {
+  void presence.deleteOne({ _id: clientId });
+});
+```
+
 ## Point the runner at your app
 
 `ekolite.config.ts` at the project root is how the runner finds everything:
@@ -303,13 +326,14 @@ eko.methods.define('countC', async (fileId) => {
 
 ## What `eko` gives you
 
-| `eko.`         | what it gives you                                                 |
-| -------------- | ----------------------------------------------------------------- |
-| `publications` | name a publication: `define(name, () => ({ collection, query }))` |
-| `methods`      | name a server method: `define(name, async (...args) => result)`   |
-| `files`        | the file store: `locate(id)`, `read(id)`, `recordCountC(id, n)`   |
-| `scriptRunner` | run a child process: `exec(command, args)`                        |
-| `asset(name)`  | resolve a bundled asset to an absolute path, against `assetsDir`  |
+| `eko.`         | what it gives you                                                                                   |
+| -------------- | --------------------------------------------------------------------------------------------------- |
+| `publications` | name a publication: `define(name, () => ({ collection, query }))`                                   |
+| `methods`      | name a server method: `define(name, async (...args) => result)`; a `function` reads `this.clientId` |
+| `files`        | the file store: `locate(id)`, `read(id)`, `recordCountC(id, n)`                                     |
+| `scriptRunner` | run a child process: `exec(command, args)`                                                          |
+| `asset(name)`  | resolve a bundled asset to an absolute path, against `assetsDir`                                    |
+| `onDisconnect` | hear a client's socket close, with its id; returns a function that stops listening                  |
 
 What it holds back is the lifecycle: `armShutdown`, `close`, the Mongo client. Those stay the
 runner's business, so your entry only ever defines, and never has to think about booting or stopping.
