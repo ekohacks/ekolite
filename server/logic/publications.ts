@@ -32,6 +32,12 @@ const changedMessage = (collection: string, doc: Record<string, unknown>) => ({
   fields: Object.fromEntries(Object.entries(doc).filter(([key]) => key !== '_id')),
 });
 
+// Plain equality on top level fields, which is what publications use today. The
+// initial find asks Mongo; the live path asks this instead, per subscription,
+// because one change stream is shared by every subscriber to the collection.
+const matchesQuery = (doc: Record<string, unknown>, query: object): boolean =>
+  Object.entries(query).every(([key, value]) => doc[key] === value);
+
 const readyMessage = (subId: string, collection: string) => ({
   type: 'ready',
   id: subId,
@@ -188,8 +194,12 @@ export class Publications {
       const cleanup = await this.mongo.watchChanges(collection, (change: ChangeEvent) => {
         switch (change.type) {
           case 'insert': {
+            const doc = { _id: change.id, ...change.fields };
+            if (!matchesQuery(doc, query)) {
+              break;
+            }
             documentIds.add(change.id);
-            this.ws.send(clientId, addedMessage(collection, { _id: change.id, ...change.fields }));
+            this.ws.send(clientId, addedMessage(collection, doc));
             break;
           }
           case 'update': {
