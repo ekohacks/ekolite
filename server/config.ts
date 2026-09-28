@@ -3,6 +3,7 @@ import { type AppEntry } from './run.ts';
 // Re-export the app-authoring types so a consumer types their config and entry from one
 // place: `import { defineConfig, type AppEntry } from 'ekolite/config'`.
 export type { AppEntry, AppContext } from './run.ts';
+export type { MethodContext } from '../shared/types.ts';
 
 // The shape of an ekolite.config.ts. `app` is the app entry: a path to the module the
 // runner imports, or the entry function inline. The dirs point the runner at the app's own

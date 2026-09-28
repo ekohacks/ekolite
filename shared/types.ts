@@ -65,7 +65,17 @@ export function isChangeEvent(data: unknown): data is ChangeEvent {
 
 // ── Method definitions ──────────────────────────────────────────────────────
 
-export type MethodFn = (...args: unknown[]) => Promise<unknown>;
+// Who is calling. Carried to the method as `this`, the way Meteor carried `this.userId`,
+// so an arrow function that does not care never sees it and a function that does reads
+// `this.clientId`. Over the wire it is the socket's client id; a call the server makes on
+// its own, from a test or from another method, has no client and gets null.
+export interface MethodContext {
+  clientId: string | null;
+}
+
+export type MethodFn = (this: MethodContext, ...args: unknown[]) => Promise<unknown>;
+
+export const SERVER_CALL: MethodContext = { clientId: null };
 
 export function methodNotFound(name: string): RpcError {
   return new RpcError(404, `Method not found: ${name}`);

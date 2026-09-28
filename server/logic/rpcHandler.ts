@@ -14,7 +14,7 @@ export class RpcHandler {
 
   async handleMessage(clientId: string, message: MethodMsg): Promise<void> {
     try {
-      const result = await this.methods.call(message.name, message.params);
+      const result = await this.methods.call(message.name, message.params, { clientId });
 
       this.ws.send(clientId, {
         type: 'result',
