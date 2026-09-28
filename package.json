@@ -1,6 +1,6 @@
 {
   "name": "ekolite",
-  "version": "0.4.3",
+  "version": "0.5.0",
   "bin": {
     "ekolite": "dist/server/cli.js"
   },

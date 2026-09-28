@@ -31,4 +31,22 @@ describe('Methods', () => {
     const result = await methods.call('sum', [2, 3]);
     expect(result).toBe(5);
   });
+
+  it('hands the method the calling client as this', async () => {
+    const methods = new Methods();
+    methods.define('whoAmI', function () {
+      return Promise.resolve(this.clientId);
+    });
+    const result = await methods.call('whoAmI', [], { clientId: 'client-7' });
+    expect(result).toBe('client-7');
+  });
+
+  it('a call from the server itself has no client', async () => {
+    const methods = new Methods();
+    methods.define('whoAmI', function () {
+      return Promise.resolve(this.clientId);
+    });
+    const result = await methods.call('whoAmI', []);
+    expect(result).toBeNull();
+  });
 });

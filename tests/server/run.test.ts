@@ -30,7 +30,14 @@ describe('ekolite run - applying an app entry', () => {
     });
 
     // Only what you define against, so armShutdown, close, mongo and proc stay the runner's.
-    expect(keys.sort()).toEqual(['asset', 'files', 'methods', 'publications', 'scriptRunner']);
+    expect(keys.sort()).toEqual([
+      'asset',
+      'files',
+      'methods',
+      'onDisconnect',
+      'publications',
+      'scriptRunner',
+    ]);
   });
 
   it('resolves an asset path against the assets directory', () => {
@@ -46,5 +53,23 @@ describe('ekolite run - applying an app entry', () => {
     );
 
     expect(resolved).toBe('/proj/scripts/countC.py');
+  });
+
+  // Presence needs the other half of identity: a method learns who called it, and the app
+  // learns when that client has gone, so it can take their presence document with them.
+  it('lets the entry hear a client disconnect', () => {
+    const app = App.createNull();
+    const gone: string[] = [];
+
+    applyAppEntry(app, (eko) => {
+      eko.onDisconnect((clientId) => {
+        gone.push(clientId);
+      });
+    });
+
+    const client = app.ws.simulateConnection();
+    client.close();
+
+    expect(gone).toEqual([client.id]);
   });
 });

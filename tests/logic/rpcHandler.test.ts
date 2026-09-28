@@ -71,4 +71,27 @@ describe('RpcHandler', () => {
       },
     });
   });
+
+  it('tells the method which client is calling', async () => {
+    const ws = WebSocketWrapper.createNull();
+    const methods = new Methods();
+    methods.define('whoAmI', function () {
+      return Promise.resolve(this.clientId);
+    });
+    const rpc = new RpcHandler(methods, ws);
+    const client = ws.simulateConnection();
+
+    await rpc.handleMessage(client.id, {
+      type: 'method',
+      id: 'm1',
+      name: 'whoAmI',
+      params: [],
+    });
+
+    expect(client.messages).toContainEqual({
+      type: 'result',
+      id: 'm1',
+      result: client.id,
+    });
+  });
 });
