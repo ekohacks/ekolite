@@ -38,6 +38,29 @@ describe('MongoWrapper (real)', () => {
     expect(docs[0].name).toBe('keep');
   });
 
+  it('an update from a real change stream carries the whole document, unmarked', async () => {
+    const changes: unknown[] = [];
+    const stop = await mongo.watchChanges('testDocs', (change) => {
+      changes.push(change);
+    });
+
+    try {
+      await mongo.insert('testDocs', { name: 'hello', owner: 'ada' });
+      await mongo.update('testDocs', { name: 'hello' }, { $set: { name: 'updated' } });
+
+      const deadline = Date.now() + 5000;
+      while (changes.length < 2 && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+
+      const update = changes[1] as { fields: unknown; partial?: unknown };
+      expect(update.fields).toEqual({ name: 'updated', owner: 'ada' });
+      expect(update.partial).toBeUndefined();
+    } finally {
+      await stop();
+    }
+  });
+
   it('emits change stream events for insert, update, and delete', async () => {
     const changes: unknown[] = [];
     const stop = await mongo.watchChanges('testDocs', (change) => {
