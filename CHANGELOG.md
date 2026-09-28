@@ -2,12 +2,22 @@
 
 All notable changes to `ekolite` are recorded here. The project is pre-1.0, so a minor version may carry a breaking change.
 
-## Unreleased
+## 0.5.0
+
+A minor version, because one public type changes. Defining methods, which is what an app does, is unaffected.
 
 ### Added
 
-- **A method knows who is calling.** Methods are now run with a context as `this`, the way Meteor carried `this.userId`. Over the wire `this.clientId` is the id of the socket the call came in on; a call the server makes itself, from a test or from another method, gets `null`. Arrow functions never see `this`, so every existing method is unchanged. `app.methods.call(name, args, context)` takes the context as an optional third argument for tests and server side calls, and the `MethodContext` type ships from `ekolite` and `ekolite/config`.
-- **`eko.onDisconnect(cb)` on the app context.** The other half of identity: the app hears when a client's socket has closed, with the same id its methods saw, and gets back the function that stops listening. A presence document per connected client, removed when the client goes, is now a few lines of app code; the quick start shows them.
+- **A method knows who is calling.** Methods are now run with a context as `this`, the way Meteor carried `this.userId`. Over the wire `this.clientId` is the id of the socket the call came in on; a call the server makes itself, from a test or from another method, gets `null`. Arrow functions never see `this`, so every existing method is unchanged. `app.methods.call(name, args, context)` takes the context as an optional third argument for tests and server side calls, and the `MethodContext` type ships from `ekolite` and `ekolite/config`. (#204)
+- **`eko.onDisconnect(cb)` on the app context.** The other half of identity: the app hears when a client's socket has closed, with the same id its methods saw, and gets back the function that stops listening. A presence document per connected client, removed when the client goes, is now a few lines of app code; the quick start shows them. (#204)
+
+### Changed
+
+- **`MethodFn` declares `this`.** The type is now `(this: MethodContext, ...args: unknown[]) => Promise<unknown>`. A consumer who stores a `MethodFn` and calls it bare will be told it needs a `this`; call it through `app.methods.call`, or with `fn.call(context, ...args)`. (#204)
+
+### Worth knowing
+
+- **`clientId` is not a person.** It says which socket, not who. It is a counter the server hands out per connection, it changes on every reconnect, and it starts again when the server restarts. An app that keys documents by it should clear them at boot, and an app that needs to know who someone is still has to establish that itself.
 
 ## 0.4.3
 
