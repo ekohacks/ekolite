@@ -34,9 +34,19 @@ export interface ScriptResult {
 
 // ── Change events (MongoDB wrapper) ─────────────────────────────────────────
 
+// An update normally carries the whole document as it now stands. `partial` marks the
+// one that carries only what was written: the Nulled Mongo, which holds no documents,
+// and the real one when the document is gone by the time the change stream looks it up.
+// A reader must then take a field the change does not carry as unknown, not as missing.
 export type ChangeEvent =
   | { type: 'insert'; collection: string; id: string; fields: Record<string, unknown> }
-  | { type: 'update'; collection: string; id: string; fields: Record<string, unknown> }
+  | {
+      type: 'update';
+      collection: string;
+      id: string;
+      fields: Record<string, unknown>;
+      partial?: true;
+    }
   | { type: 'remove'; collection: string; id: string };
 
 export function isChangeEvent(data: unknown): data is ChangeEvent {
@@ -53,6 +63,9 @@ export function isChangeEvent(data: unknown): data is ChangeEvent {
     return false;
   }
   if (data.type === 'insert' || data.type === 'update') {
+    if ('partial' in data && data.partial !== true) {
+      return false;
+    }
     return !(
       !('fields' in data) ||
       typeof data.fields !== 'object' ||

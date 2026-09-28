@@ -297,6 +297,7 @@ class StubbedCollection implements CollectionLike {
       collection: this.collectionName,
       id: idFrom(query),
       fields: setFields,
+      partial: true,
     } satisfies ChangeEvent);
 
     return Promise.resolve();
@@ -365,12 +366,16 @@ function mapRawChangeToChangeEvent(raw: unknown): ChangeEvent | null {
       | { updatedFields?: Record<string, unknown> }
       | undefined;
     const id = getId(documentKey?._id);
-    return {
-      type: 'update',
+    const base = {
+      type: 'update' as const,
       collection: typeof collection === 'string' ? collection : '',
       id,
-      fields: fullDocument ? extractFields(fullDocument) : (updateDescription?.updatedFields ?? {}),
     };
+    // updateLookup hands over the document as it now stands. When it is already gone,
+    // what the update wrote is all there is, and the change says so.
+    return fullDocument
+      ? { ...base, fields: extractFields(fullDocument) }
+      : { ...base, fields: updateDescription?.updatedFields ?? {}, partial: true };
   }
 
   if (operationType === 'delete') {
