@@ -2,7 +2,9 @@
 
 All notable changes to `ekolite` are recorded here. The project is pre-1.0, so a minor version may carry a breaking change.
 
-## Unreleased
+## 0.6.0
+
+A minor version, because it changes what a subscriber receives and refuses a kind of query that used to be accepted. A publication with plain equality in its query, or with an empty one, needs no change.
 
 ### Fixed
 
