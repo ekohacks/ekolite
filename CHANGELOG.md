@@ -2,6 +2,21 @@
 
 All notable changes to `ekolite` are recorded here. The project is pre-1.0, so a minor version may carry a breaking change.
 
+## Unreleased
+
+### Fixed
+
+- **Live changes respect the publication's query.** A publication's `query` filtered the initial find and nothing after it: every insert and update on the collection was forwarded to every subscriber, whatever they had asked for, so a client subscribed to one room was sent every other room's documents as they changed. Each subscription now decides for itself, change by change. A document that stops matching arrives as `removed`, one that starts matching arrives as `added`, and a change to a document outside the query sends nothing. The quick start has the table. (#205)
+
+### Changed
+
+- **Clients no longer receive documents outside their publication's query.** This is the fix above, stated as what an upgrade changes. An app that relied on seeing a whole collection through a narrow publication will see less. Publish with the query you mean, or with `{}` for the whole collection, which behaves exactly as before. (#205)
+- **A query that live updates cannot follow is refused at subscribe.** Live filtering follows equality, dotted paths, values held in arrays, `$eq`, `$ne`, `$in`, `$nin`, `$gt`, `$gte`, `$lt`, `$lte`, `$exists`, `$and`, `$or` and `$nor`. A publication whose query uses anything else, `$regex` for instance, used to work for the initial find and leak afterwards. It now answers the subscribe with a 400 that names the operator, and the observer hears `publication-query-unsupported`. (#205)
+
+### Added
+
+- **An update says when it carries only part of the document.** `ChangeEvent` updates gain an optional `partial: true`. The real Mongo sets it only when the document is gone by the time the change stream looks it up; the Nulled Mongo, which holds no documents, sets it on every update. Tests that drive `mongo.update` on a Nulled app therefore see filtering decide on the fields the update set, and keep a held document when the update says nothing about the query. (#205)
+
 ## 0.5.0
 
 A minor version, because one public type changes. Defining methods, which is what an app does, is unaffected.

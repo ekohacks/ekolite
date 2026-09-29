@@ -3,6 +3,12 @@ import { assertNever, hasMongoOperator } from '../../shared/helperFunctions.ts';
 import { MongoWrapper } from '../infrastructure/mongo.ts';
 import { WebSocketWrapper } from '../infrastructure/websocket.ts';
 import { ChangeEvent } from '../../shared/types.ts';
+import {
+  matchesQuery,
+  SUPPORTED_OPERATORS,
+  unsupportedOperators,
+  verdictFor,
+} from './queryMatcher.ts';
 
 // Publication params stay loosely typed at the protocol boundary because
 // client input is unknown
@@ -12,8 +18,8 @@ interface SubscriptionRecord {
   cleanup: () => Promise<void>;
   // Document ids this subscription has sent `added` for and not yet sent
   // `removed` for. Mirrors the client's view of what's been delivered, not
-  // the live Mongo state. When watcher 'update'/'delete' get wired through,
-  // this is the field they update.
+  // the live Mongo state. An update that moves a document into the query adds
+  // to it, one that moves a document out takes from it.
   documentIds: Set<string>;
   collection: string;
 }
@@ -157,6 +163,27 @@ export class Publications {
         return;
       }
 
+      // The live path decides membership with its own matcher, which follows the part
+      // of Mongo's query language publications are written in and no more. A query
+      // beyond it would either leak, if every change were forwarded, or go quietly
+      // stale, if none were, so it is refused here, where the developer will see it.
+      const unsupported = unsupportedOperators(query);
+      if (unsupported.length > 0) {
+        this.sendPublicationError(
+          clientId,
+          message,
+          'publication-query-unsupported',
+          `Publication query uses ${unsupported.join(', ')}, which live updates cannot follow. ` +
+            `They follow equality and ${SUPPORTED_OPERATORS.join(', ')}`,
+          400,
+        );
+        return;
+      }
+
+      // An empty query holds every document, so no change can move one in or out of it
+      // and there is nothing to decide: every change is forwarded, as it always was.
+      const filtered = Object.keys(query).length > 0;
+
       let docs;
       try {
         docs = await this.mongo.find<{ _id: string }>(collection, query);
@@ -188,15 +215,36 @@ export class Publications {
       const cleanup = await this.mongo.watchChanges(collection, (change: ChangeEvent) => {
         switch (change.type) {
           case 'insert': {
+            const doc = { _id: change.id, ...change.fields };
+            if (!matchesQuery(doc, query)) {
+              break;
+            }
             documentIds.add(change.id);
-            this.ws.send(clientId, addedMessage(collection, { _id: change.id, ...change.fields }));
+            this.ws.send(clientId, addedMessage(collection, doc));
             break;
           }
           case 'update': {
-            this.ws.send(
-              clientId,
-              changedMessage(collection, { _id: change.id, ...change.fields }),
-            );
+            const doc = { _id: change.id, ...change.fields };
+            if (!filtered) {
+              this.ws.send(clientId, changedMessage(collection, doc));
+              break;
+            }
+
+            // A change that carries only part of the document can leave the answer
+            // unknown. A document the client holds stays until a change says it has
+            // left; one it lacks comes in only when a change says it belongs.
+            const verdict = verdictFor(doc, query, { partial: change.partial === true });
+            if (documentIds.has(change.id)) {
+              if (verdict === 'no-match') {
+                documentIds.delete(change.id);
+                this.ws.send(clientId, removedMessage(collection, change.id));
+              } else {
+                this.ws.send(clientId, changedMessage(collection, doc));
+              }
+            } else if (verdict === 'match') {
+              documentIds.add(change.id);
+              this.ws.send(clientId, addedMessage(collection, doc));
+            }
             break;
           }
           case 'remove': {

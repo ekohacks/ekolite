@@ -139,9 +139,33 @@ export default app;
 ```
 
 A publication is a function from the subscriber's params to a collection and a query. EkoLite runs
-the query, streams the matching documents to the client, then watches the collection and forwards
-every later change on the same socket. A method is a plain function: whatever it returns goes back
-to the caller, whatever it throws comes back as an error.
+the query, streams the matching documents to the client, then watches the collection and keeps that
+client's view true to the query on the same socket. A method is a plain function: whatever it
+returns goes back to the caller, whatever it throws comes back as an error.
+
+Keeping the view true means the query holds for what comes later as well as for what was there. A
+subscriber to `tasks.mine` for `ada` is sent Ada's tasks and nobody else's:
+
+| What happens in Mongo                                  | What the subscriber is sent |
+| ------------------------------------------------------ | --------------------------- |
+| a document is inserted that matches the query          | `added`                     |
+| a document is inserted that does not                   | nothing                     |
+| a document it holds changes and still matches          | `changed`                   |
+| a document it holds changes and no longer matches      | `removed`                   |
+| a document it does not hold changes and now matches    | `added`                     |
+| a document it does not hold changes and does not match | nothing                     |
+| a document it holds is deleted                         | `removed`                   |
+
+EkoLite decides this itself, change by change, rather than asking Mongo again, so it follows the
+part of Mongo's query language publications are written in: equality, dotted paths such as
+`'meta.kind'`, a value held in an array, `$eq`, `$ne`, `$in`, `$nin`, `$gt`, `$gte`, `$lt`, `$lte`,
+`$exists`, and `$and`, `$or`, `$nor`. A query that uses anything else, `$regex` or `$elemMatch` for
+instance, is refused when a client subscribes, with an error that names the operator. That is
+deliberate: forwarding every change would leak, and forwarding none would leave the client quietly
+out of date. Put the thing you want to filter on in a field of its own and query that.
+
+A publication with an empty query, `{}`, holds every document in the collection, so every change is
+forwarded.
 
 Note the `MongoClient` of your own at the top, and note what it means. `eko` deliberately hands you
 no database handle: reading is EkoLite's job through publications, but writing is yours, so you

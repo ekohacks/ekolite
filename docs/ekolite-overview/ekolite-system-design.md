@@ -127,7 +127,7 @@ Client                                    Server
 publications.define('files.all', () => ({ collection: 'files', query: {} }));
 ```
 
-When a client subscribes, the server runs the query, sends one `added` per document, then `ready`. From that point a MongoDB change stream feeds `added`, `changed` and `removed` to every subscriber as the data moves.
+When a client subscribes, the server runs the query, sends one `added` per document, then `ready`. From that point a MongoDB change stream feeds the subscription as the data moves, and each subscription decides for itself what a change means to it: `added` when a document comes to match its query, `changed` when one it holds changes and still matches, `removed` when one it holds stops matching or is deleted, and nothing at all for a document outside its query. One change stream per collection is shared by every subscriber, which is why the deciding happens per subscription and not in the stream.
 
 Teardown is reference counted. Several clients can hold the same publication, and the change stream is only closed when the last one lets go. A client that never unsubscribes is not a leak: closing the socket disposes its subscriptions.
 

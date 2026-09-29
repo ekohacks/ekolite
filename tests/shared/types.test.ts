@@ -24,6 +24,30 @@ describe('isChangeEvent', () => {
     ).toBe(true);
   });
 
+  it('accepts an update marked as carrying only part of the document', () => {
+    expect(
+      isChangeEvent({
+        type: 'update',
+        collection: 'files',
+        id: 'abc',
+        fields: { name: 'two.bam' },
+        partial: true,
+      }),
+    ).toBe(true);
+  });
+
+  it('rejects a partial mark that is not simply true', () => {
+    expect(
+      isChangeEvent({
+        type: 'update',
+        collection: 'files',
+        id: 'abc',
+        fields: { name: 'two.bam' },
+        partial: 'yes',
+      }),
+    ).toBe(false);
+  });
+
   it('accepts a well formed remove', () => {
     expect(
       isChangeEvent({

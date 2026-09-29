@@ -231,6 +231,19 @@ describe('MongoWrapper (null)', () => {
     expect(updated?.id).toBe('doc-1');
   });
 
+  // The stub holds no documents, so an update can only say what the update set. It says
+  // so, and the publications engine reads the mark: a field the change does not carry is
+  // unknown, not missing.
+  it('marks an update as carrying only part of the document', async () => {
+    const mongo = MongoWrapper.createNull();
+    const tracker = await mongo.trackChanges('testDocs');
+
+    await mongo.update('testDocs', { _id: 'doc-1' }, { $set: { name: 'new' } });
+
+    const updated = tracker.data.filter(isChangeEvent).find((event) => event.type === 'update');
+    expect(updated).toMatchObject({ partial: true });
+  });
+
   it('emits a remove change carrying the _id from the query', async () => {
     const mongo = MongoWrapper.createNull();
     const tracker = await mongo.trackChanges('testDocs');

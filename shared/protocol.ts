@@ -108,6 +108,7 @@ type PublicationsDuplicateSubIdReason = 'duplicate-sub-id';
 type PublicationsQueryFailedReason = 'publication-query-failed';
 type PublicationsInvalidParamsReason = 'invalid-params';
 type PublicationsMongoFailedReason = 'publications-mongo-find-failed';
+type PublicationsQueryUnsupportedReason = 'publication-query-unsupported';
 
 export type ReactiveStoreReasons =
   /** Document with the given ID is unknown to the store.
@@ -131,4 +132,7 @@ export type PublicationsReasons =
   /** Subscribe params were rejected by the engine (e.g. contained mongo operators). */
   | PublicationsInvalidParamsReason
   /**Publication threw when trying to find in Mongo */
-  | PublicationsMongoFailedReason;
+  | PublicationsMongoFailedReason
+  /** The publication's query uses an operator live updates cannot follow, so the
+   *  subscription is refused rather than left to leak or to go stale. */
+  | PublicationsQueryUnsupportedReason;
