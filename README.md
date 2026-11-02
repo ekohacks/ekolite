@@ -184,7 +184,7 @@ npm install
 
 npm run dev:server   # the repo's bare server on port 3001, auto restart
 
-npm run gate         # typecheck, lint, format check, the fast suite: what pre-push and CI run
+npm run gate         # typecheck, lint, format check, the fast suite, in parallel: what pre-push and CI run
 ```
 
 `npm run dev:server` boots a server with nothing defined on it, which is what you want when you are working on the framework and not on an app.
@@ -200,7 +200,8 @@ npm test                  # Fast suite: nullable unit + sociable tests
 npm run test:watch        # The same, on every save
 npm run test:integration  # Narrow integration tests (needs a real local MongoDB)
 npm run gate              # The whole gate: typecheck, lint, format check and the fast suite,
-                          # the same command the pre-push hook and CI run (ADR 0023)
+                          # run in parallel, about seven seconds; the same command the
+                          # pre-push hook and CI run (ADR 0023)
 ```
 
 Nullable unit tests and integration tests live in separate files (`x.test.ts` and `x.integration.test.ts`), so the fast suite never touches the network or disk.
