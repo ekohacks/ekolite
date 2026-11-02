@@ -25,12 +25,8 @@ jobs:
 
       - name: 'Install dependencies'
         run: npm ci
-      - name: 'Type check'
-        run: npm run typecheck
-      - name: 'Lint code'
-        run: npm run lint
-      - name: 'Run tests'
-        run: npm test
+      - name: 'The gate: typecheck, lint, format check, the fast suite'
+        run: npm run gate
 
   # The docs deploy themselves on merge to main (docs.yml), so drifted docs ship
   # silently — 0.4.0 added an entry point and the site advertised the old surface for
