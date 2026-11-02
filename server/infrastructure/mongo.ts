@@ -1,5 +1,6 @@
 import { Collection, MongoClient as Driver, ObjectId } from 'mongodb';
 import { ChangeEvent, isChangeEvent } from '../../shared/types.ts';
+import { matchesQuery } from '../logic/queryMatcher.ts';
 import { ConfigurableResponse, EventEmitter, OutputTracker } from './outputTracker.ts';
 
 const CLOSE_EVENT = 'close';
@@ -246,7 +247,16 @@ class StubbedCollectionFactory {
   }
 }
 
+// Embedded Stub of a collection: an in-memory Mongo. It holds the documents it is
+// given, answers find through the same query matcher the publications engine uses,
+// applies $set, deletes what a query matches, and emits one change per document the
+// way a real change stream does, so the null cannot quietly drift from the driver.
+// The contract list in tests/infrastructure/mongoContract.ts holds the two to it.
+// Configured responses, when given, still answer first: a find from configuration,
+// an error on command.
 class StubbedCollection implements CollectionLike {
+  private readonly docs: Record<string, unknown>[] = [];
+
   constructor(
     private readonly collectionName: string,
     private readonly emitter: EventEmitter,
@@ -257,6 +267,7 @@ class StubbedCollection implements CollectionLike {
   ) {}
 
   find<T>(query: object): Promise<T[]> {
+    // A read, tracked as behaviour; watchers never see it (it is no ChangeEvent).
     this.emitter.emit(this.collectionName, {
       type: 'find',
       collection: this.collectionName,
@@ -267,7 +278,7 @@ class StubbedCollection implements CollectionLike {
       return Promise.resolve(this.findResponses.next() as T[]);
     }
 
-    return Promise.resolve([]);
+    return Promise.resolve(this.matching(query).map((doc) => ({ ...doc })) as T[]);
   }
 
   insertOne(doc: object): Promise<void> {
@@ -275,12 +286,16 @@ class StubbedCollection implements CollectionLike {
       this.insertResponses.next();
     }
 
-    const id = idFrom(doc);
+    const stored: Record<string, unknown> = {
+      ...(doc as Record<string, unknown>),
+      _id: idFrom(doc),
+    };
+    this.docs.push(stored);
     this.emitter.emit(this.collectionName, {
       type: 'insert',
       collection: this.collectionName,
-      id,
-      fields: doc as Record<string, unknown>,
+      id: String(stored._id),
+      fields: withoutId(stored),
     } satisfies ChangeEvent);
 
     return Promise.resolve();
@@ -292,13 +307,16 @@ class StubbedCollection implements CollectionLike {
     }
 
     const setFields = (changes as Record<string, Record<string, unknown>>)['$set'] ?? {};
-    this.emitter.emit(this.collectionName, {
-      type: 'update',
-      collection: this.collectionName,
-      id: idFrom(query),
-      fields: setFields,
-      partial: true,
-    } satisfies ChangeEvent);
+    for (const doc of this.matching(query)) {
+      Object.assign(doc, setFields);
+      // The whole document as it now stands, unmarked, as a real change stream hands it over.
+      this.emitter.emit(this.collectionName, {
+        type: 'update',
+        collection: this.collectionName,
+        id: String(doc._id),
+        fields: withoutId(doc),
+      } satisfies ChangeEvent);
+    }
 
     return Promise.resolve();
   }
@@ -308,11 +326,14 @@ class StubbedCollection implements CollectionLike {
       this.removeResponses.next();
     }
 
-    this.emitter.emit(this.collectionName, {
-      type: 'remove',
-      collection: this.collectionName,
-      id: idFrom(query),
-    } satisfies ChangeEvent);
+    for (const doc of this.matching(query)) {
+      this.docs.splice(this.docs.indexOf(doc), 1);
+      this.emitter.emit(this.collectionName, {
+        type: 'remove',
+        collection: this.collectionName,
+        id: String(doc._id),
+      } satisfies ChangeEvent);
+    }
 
     return Promise.resolve();
   }
@@ -327,6 +348,15 @@ class StubbedCollection implements CollectionLike {
       return Promise.resolve();
     });
   }
+
+  private matching(query: object): Record<string, unknown>[] {
+    return this.docs.filter((doc) => matchesQuery(doc, query));
+  }
+}
+
+function withoutId(doc: Record<string, unknown>): Record<string, unknown> {
+  const { _id: _ignored, ...fields } = doc;
+  return fields;
 }
 
 function idFrom(source: object): string {

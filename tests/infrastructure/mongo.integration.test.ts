@@ -1,90 +1,17 @@
-import { describe, it, expect, afterEach, afterAll } from 'vitest';
+import { afterAll, describe } from 'vitest';
 import { MongoWrapper } from '../../server/infrastructure/mongo.ts';
+import { mongoContract } from './mongoContract.ts';
 
+// Narrow integration test: the wrapper against a real replica set (change streams
+// demand one). The behaviour is the contract list the unit file runs on the null.
 describe('MongoWrapper (real)', () => {
   const mongo = MongoWrapper.create('mongodb://localhost:27017/ekolite-test?replicaSet=rs0');
 
-  afterEach(async () => {
-    await mongo.remove('testDocs', {});
-  });
-
-  // Close the driver client once, cleanly. close() now drains any open change
-  // stream first, so this no longer races a live stream into "Topology is closed".
+  // Close the driver client once, cleanly. close() drains any open change stream
+  // first, so this no longer races a live stream into "Topology is closed".
   afterAll(async () => {
     await mongo.close();
   });
 
-  it('inserts and finds documents', async () => {
-    await mongo.insert('testDocs', { name: 'test.bam' });
-    const docs = await mongo.find<{ name: string }>('testDocs', {});
-    expect(docs).toHaveLength(1);
-    expect(docs[0].name).toBe('test.bam');
-  });
-
-  it('updates a document', async () => {
-    await mongo.insert('testDocs', { name: 'old' });
-    await mongo.update('testDocs', { name: 'old' }, { $set: { name: 'new' } });
-    const docs = await mongo.find<{ name: string }>('testDocs', {});
-    expect(docs).toHaveLength(1);
-    expect(docs[0].name).toBe('new');
-  });
-
-  it('removes matching documents', async () => {
-    await mongo.insert('testDocs', { name: 'keep' });
-    await mongo.insert('testDocs', { name: 'remove' });
-    await mongo.remove('testDocs', { name: 'remove' });
-    const docs = await mongo.find<{ name: string }>('testDocs', {});
-    expect(docs).toHaveLength(1);
-    expect(docs[0].name).toBe('keep');
-  });
-
-  it('an update from a real change stream carries the whole document, unmarked', async () => {
-    const changes: unknown[] = [];
-    const stop = await mongo.watchChanges('testDocs', (change) => {
-      changes.push(change);
-    });
-
-    try {
-      await mongo.insert('testDocs', { name: 'hello', owner: 'ada' });
-      await mongo.update('testDocs', { name: 'hello' }, { $set: { name: 'updated' } });
-
-      const deadline = Date.now() + 5000;
-      while (changes.length < 2 && Date.now() < deadline) {
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      }
-
-      const update = changes[1] as { fields: unknown; partial?: unknown };
-      expect(update.fields).toEqual({ name: 'updated', owner: 'ada' });
-      expect(update.partial).toBeUndefined();
-    } finally {
-      await stop();
-    }
-  });
-
-  it('emits change stream events for insert, update, and delete', async () => {
-    const changes: unknown[] = [];
-    const stop = await mongo.watchChanges('testDocs', (change) => {
-      changes.push(change);
-    });
-
-    try {
-      await mongo.insert('testDocs', { name: 'hello' });
-      await mongo.update('testDocs', { name: 'hello' }, { $set: { name: 'updated' } });
-      await mongo.remove('testDocs', { name: 'updated' });
-
-      const deadline = Date.now() + 5000;
-      while (changes.length < 3 && Date.now() < deadline) {
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      }
-
-      expect(changes).toHaveLength(3);
-      expect(changes[0]).toMatchObject({ type: 'insert', collection: 'testDocs' });
-      expect(changes[1]).toMatchObject({ type: 'update', collection: 'testDocs' });
-      expect(changes[2]).toMatchObject({ type: 'remove', collection: 'testDocs' });
-    } finally {
-      // Await the stream actually closing, not fire-and-forget, so it is gone
-      // before the suite tears the client down.
-      await stop();
-    }
-  });
+  mongoContract(() => mongo);
 });

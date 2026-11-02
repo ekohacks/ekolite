@@ -13,8 +13,12 @@ const messagesOfType = (messages: unknown[], type: string) =>
       typeof m === 'object' && m !== null && (m as { type?: unknown }).type === type,
   );
 
-const subscribeToFiles = async () => {
-  const mongo = MongoWrapper.createNull({ find: [[]] });
+// `held` is what the database holds before the client subscribes, as a real Mongo would.
+const subscribeToFiles = async (held: Record<string, unknown>[] = []) => {
+  const mongo = MongoWrapper.createNull();
+  for (const doc of held) {
+    await mongo.insert('files', doc);
+  }
   const ws = WebSocketWrapper.createNull();
   const client = ws.simulateConnection();
   const pubs = new Publications(mongo, ws);
@@ -27,7 +31,7 @@ const subscribeToFiles = async () => {
 
 describe('Publications live updates and deletes', () => {
   it('forwards a watched update to the client as a changed message', async () => {
-    const { mongo, client } = await subscribeToFiles();
+    const { mongo, client } = await subscribeToFiles([{ _id: 'doc-1', name: 'old' }]);
 
     await mongo.update('files', { name: 'old' }, { $set: { name: 'new' } });
 
@@ -49,7 +53,7 @@ describe('Publications live updates and deletes', () => {
   });
 
   it('delivers a watched update as exactly one changed message, never as an added', async () => {
-    const { mongo, client } = await subscribeToFiles();
+    const { mongo, client } = await subscribeToFiles([{ _id: 'doc-1', name: 'old' }]);
     const before = client.messages.length;
 
     await mongo.update('files', {}, { $set: { name: 'renamed' } });

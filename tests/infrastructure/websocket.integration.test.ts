@@ -1,58 +1,56 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe } from 'vitest';
 import WebSocket from 'ws';
 import { WebSocketWrapper } from '../../server/infrastructure/websocket.ts';
+import { freePort } from '../helpers/freePort.ts';
+import { webSocketContract, type ContractClient } from './webSocketContract.ts';
 
-describe('WebSocketWrapper (real)', () => {
-  const PORT = 9876;
-  let ws: WebSocketWrapper;
-
-  afterEach(async () => {
-    await ws.close();
+// A real client over a real socket, in the shape the contract speaks.
+export async function realClient(url: string): Promise<ContractClient> {
+  const socket = new WebSocket(url);
+  const messages: unknown[] = [];
+  socket.on('message', (data) => {
+    messages.push(JSON.parse((data as Buffer).toString('utf-8')));
   });
-
-  it('tracks connected clients', async () => {
-    ws = WebSocketWrapper.createRawWs({ port: PORT });
-    await ws.start();
-    expect(ws.clientCount).toBe(0);
-
-    const client = new WebSocket(`ws://localhost:${String(PORT)}`);
-    await new Promise((resolve) => client.on('open', resolve));
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(ws.clientCount).toBe(1);
-
-    client.close();
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(ws.clientCount).toBe(0);
+  await new Promise<void>((resolve, reject) => {
+    socket.on('open', () => {
+      resolve();
+    });
+    socket.on('error', reject);
   });
+  return {
+    messages,
+    send: (message: unknown) => {
+      socket.send(JSON.stringify(message));
+    },
+    close: () =>
+      new Promise<void>((resolve) => {
+        if (socket.readyState === WebSocket.CLOSED) {
+          resolve();
+          return;
+        }
+        socket.once('close', () => {
+          resolve();
+        });
+        socket.close();
+      }),
+  };
+}
 
-  it('broadcasts a message to all clients', async () => {
-    ws = WebSocketWrapper.createRawWs({ port: PORT });
+// Narrow integration test: the raw ws source over a real socket. The behaviour is the
+// contract list the unit file runs on the null.
+describe('WebSocketWrapper (real, raw ws)', () => {
+  webSocketContract(async () => {
+    const port = await freePort();
+    const ws = WebSocketWrapper.createRawWs({ port });
     await ws.start();
-
-    const client1 = new WebSocket(`ws://localhost:${String(PORT)}`);
-    const client2 = new WebSocket(`ws://localhost:${String(PORT)}`);
-    await Promise.all([
-      new Promise((resolve) => client1.on('open', resolve)),
-      new Promise((resolve) => client2.on('open', resolve)),
-    ]);
-
-    const received1 = new Promise<unknown>((resolve) => {
-      client1.on('message', (data) => {
-        resolve(JSON.parse((data as Buffer).toString('utf-8')));
-      });
-    });
-    const received2 = new Promise<unknown>((resolve) => {
-      client2.on('message', (data) => {
-        resolve(JSON.parse((data as Buffer).toString('utf-8')));
-      });
-    });
-
-    ws.broadcast({ type: 'update', payload: 'refresh' });
-
-    expect(await received1).toEqual({ type: 'update', payload: 'refresh' });
-    expect(await received2).toEqual({ type: 'update', payload: 'refresh' });
-
-    client1.close();
-    client2.close();
+    return {
+      ws,
+      connect: () => realClient(`ws://localhost:${String(port)}`),
+      // The raw ws server's close waits for every client socket to end: drop them first.
+      close: async () => {
+        ws.dropAllClients();
+        await ws.close();
+      },
+    };
   });
 });

@@ -52,12 +52,20 @@ class RealProcessRunner implements ProcessRunnerLike {
   private readonly emitter = new EventEmitter();
 
   exec(command: string, args: string[]): Promise<ScriptResult> {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       execFile(command, args, (error, stdout, stderr) => {
+        // A command that ran and failed is a result with its exit code. A command that
+        // could not be spawned at all (ENOENT, EACCES: a string code from the OS) is an
+        // error, the way the null's configured Error is; it used to pass as exit code 1
+        // with an empty stderr, which hid a missing binary behind a failing script.
+        if (error && typeof error.code === 'string') {
+          reject(new Error(`could not spawn ${command}: ${error.message}`, { cause: error }));
+          return;
+        }
         const result: ScriptResult = {
           stdout,
           stderr,
-          exitCode: error?.code ? (typeof error.code === 'number' ? error.code : 1) : 0,
+          exitCode: typeof error?.code === 'number' ? error.code : error ? 1 : 0,
         };
         this.emitter.emit(EXECUTION_EVENT, { command, args: [...args], result });
         resolve(result);

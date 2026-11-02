@@ -35,8 +35,9 @@ export interface ScriptResult {
 // ── Change events (MongoDB wrapper) ─────────────────────────────────────────
 
 // An update normally carries the whole document as it now stands. `partial` marks the
-// one that carries only what was written: the Nulled Mongo, which holds no documents,
-// and the real one when the document is gone by the time the change stream looks it up.
+// one that carries only what was written: the real Mongo when the document is gone by
+// the time the change stream looks it up. The Nulled Mongo holds its documents and
+// never needs the mark.
 // A reader must then take a field the change does not carry as unknown, not as missing.
 export type ChangeEvent =
   | { type: 'insert'; collection: string; id: string; fields: Record<string, unknown> }

@@ -1,307 +1,72 @@
 import { describe, expect, it } from 'vitest';
 import { MongoWrapper } from '../../server/infrastructure/mongo.ts';
-import { ChangeEvent, isChangeEvent } from '../../shared/types.ts';
+import { ChangeEvent } from '../../shared/types.ts';
+import { mongoContract } from './mongoContract.ts';
 
 describe('MongoWrapper (null)', () => {
-  it('returns configured find responses in order', async () => {
+  // Same behaviour the real driver is held to in the integration suite.
+  mongoContract(() => MongoWrapper.createNull());
+
+  // What only a null can do: answer a find from configuration, and fail on command.
+  it('returns configured find responses in order, ahead of what it holds', async () => {
     const mongo = MongoWrapper.createNull({
       find: [[{ _id: '1', name: 'test.bam' }], []],
     });
-    const first = await mongo.find<{ name: string }>('testDocs', {});
-    expect(first).toEqual([{ _id: '1', name: 'test.bam' }]);
-    const second = await mongo.find('testDocs', {});
-    expect(second).toEqual([]);
+    await mongo.insert('testDocs', { name: 'held' });
+
+    expect(await mongo.find<{ name: string }>('testDocs', {})).toEqual([
+      { _id: '1', name: 'test.bam' },
+    ]);
+    expect(await mongo.find('testDocs', {})).toEqual([]);
   });
 
-  it('throws configured find error', async () => {
+  it('throws configured find, insert, update and remove errors', async () => {
     const mongo = MongoWrapper.createNull({
       find: [new Error('Connection lost')],
-    });
-    await expect(mongo.find('testDocs', {})).rejects.toThrow('Connection lost');
-  });
-
-  it('returns empty array when find has no configured responses', async () => {
-    const mongo = MongoWrapper.createNull();
-    const docs = await mongo.find('testDocs', {});
-    expect(docs).toEqual([]);
-  });
-
-  it('consumes configured insert responses', async () => {
-    const mongo = MongoWrapper.createNull({
-      insert: [undefined],
-    });
-    await expect(mongo.insert('testDocs', { name: 'test' })).resolves.toBeUndefined();
-  });
-
-  it('throws configured insert error', async () => {
-    const mongo = MongoWrapper.createNull({
       insert: [new Error('Duplicate key')],
-    });
-    await expect(mongo.insert('testDocs', { name: 'test' })).rejects.toThrow('Duplicate key');
-  });
-
-  it('consumes configured update responses', async () => {
-    const mongo = MongoWrapper.createNull({
-      update: [undefined],
-    });
-    await expect(
-      mongo.update('testDocs', { name: 'old' }, { $set: { name: 'new' } }),
-    ).resolves.toBeUndefined();
-  });
-
-  it('throws configured update error', async () => {
-    const mongo = MongoWrapper.createNull({
       update: [new Error('Write conflict')],
+      remove: [new Error('Not authorised')],
     });
+
+    await expect(mongo.find('testDocs', {})).rejects.toThrow('Connection lost');
+    await expect(mongo.insert('testDocs', { name: 'test' })).rejects.toThrow('Duplicate key');
     await expect(
       mongo.update('testDocs', { name: 'old' }, { $set: { name: 'new' } }),
     ).rejects.toThrow('Write conflict');
-  });
-
-  it('consumes configured remove responses', async () => {
-    const mongo = MongoWrapper.createNull({
-      remove: [undefined],
-    });
-    await expect(mongo.remove('testDocs', { name: 'gone' })).resolves.toBeUndefined();
-  });
-
-  it('throws configured remove error', async () => {
-    const mongo = MongoWrapper.createNull({
-      remove: [new Error('Not authorised')],
-    });
     await expect(mongo.remove('testDocs', { name: 'gone' })).rejects.toThrow('Not authorised');
   });
 
-  it('tracks insert change events', async () => {
-    const mongo = MongoWrapper.createNull({
-      insert: [undefined],
-    });
-    const tracker = await mongo.trackChanges('testDocs');
-    await mongo.insert('testDocs', { name: 'test' });
-    expect(tracker.data).toHaveLength(1);
-    expect(tracker.data[0]).toMatchObject({
-      type: 'insert',
-      collection: 'testDocs',
-      fields: { name: 'test' },
-    });
-    expect(tracker.data[0]).toHaveProperty('id');
+  it('throws a configured insert error without holding the document', async () => {
+    const mongo = MongoWrapper.createNull({ insert: [new Error('Duplicate key')] });
+
+    await expect(mongo.insert('testDocs', { name: 'test' })).rejects.toThrow('Duplicate key');
+    expect(await mongo.find('testDocs', {})).toEqual([]);
   });
 
-  it('tracks update change events', async () => {
-    const mongo = MongoWrapper.createNull({
-      update: [undefined],
-    });
-    const tracker = await mongo.trackChanges('testDocs');
-    await mongo.update('testDocs', { name: 'old' }, { $set: { name: 'new' } });
-    expect(tracker.data).toHaveLength(1);
-    expect(tracker.data[0]).toMatchObject({
-      type: 'update',
-      collection: 'testDocs',
-      fields: { name: 'new' },
-    });
-    expect(tracker.data[0]).toHaveProperty('id');
-  });
-
-  it('tracks remove change events', async () => {
-    const mongo = MongoWrapper.createNull({
-      remove: [undefined],
-    });
-    const tracker = await mongo.trackChanges('testDocs');
-    await mongo.remove('testDocs', { name: 'gone' });
-    expect(tracker.data).toHaveLength(1);
-    expect(tracker.data[0]).toMatchObject({
-      type: 'remove',
-      collection: 'testDocs',
-    });
-    expect(tracker.data[0]).toHaveProperty('id');
-  });
-
-  it('tracks insert change events', async () => {
-    const mongo = MongoWrapper.createNull();
-    const tracker = await mongo.trackChanges('testDocs');
-    await mongo.insert('testDocs', { name: 'test' });
-    expect(tracker.data).toHaveLength(1);
-    expect(tracker.data[0]).toMatchObject({
-      type: 'insert',
-      collection: 'testDocs',
-      fields: { name: 'test' },
-    });
-    expect(tracker.data[0]).toHaveProperty('id');
-  });
-
-  it('updates a document', async () => {
-    const mongo = MongoWrapper.createNull({ find: [[{ name: 'new' }]] });
-    const tracker = await mongo.trackChanges('testDocs');
-    await mongo.insert('testDocs', { name: 'old' });
-    await mongo.update('testDocs', { name: 'old' }, { $set: { name: 'new' } });
-    const docs = await mongo.find<{ name: string }>('testDocs', {});
-    expect(docs).toHaveLength(1);
-    expect(docs[0].name).toBe('new');
-
-    expect(tracker.data[0]).toMatchObject({
-      type: 'insert',
-      collection: 'testDocs',
-      fields: { name: 'old' },
-    });
-    expect(tracker.data[1]).toMatchObject({
-      type: 'update',
-      collection: 'testDocs',
-      fields: { name: 'new' },
-    });
-    expect(tracker.data[2]).toMatchObject({ type: 'find', collection: 'testDocs', query: {} });
-  });
-
-  it('removes matching documents', async () => {
-    const mongo = MongoWrapper.createNull({ find: [[{ name: 'keep' }]] });
-    const tracker = await mongo.trackChanges('testDocs');
-    await mongo.insert('testDocs', { name: 'keep' });
-    await mongo.insert('testDocs', { name: 'remove' });
-    await mongo.remove('testDocs', { name: 'remove' });
-    const docs = await mongo.find<{ name: string }>('testDocs', {});
-
-    expect(docs).toHaveLength(1);
-    expect(docs[0].name).toBe('keep');
-
-    expect(tracker.data[0]).toMatchObject({
-      type: 'insert',
-      collection: 'testDocs',
-      fields: { name: 'keep' },
-    });
-    expect(tracker.data[1]).toMatchObject({
-      type: 'insert',
-      collection: 'testDocs',
-      fields: { name: 'remove' },
-    });
-    expect(tracker.data[2]).toMatchObject({ type: 'remove', collection: 'testDocs' });
-    expect(tracker.data[3]).toMatchObject({ type: 'find', collection: 'testDocs', query: {} });
-  });
-
-  it('tracks update change events', async () => {
-    const mongo = MongoWrapper.createNull();
-    const tracker = await mongo.trackChanges('testDocs');
-    await mongo.insert('testDocs', { name: 'old' });
-    await mongo.update('testDocs', { name: 'old' }, { $set: { name: 'new' } });
-    expect(tracker.data).toHaveLength(2);
-    expect(tracker.data[1]).toMatchObject({
-      type: 'update',
-      collection: 'testDocs',
-      fields: { name: 'new' },
-    });
-    expect(tracker.data[1]).toHaveProperty('id');
-  });
-
-  it('tracks remove change events', async () => {
-    const mongo = MongoWrapper.createNull();
-    const tracker = await mongo.trackChanges('testDocs');
-    await mongo.insert('testDocs', { name: 'gone' });
-    await mongo.remove('testDocs', { name: 'gone' });
-    expect(tracker.data).toHaveLength(2);
-    expect(tracker.data[1]).toMatchObject({
-      type: 'remove',
-      collection: 'testDocs',
-    });
-    expect(tracker.data[1]).toHaveProperty('id');
-  });
-
-  // 3.C.6 part one (Option 1, dumb stub): the stub echoes the _id it is handed, the
-  // doc's _id on insert and the query's _id on update and remove, so a test can make a
-  // change target a known doc. Today it mints a fresh ObjectId per call, so these fail.
-  it('emits an insert change carrying the _id from the document', async () => {
+  it('tracks changes on a collection without a watcher being registered', async () => {
     const mongo = MongoWrapper.createNull();
     const tracker = await mongo.trackChanges('testDocs');
 
-    await mongo.insert('testDocs', { _id: 'doc-1', name: 'old' });
-
-    const inserted = tracker.data.filter(isChangeEvent).find((event) => event.type === 'insert');
-    expect(inserted?.id).toBe('doc-1');
-  });
-
-  it('emits an update change carrying the _id from the query', async () => {
-    const mongo = MongoWrapper.createNull();
-    const tracker = await mongo.trackChanges('testDocs');
-
+    await mongo.insert('testDocs', { _id: 'doc-1', name: 'test' });
     await mongo.update('testDocs', { _id: 'doc-1' }, { $set: { name: 'new' } });
-
-    const updated = tracker.data.filter(isChangeEvent).find((event) => event.type === 'update');
-    expect(updated).toMatchObject({
-      type: 'update',
-      collection: 'testDocs',
-      fields: { name: 'new' },
-    });
-    expect(updated?.id).toBe('doc-1');
-  });
-
-  // The stub holds no documents, so an update can only say what the update set. It says
-  // so, and the publications engine reads the mark: a field the change does not carry is
-  // unknown, not missing.
-  it('marks an update as carrying only part of the document', async () => {
-    const mongo = MongoWrapper.createNull();
-    const tracker = await mongo.trackChanges('testDocs');
-
-    await mongo.update('testDocs', { _id: 'doc-1' }, { $set: { name: 'new' } });
-
-    const updated = tracker.data.filter(isChangeEvent).find((event) => event.type === 'update');
-    expect(updated).toMatchObject({ partial: true });
-  });
-
-  it('emits a remove change carrying the _id from the query', async () => {
-    const mongo = MongoWrapper.createNull();
-    const tracker = await mongo.trackChanges('testDocs');
-
     await mongo.remove('testDocs', { _id: 'doc-1' });
 
-    const removed = tracker.data.filter(isChangeEvent).find((event) => event.type === 'remove');
-    expect(removed).toMatchObject({ type: 'remove', collection: 'testDocs' });
-    expect(removed?.id).toBe('doc-1');
+    expect(tracker.data).toEqual([
+      { type: 'insert', collection: 'testDocs', id: 'doc-1', fields: { name: 'test' } },
+      { type: 'update', collection: 'testDocs', id: 'doc-1', fields: { name: 'new' } },
+      { type: 'remove', collection: 'testDocs', id: 'doc-1' },
+    ]);
   });
 
-  it('reports zero watchers for an unwatched collection', () => {
+  it('mints an id for a document inserted without one', async () => {
     const mongo = MongoWrapper.createNull();
-    expect(mongo.watcherCount('files')).toBe(0);
-  });
+    const tracker = await mongo.trackChanges('testDocs');
 
-  it('counts active watchers from watchChanges', async () => {
-    const mongo = MongoWrapper.createNull();
-    const stop1 = await mongo.watchChanges('files', () => {
-      /* empty */
-    });
-    expect(mongo.watcherCount('files')).toBe(1);
-    const stop2 = await mongo.watchChanges('files', () => {
-      /* empty */
-    });
-    expect(mongo.watcherCount('files')).toBe(2);
-    await stop1();
-    expect(mongo.watcherCount('files')).toBe(1);
-    await stop2();
-    expect(mongo.watcherCount('files')).toBe(0);
-  });
+    await mongo.insert('testDocs', { name: 'test' });
 
-  it('counts watchers per collection', async () => {
-    const mongo = MongoWrapper.createNull();
-    await mongo.watchChanges('files', () => {
-      /* empty */
-    });
-    await mongo.watchChanges('scripts', () => {
-      /* empty */
-    });
-    await mongo.watchChanges('scripts', () => {
-      /* empty */
-    });
-    expect(mongo.watcherCount('files')).toBe(1);
-    expect(mongo.watcherCount('scripts')).toBe(2);
-    expect(mongo.watcherCount('other')).toBe(0);
-  });
-
-  it('emits an insert change to a watcher when a document is inserted', async () => {
-    const mongo = MongoWrapper.createNull();
-    const changes: ChangeEvent[] = [];
-
-    await mongo.watchChanges('todos', (c) => changes.push(c));
-
-    await mongo.insert('todos', { text: 'hello' });
-
-    expect(changes).toHaveLength(1);
-    expect(changes[0]).toMatchObject({ type: 'insert', collection: 'todos' });
+    const inserted = tracker.data[0] as ChangeEvent;
+    expect(inserted.type).toBe('insert');
+    expect(inserted.id).toMatch(/^[0-9a-f]{24}$/);
   });
 
   it('close() stops the underlying change streams so no changes arrive after', async () => {
@@ -316,5 +81,11 @@ describe('MongoWrapper (null)', () => {
     // close() left the change stream open and this insert still arrived — the same
     // open-stream-while-client-closes race that logs MongoClientClosedError in prod.
     expect(changes).toHaveLength(0);
+  });
+
+  it('consumes a configured close response, so a failing close can be rehearsed', async () => {
+    const mongo = MongoWrapper.createNull({ close: [new Error('Topology is closed')] });
+
+    await expect(mongo.close()).rejects.toThrow('Topology is closed');
   });
 });

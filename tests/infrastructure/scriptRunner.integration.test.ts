@@ -1,20 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe } from 'vitest';
 import { ScriptRunnerWrapper } from '../../server/infrastructure/scriptRunner.ts';
+import { scriptRunnerContract } from './scriptRunnerContract.ts';
 
+// Narrow integration test: the runner against real processes. The behaviour is the
+// contract list the unit file runs on the null; here the expectations are ignored and
+// node answers for itself.
 describe('ScriptRunnerWrapper (real)', () => {
-  const runner = ScriptRunnerWrapper.create();
-
-  it('executes a command and returns stdout', async () => {
-    const result = await runner.exec('node', ['-e', 'process.stdout.write("hello")']);
-    expect(result).toEqual({ stdout: 'hello', stderr: '', exitCode: 0 });
-  });
-
-  it('returns stderr and non-zero exit code on failure', async () => {
-    const result = await runner.exec('node', [
-      '-e',
-      'process.stderr.write("oops"); process.exit(1)',
-    ]);
-    expect(result.stderr).toBe('oops');
-    expect(result.exitCode).toBe(1);
-  });
+  scriptRunnerContract(() => ScriptRunnerWrapper.create());
 });

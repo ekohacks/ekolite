@@ -13,9 +13,14 @@ const messagesOfType = (messages: unknown[], type: string) =>
       typeof m === 'object' && m !== null && (m as { type?: unknown }).type === type,
   );
 
-// `held` is what the initial find returns, so what the client holds from the start.
+// `held` is what the database holds before the client subscribes: the initial find
+// answers from it, and so do the updates that follow, as a real Mongo would. What the
+// client holds from the start is the part of it the query matches.
 const subscribeToTasksOwnedBy = async (owner: string, held: Record<string, unknown>[] = []) => {
-  const mongo = MongoWrapper.createNull({ find: [held] });
+  const mongo = MongoWrapper.createNull();
+  for (const doc of held) {
+    await mongo.insert('tasks', doc);
+  }
   const ws = WebSocketWrapper.createNull();
   const client = ws.simulateConnection();
   const pubs = new Publications(mongo, ws);
@@ -81,7 +86,9 @@ describe('Publications live changes respect the query', () => {
   });
 
   it('sends added when an update moves a document the client lacks into the query', async () => {
-    const { mongo, client } = await subscribeToTasksOwnedBy('ada');
+    const { mongo, client } = await subscribeToTasksOwnedBy('ada', [
+      { _id: 'task-b', owner: 'bob' },
+    ]);
 
     await mongo.update('tasks', { _id: 'task-b' }, { $set: { owner: 'ada', title: 'now ada' } });
 
@@ -92,7 +99,9 @@ describe('Publications live changes respect the query', () => {
   });
 
   it('sends the next update to a document that came in as changed, and its delete', async () => {
-    const { mongo, client } = await subscribeToTasksOwnedBy('ada');
+    const { mongo, client } = await subscribeToTasksOwnedBy('ada', [
+      { _id: 'task-b', owner: 'bob' },
+    ]);
 
     await mongo.update('tasks', { _id: 'task-b' }, { $set: { owner: 'ada' } });
     await mongo.update('tasks', { _id: 'task-b' }, { $set: { title: 'renamed' } });
@@ -101,7 +110,8 @@ describe('Publications live changes respect the query', () => {
     expect(messagesOfType(client.messages, 'added')).toHaveLength(1);
     const [changed] = messagesOfType(client.messages, 'changed');
     expect(changed.id).toBe('task-b');
-    expect(changed.fields).toEqual({ title: 'renamed' });
+    // The whole document as it now stands, the way a real change stream hands it over.
+    expect(changed.fields).toEqual({ owner: 'ada', title: 'renamed' });
     expect(messagesOfType(client.messages, 'removed')).toHaveLength(1);
   });
 
@@ -118,7 +128,9 @@ describe('Publications live changes respect the query', () => {
   });
 
   it('says nothing about an update outside the query on a document the client lacks', async () => {
-    const { mongo, client } = await subscribeToTasksOwnedBy('ada');
+    const { mongo, client } = await subscribeToTasksOwnedBy('ada', [
+      { _id: 'task-b', owner: 'bob' },
+    ]);
     const before = client.messages.length;
 
     await mongo.update('tasks', { _id: 'task-b' }, { $set: { owner: 'bob' } });

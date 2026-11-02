@@ -104,37 +104,45 @@ describe('Files.read', () => {
 // streams to subscribers through the same files.all publication the upload used. The
 // write is a $set on the existing file keyed by id, not a new document.
 describe('Files.recordCountC', () => {
-  it('writes the count onto the file document as a $set keyed by id', async () => {
+  it('writes the count onto the file document by id, and the document keeps the rest', async () => {
     const mongo = MongoWrapper.createNull();
     const storage = FileStorageWrapper.createNull();
     const files = new Files(mongo, storage);
+    await mongo.insert('files', { _id: 'file-1', name: 'reads.bam', path: '/data/reads.bam' });
     const updates = await mongo.trackChanges('files');
 
     await files.recordCountC('file-1', 42);
 
     const update = updates.data.find((event) => (event as { type?: unknown }).type === 'update');
     expect(update).toMatchObject({ type: 'update', collection: 'files', id: 'file-1' });
-    // Exactly the count and nothing else, so $set merges the field rather than
-    // replacing the document and losing name, path and the rest.
-    expect((update as { fields: unknown }).fields).toEqual({ countC: 42 });
+    // $set merges the count into the document rather than replacing it: name and
+    // path survive, on the change and on a later read alike.
+    expect((update as { fields: unknown }).fields).toEqual({
+      name: 'reads.bam',
+      path: '/data/reads.bam',
+      countC: 42,
+    });
+    const [doc] = await mongo.find<{ name: string; countC: number }>('files', { _id: 'file-1' });
+    expect(doc).toMatchObject({ name: 'reads.bam', countC: 42 });
   });
 
   it('writes a count of zero rather than dropping it', async () => {
     const mongo = MongoWrapper.createNull();
     const storage = FileStorageWrapper.createNull();
     const files = new Files(mongo, storage);
-    const updates = await mongo.trackChanges('files');
+    await mongo.insert('files', { _id: 'file-1', name: 'reads.bam' });
 
     await files.recordCountC('file-1', 0);
 
-    const update = updates.data.find((event) => (event as { type?: unknown }).type === 'update');
-    expect((update as { fields: unknown }).fields).toEqual({ countC: 0 });
+    const [doc] = await mongo.find<{ countC: number }>('files', { _id: 'file-1' });
+    expect(doc.countC).toBe(0);
   });
 
   it('updates the existing document rather than inserting a new one', async () => {
     const mongo = MongoWrapper.createNull();
     const storage = FileStorageWrapper.createNull();
     const files = new Files(mongo, storage);
+    await mongo.insert('files', { _id: 'file-1', name: 'reads.bam' });
     const changes = await mongo.trackChanges('files');
 
     await files.recordCountC('file-1', 7);
@@ -143,6 +151,7 @@ describe('Files.recordCountC', () => {
       changes.data.filter((event) => (event as { type?: unknown }).type === type);
     expect(byType('insert')).toHaveLength(0);
     expect(byType('update')).toHaveLength(1);
+    expect(await mongo.find('files', {})).toHaveLength(1);
   });
 });
 
