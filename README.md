@@ -185,6 +185,8 @@ npm install
 npm run dev:server   # the repo's bare server on port 3001, auto restart
 
 npm run gate         # typecheck, lint, format check, the fast suite, in parallel: what pre-push and CI run
+
+npm run format       # rewrite files to the house style, the fix when the gate's format check fails
 ```
 
 `npm run dev:server` boots a server with nothing defined on it, which is what you want when you are working on the framework and not on an app.
