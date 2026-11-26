@@ -206,6 +206,8 @@ npm run gate              # The whole gate: typecheck, lint, format check and th
 
 Nullable unit tests and integration tests live in separate files (`x.test.ts` and `x.integration.test.ts`), so the fast suite never touches the network or disk.
 
+Without a local MongoDB, each mongo test in `npm run test:integration` waits 15 seconds and then fails. That is the missing database, and the `docker-compose.yml` at the root starts one.
+
 ## How we work
 
 Strict TDD, red then green then refactor, with commit messages that show the loop (`test: red - ...`, `test: green - ...`, `refactor: ...`). Trunk based development: every branch comes off `main` and goes back via a small PR. The test suite is the safety net that makes that pace honest.
