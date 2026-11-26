@@ -215,6 +215,8 @@ Without a local MongoDB, each mongo test in `npm run test:integration` waits 15 
 
 Strict TDD, red then green then refactor, with commit messages that show the loop (`test: red - ...`, `test: green - ...`, `refactor: ...`). Trunk based development: every branch comes off `main` and goes back via a small PR. The test suite is the safety net that makes that pace honest.
 
+`main` is always green. A test for behaviour that is not built yet is committed as `it.fails`, as `tests/logic/publications.refcount.test.ts` does, so the specification waits in the suite without breaking the gate.
+
 ## Production build
 
 ```bash
