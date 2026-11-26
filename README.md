@@ -199,6 +199,7 @@ Built with [Testing Without Mocks](https://www.jamesshore.com/v2/projects/nullab
 npm test                  # Fast suite: nullable unit + sociable tests
 npm run test:watch        # The same, on every save
 npm run test:integration  # Narrow integration tests (needs a real local MongoDB)
+npm run test:package      # The packed tarball, installed and imported from outside the repo
 npm run gate              # The whole gate: typecheck, lint, format check and the fast suite,
                           # run in parallel, about seven seconds; the same command the
                           # pre-push hook and CI run (ADR 0023)
